@@ -1879,12 +1879,12 @@ struct SolverChoice {
            diffChoice.init_params(pp_prefix);
         dampingChoice.init_params(pp_prefix);
          spongeChoice.init_params(pp_prefix);
-             ebChoice.init_params(pp_prefix);
 
         // EB advection (EBAdvectionSrcForScalars, EBAdvectionSrcForMom) has only the centred and
         // upwind schemes; with any other the fluxes are never set and, in a Release build, the
         // fields are not advected at all.  The moist scalars default to WENO3, so they are checked
         // only when they are advected.
+        bool any_projection = false;
         if (terrain_type == TerrainType::EB) {
             auto eb_supports = [] (AdvType t) {
                 return (t == AdvType::Centered_2nd || t == AdvType::Upwind_3rd ||
@@ -1907,13 +1907,12 @@ struct SolverChoice {
                 check_eb_adv("moistscal_vert_adv_type",  advChoice.moistscal_vert_adv_type);
             }
 
-            // Required if any level projects every step
-            bool any_projection = false;
+            // Covering zero-area faces is required if any level projects every step
             for (int lev = 0; lev <= max_level; ++lev) {
                 any_projection |= (compressibility_type[lev] != CompressibilityType::FullyCompressible);
             }
-            ebChoice.finalize_cover_zero_area_faces(any_projection);
         }
+        ebChoice.init_params(pp_prefix, any_projection);
 
         // A level that takes no acoustic substeps applies these terms on the slow step instead
         // (level_substeps); say so when they were asked for

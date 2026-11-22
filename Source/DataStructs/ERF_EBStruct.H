@@ -38,8 +38,10 @@ struct EBChoice {
     /**
      * @brief Read embedded-boundary options from the input parameter database.
      * @param pp_prefix ParmParse prefix for the ERF input namespace.
+     * @param requires_cover Force eb_cover_zero_area_faces on (a level projects every step: the
+     *        projection does not constrain momentum on faces of zero CC area fraction).
      */
-    void init_params (std::string pp_prefix)
+    void init_params (std::string pp_prefix, bool requires_cover)
     {
         amrex::ParmParse pp(pp_prefix);
 
@@ -56,18 +58,9 @@ struct EBChoice {
             amrex::Error("Don't know this eb_boundary_type");
         }
 
-        eb_cover_zero_area_faces_given = pp.query("eb_cover_zero_area_faces", eb_cover_zero_area_faces);
-    }
-
-    /**
-     * @brief Force eb_cover_zero_area_faces on if any level projects every step: the projection
-     *        does not constrain momentum on faces of zero CC area fraction, which then grows.
-     * @param any_projection Whether any level is Anelastic or PseudoIncompressible.
-     */
-    void finalize_cover_zero_area_faces (bool any_projection)
-    {
-        if (any_projection) {
-            if (eb_cover_zero_area_faces_given && !eb_cover_zero_area_faces) {
+        const bool given = pp.query("eb_cover_zero_area_faces", eb_cover_zero_area_faces);
+        if (requires_cover) {
+            if (given && !eb_cover_zero_area_faces) {
                 amrex::Abort("erf.eb_cover_zero_area_faces = false is not allowed with Anelastic or "
                              "PseudoIncompressible levels");
             }
@@ -94,7 +87,6 @@ struct EBChoice {
 
     EBBoundaryType eb_boundary_type = EBBoundaryType::SlipWall;
     bool eb_cover_zero_area_faces = false;
-    bool eb_cover_zero_area_faces_given = false;
 };
 
 /**
@@ -103,8 +95,5 @@ struct EBChoice {
  *
  * @var EBChoice::eb_cover_zero_area_faces
  * @brief Cover FC EB cells at faces with zero CC area fraction (forced on with a projection).
- *
- * @var EBChoice::eb_cover_zero_area_faces_given
- * @brief Whether erf.eb_cover_zero_area_faces was given in the inputs.
  */
 #endif
