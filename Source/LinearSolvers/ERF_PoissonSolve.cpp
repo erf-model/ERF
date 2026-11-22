@@ -326,10 +326,8 @@ void ERF::project_momenta (int lev, double l_time, double l_dt_d, Vector<MultiFa
     const bool l_pi = (solverChoice.compressibility_type[lev] == CompressibilityType::PseudoIncompressible);
     Array<MultiFab,AMREX_SPACEDIM> pi_beta;
     if (l_pi) {
-        if (solverChoice.if_implicit_projection && apply_if_drag) {
-            amrex::Abort("erf.if_implicit_projection is not yet supported with "
-                         "erf.compressibility_type = PseudoIncompressible");
-        }
+        // erf.if_implicit_projection is refused with a pseudo-incompressible level when the
+        // inputs are read (SolverChoice)
         if (lev > 0 && solverChoice.mesh_type == MeshType::VariableDz &&
             !cf_zface_layout(lev).slab_box.empty()) {
             amrex::Abort("erf.compressibility_type = PseudoIncompressible: a refined level that stops "
@@ -612,10 +610,22 @@ void ERF::project_momenta (int lev, double l_time, double l_dt_d, Vector<MultiFa
 
     // A flat mesh whose map factors are not all one, or a pseudo-incompressible level, is
     // projected with the terrain Poisson solver
-    const bool use_terrain_solver = projection_uses_terrain_solver(lev);
+    // With the implicit immersed drag a stretched mesh is projected with it too: the hybrid FFT
+    // solve has no variable coefficient, and the terrain solver takes sigma through its face
+    // area factors, as it takes beta on a pseudo-incompressible level (erf-model/ERF#4887).
+    // The projections of that level without the drag (the initial one, and after a regrid) use
+    // the same solver, so the option needs no FFT on a stretched mesh.
+    const bool use_terrain_solver = projection_uses_terrain_solver(lev) ||
+                                    (solverChoice.if_drag_in_projection(lev) &&
+                                     solverChoice.mesh_type == MeshType::StretchedDz);
     const bool flat_terrain_solve = use_terrain_solver && (solverChoice.mesh_type != MeshType::VariableDz);
-    if (l_if_implicit && use_terrain_solver) {
-        amrex::Abort("erf.if_implicit_projection needs map factors of one (it does not use the terrain Poisson solver)");
+    // The area factors are scaled before the solve (beta, sigma), so they are copies
+    const bool scaled_areas = l_pi || (l_if_implicit && use_terrain_solver);
+    // Refined levels of a flat mesh with map factors other than one are projected since
+    // erf-model/ERF#5328. With the drag in the projection that combination has no test yet.
+    if (l_if_implicit && flat_terrain_solve && lev > 0 && has_nonunit_mapfac(lev)) {
+        amrex::Abort("erf.if_implicit_projection on a refined level of a mesh without terrain-fitted "
+                     "coordinates and with map factors other than one is not supported");
     }
 
     // If we are going to solve with MLMG then we do not need to break this into subdomains
@@ -642,6 +652,22 @@ void ERF::project_momenta (int lev, double l_time, double l_dt_d, Vector<MultiFa
         }
 #endif
     } // No terrain or grid stretching
+
+    // The implicit immersed drag on a constant-dz mesh with map factors of one: GMRES with the
+    // FFT preconditioner where every region of the level is a rectangle, otherwise (or in a
+    // build without FFT) multigrid with sigma as its face coefficient (erf-model/ERF#4887)
+    bool if_solve_with_mlmg = false;
+    if (l_if_implicit && solverChoice.mesh_type == MeshType::ConstantDz && !use_terrain_solver) {
+#ifdef ERF_USE_FFT
+        for (int isub = 0; isub < subdomains[lev].size(); ++isub) {
+            if (subdomains[lev][isub].minimalBox().numPts() != subdomains[lev][isub].numPts()) {
+                if_solve_with_mlmg = true;
+            }
+        }
+#else
+        if_solve_with_mlmg = true;
+#endif
+    }
 
     for (int isub = 0; isub < subdomains[lev].size(); ++isub)
     {
@@ -772,14 +798,15 @@ void ERF::project_momenta (int lev, double l_time, double l_dt_d, Vector<MultiFa
 
         if (solverChoice.mesh_type != MeshType::ConstantDz || use_terrain_solver) {
             // On a pseudo-incompressible level the area factors are scaled by beta before the
-            // solve, so they are copies rather than aliases of the level's: multiplying and then
-            // dividing the level's own by beta would not give them back bit for bit
+            // solve (and by sigma with the implicit immersed drag), so they are copies rather than
+            // aliases of the level's: multiplying and then dividing the level's own would not give
+            // them back bit for bit
             ax_sub.define(convert(ba_sub,IntVect(1,0,0)), DistributionMapping(dm_sub), 1,
-                          ax[lev]->nGrowVect(), MFInfo{}.SetAlloc(l_pi));
+                          ax[lev]->nGrowVect(), MFInfo{}.SetAlloc(scaled_areas));
             ay_sub.define(convert(ba_sub,IntVect(0,1,0)), DistributionMapping(dm_sub), 1,
-                          ay[lev]->nGrowVect(), MFInfo{}.SetAlloc(l_pi));
+                          ay[lev]->nGrowVect(), MFInfo{}.SetAlloc(scaled_areas));
             az_sub.define(convert(ba_sub,IntVect(0,0,1)), DistributionMapping(dm_sub), 1,
-                          az[lev]->nGrowVect(), MFInfo{}.SetAlloc(l_pi));
+                          az[lev]->nGrowVect(), MFInfo{}.SetAlloc(scaled_areas));
             znd_sub.define(convert(ba_sub,IntVect(1,1,1)), DistributionMapping(dm_sub), 1,
                            z_phys_nd[lev]->nGrowVect(), MFInfo{}.SetAlloc(false));
             // The map factors on u and v faces that only the terrain path uses.  Every array a
@@ -792,7 +819,7 @@ void ERF::project_momenta (int lev, double l_time, double l_dt_d, Vector<MultiFa
 
             for (MFIter mfi(rhs_sub[0]); mfi.isValid(); ++mfi) {
                 int orig_index = index_map[mfi.index()];
-                if (l_pi) {
+                if (scaled_areas) {
                     ax_sub[mfi].copy<RunOn::Device>((*ax[lev])[orig_index]);
                     ay_sub[mfi].copy<RunOn::Device>((*ay[lev])[orig_index]);
                     az_sub[mfi].copy<RunOn::Device>((*az[lev])[orig_index]);
@@ -1047,6 +1074,13 @@ void ERF::project_momenta (int lev, double l_time, double l_dt_d, Vector<MultiFa
                 MultiFab::Multiply(ay_sub, beta_sub[1], 0, 0, 1, 0);
                 MultiFab::Multiply(az_sub, beta_sub[2], 0, 0, 1, 0);
             }
+            // With the implicit immersed drag they carry sigma, the coefficient of
+            // div(sigma grad phi)
+            if (l_if_implicit) {
+                MultiFab::Multiply(ax_sub, sigma_sub[0], 0, 0, 1, 0);
+                MultiFab::Multiply(ay_sub, sigma_sub[1], 0, 0, 1, 0);
+                MultiFab::Multiply(az_sub, sigma_sub[2], 0, 0, 1, 0);
+            }
             for (MFIter mfi(rhs_sub[0]); mfi.isValid(); ++mfi)
             {
                 Box xbx = mfi.nodaltilebox(0);
@@ -1085,11 +1119,11 @@ void ERF::project_momenta (int lev, double l_time, double l_dt_d, Vector<MultiFa
         // No terrain or grid stretching
         // ****************************************************************************
         if (solverChoice.mesh_type == MeshType::ConstantDz && !use_terrain_solver) {
-            if (l_if_implicit) {
+            if (l_if_implicit && if_solve_with_mlmg) {
+                solve_with_if_mlmg(lev, rhs_sub, phi_sub, fluxes_sub,
+                                   {&sigma_sub[0], &sigma_sub[1], &sigma_sub[2]});
+            } else if (l_if_implicit) {
 #ifdef ERF_USE_FFT
-                if (my_region.numPts() != subdomains[lev][isub].numPts()) {
-                    amrex::Abort("erf.if_implicit_projection: the FFT preconditioner needs a rectangular union of boxes");
-                }
                 abort_if_regions_meet_across_periodic(geom[lev], subdomains[lev], lev, isub, my_region,
                                                       "erf.if_implicit_projection");
 #endif
@@ -1160,7 +1194,10 @@ void ERF::project_momenta (int lev, double l_time, double l_dt_d, Vector<MultiFa
                                  "region of a level to make a rectangle");
                 }
                 abort_if_regions_meet_across_periodic(geom[lev], subdomains[lev], lev, isub, my_region,
-                                                      "erf.terrain_poisson_solver = mlmg or gmres_mlmg");
+                                                      flat_terrain_solve
+                                                      ? "The projection with map factors other than one, or "
+                                                        "grid stretching with erf.if_implicit_projection,"
+                                                      : "erf.terrain_poisson_solver = mlmg or gmres_mlmg");
                 solve_with_terrain_mlmg(lev, my_region, rhs_sub[0], phi_sub[0], fluxes_sub[0],
                                         ax_sub, ay_sub, az_sub, dJ_sub, znd_sub,
                                         !flat_terrain_solve &&
@@ -1203,10 +1240,10 @@ void ERF::project_momenta (int lev, double l_time, double l_dt_d, Vector<MultiFa
             } // mfi
 
             //
-            // Restore ax,ay,ax to their original definitions (on a pseudo-incompressible level
-            // they are copies, which are not used again)
+            // Restore ax,ay,ax to their original definitions (scaled by beta or sigma they are
+            // copies, which are not used again)
             //
-            for (MFIter mfi(rhs_sub[0]); !l_pi && mfi.isValid(); ++mfi)
+            for (MFIter mfi(rhs_sub[0]); !scaled_areas && mfi.isValid(); ++mfi)
             {
                 Box xbx = mfi.nodaltilebox(0);
                 Box ybx = mfi.nodaltilebox(1);

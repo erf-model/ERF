@@ -4464,13 +4464,17 @@ building combinations.
 |                                   | immersed forcing drag rather than an explicit            |                    |                  |
 |                                   | forward-Euler source                                     |                    |                  |
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.if_implicit_projection**    | terrain or buildings immersed forcing (not both),        | Boolean            | false            |
-|                                   | no FullyCompressible level, constant-dz mesh, map        |                    |                  |
-|                                   | factors of one, FFT build: apply the drag of the solid   |                    |                  |
-|                                   | inside the projection, m = (m* - grad phi) / (1 + dt     |                    |                  |
-|                                   | rate) on each face (FFT-preconditioned GMRES), and do    |                    |                  |
-|                                   | not zero the solid faces afterwards, so the projected    |                    |                  |
-|                                   | momenta are divergence free in the solid too             |                    |                  |
+| **erf.if_implicit_projection**    | terrain or buildings immersed forcing (not both), a      | Boolean            | false            |
+|                                   | mesh without terrain-fitted coordinates, no              |                    |                  |
+|                                   | PseudoIncompressible level, at least one level not       |                    |                  |
+|                                   | FullyCompressible: apply the drag of the solid inside    |                    |                  |
+|                                   | the projection, m = (m* - grad phi) / (1 + dt rate) on   |                    |                  |
+|                                   | each face, and do not zero the solid faces afterwards,   |                    |                  |
+|                                   | so the projected momenta are divergence free in the      |                    |                  |
+|                                   | solid too. Solver: FFT-preconditioned GMRES (constant    |                    |                  |
+|                                   | dz, map factors of one, FFT build, rectangular refined   |                    |                  |
+|                                   | regions), otherwise multigrid. A FullyCompressible       |                    |                  |
+|                                   | level keeps the drag in the momentum source              |                    |                  |
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.if_z0**                     | roughness length [m] used by the immersed forcing wall   | Real > 0           | 0.1              |
 |                                   | model                                                    |                    |                  |

@@ -15,6 +15,17 @@
  *
  * the projected momenta are divergence free everywhere, the solid included, and no freeze is
  * needed. The faces where the source term applies the wall law instead of the drag keep sigma = 1.
+ *
+ * The solve of div(sigma grad phi) (erf-model/ERF#4887):
+ *   constant dz, map factors of one, FFT build, every region of the level a rectangle:
+ *       GMRES with the constant-coefficient FFT solve as preconditioner (solve_with_if_gmres);
+ *   constant dz, map factors of one, otherwise: multigrid with sigma as the face coefficient
+ *       (solve_with_if_mlmg, amrex::MLABecLaplacian);
+ *   stretched dz or map factors other than one: the terrain Poisson multigrid, with sigma in
+ *       its face area factors (ERF::project_momenta); a region that is not a rectangle goes to
+ *       solve_with_flat_mlmg with the same area factors (erf-model/ERF#5332).
+ * A terrain-fitted mesh and a pseudo-incompressible level are not supported.
+ *
  * For buildings (erf.buildings_type = ImmersedForcing, erf-model/ERF#4887) the rate is the linear
  * drag of ImmersedForcingBuildings_{X,Y,Z}mom (partial-wall and interior faces, from the masks of
  * ERF_ImmersedBuildingMasks.H), and the faces between two solid cells take the full rate.
@@ -66,6 +77,12 @@ void ERF::make_if_projection_sigma (int lev, Real l_dt, Array<MultiFab,AMREX_SPA
     // (CdM * windspeed = min(1, |u|) * drag_coefficient there)
     const auto dx = geom[lev].CellSizeArray();
     const Real rate_solid    = solverChoice.if_Cd_momentum / std::pow(dx[0]*dx[1]*dx[2], one/three);
+    // On a stretched mesh those kernels take dz from the cell-center heights, z_cc(k) - z_cc(k-1)
+    // at the indices of the face; the rate here must be the one they drop (erf-model/ERF#4887).
+    // On a constant-dz mesh the two are the same and the constant is kept.
+    const bool local_dz      = (solverChoice.mesh_type != MeshType::ConstantDz);
+    const Real cd_momentum   = solverChoice.if_Cd_momentum;
+    const Real dxdy          = dx[0]*dx[1];
     const Real small_volfrac = solverChoice.if_small_volfrac;
     const bool use_most      = solverChoice.if_use_most;
     // the fraction-stress law (erf.if_wall_form = fraction_stress) has its own wall cell
@@ -87,6 +104,7 @@ void ERF::make_if_projection_sigma (int lev, Real l_dt, Array<MultiFab,AMREX_SPA
     {
         const Array4<const Real> t  = tb.const_array(mfi);
         const Array4<const int>  in = inside.const_array(mfi);
+        const Array4<const Real> zc = (local_dz) ? z_phys_cc[lev]->const_array(mfi) : Array4<const Real>{};
 
         for (int dir = 0; dir < AMREX_SPACEDIM; ++dir)
         {
@@ -115,7 +133,9 @@ void ERF::make_if_projection_sigma (int lev, Real l_dt, Array<MultiFab,AMREX_SPA
                         const if_bld::VertFace f = if_bld::vert_face(t, tf, i, j, k, snap, small_volfrac);
                         w = if_bld::implicit_weight(if_bld::vert_masks(f, k >= dom_klo + 1, use_most, snap).linear(f.t), f.raw);
                     }
-                    sg(i,j,k) = one / (one + l_dt * w * rate_solid);
+                    const Real rs = (zc) ? cd_momentum / std::pow(dxdy*(zc(i,j,k) - zc(i,j,k-1)), one/three)
+                                         : rate_solid;
+                    sg(i,j,k) = one / (one + l_dt * w * rs);
                 });
                 continue;
             }
@@ -141,7 +161,9 @@ void ERF::make_if_projection_sigma (int lev, Real l_dt, Array<MultiFab,AMREX_SPA
                 const bool wall = (dir < 2) && use_most &&
                                   (fraction_stress ? ib_wall::is_wall_cell(face_blank(k-1), b, face_blank(k+1), small_volfrac)
                                                    : ((b > zero) && (b < one) && (face_blank(k+1) == zero)));
-                const Real rate = wall ? zero : b * rate_solid;
+                const Real rs   = (zc) ? cd_momentum / std::pow(dxdy*(zc(i,j,k) - zc(i,j,k-1)), one/three)
+                                       : rate_solid;
+                const Real rate = wall ? zero : b * rs;
                 sg(i,j,k) = one / (one + l_dt * rate);
             });
         }
@@ -209,7 +231,7 @@ void ERF::solve_with_if_gmres (int lev, const Box& subdomain, MultiFab& rhs, Mul
     ip.getFluxes(phi, fluxes);
 #else
     amrex::ignore_unused(lev, rhs, phi, fluxes, sigma);
-    amrex::Abort("erf.if_implicit_projection needs a build with FFT");
+    amrex::Abort("solve_with_if_gmres needs a build with FFT; erf.if_implicit_projection uses multigrid without it");
 #endif
 
     ImposeBCsOnPhi(lev, phi, subdomain);

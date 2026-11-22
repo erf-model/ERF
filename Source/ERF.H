@@ -564,6 +564,11 @@ public:
                               amrex::MultiFab& rhs, amrex::MultiFab& phi,
                               amrex::Array<amrex::MultiFab,AMREX_SPACEDIM>& fluxes,
                               amrex::Array<amrex::MultiFab const*,AMREX_SPACEDIM> const& sigma);
+    //! Multigrid solve of div(sigma grad phi) = rhs (erf.if_implicit_projection) where the FFT
+    //! preconditioner is not available; fluxes = -grad phi, without sigma
+    void solve_with_if_mlmg (int lev, amrex::Vector<amrex::MultiFab>& rhs, amrex::Vector<amrex::MultiFab>& phi,
+                             amrex::Vector<amrex::Array<amrex::MultiFab,AMREX_SPACEDIM>>& fluxes,
+                             amrex::Array<amrex::MultiFab const*,AMREX_SPACEDIM> const& sigma);
     void solve_with_gmres (int lev, const amrex::Box& subdomain,
                            amrex::MultiFab& rhs, amrex::MultiFab& p,
                            amrex::Array<amrex::MultiFab,AMREX_SPACEDIM>& fluxes,
