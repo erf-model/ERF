@@ -565,6 +565,12 @@ ERF::check_seb_surface_layer ()
             Abort("erf.radiation.seb_init_skin_from_file = true needs erf.radiation_model = "
                   "TwoStream: the skin temperature it sets belongs to the two-stream balance");
         }
+        bool t_deep_from_file = false;
+        pp.query("radiation.seb_init_t_deep_from_file", t_deep_from_file);
+        if (t_deep_from_file) {
+            Abort("erf.radiation.seb_init_t_deep_from_file = true needs erf.radiation_model = "
+                  "TwoStream: the deep temperature it sets belongs to the two-stream balance");
+        }
     }
     if (solverChoice.rad_type != RadiationType::TwoStream || !rc.seb_enable) { return; }
     // Checked here and not in init_seb_skin_from_file, so that a restart is checked too, and
@@ -577,6 +583,15 @@ ERF::check_seb_surface_layer ()
         Abort("erf.radiation.seb_init_skin_from_file = true cannot be used with a land-surface, "
               "urban or surface model: it owns the surface temperature, and the two-stream "
               "balance does not advance its skin then");
+    }
+    // The same combinations: the balance does not restore its skin toward the deep
+    // temperature then, and the initial file's soil fields go to the land model.
+    if (rc.seb_init_t_deep_from_file &&
+        (solverChoice.lsm_type != LandSurfaceType::None ||
+         solverChoice.urban_type != UrbanType::None || m_SurfaceModel)) {
+        Abort("erf.radiation.seb_init_t_deep_from_file = true cannot be used with a "
+              "land-surface, urban or surface model: it owns the surface temperature, and the "
+              "two-stream balance does not restore its skin toward the deep temperature then");
     }
     SurfaceLayer* surface_layer = m_SurfaceLayer[Orientation::zlo()].get();
 
@@ -814,6 +829,12 @@ ERF::init_seb_skin_from_file (int lev)
     } else {
         Print() << "; water columns keep what level " << lev-1 << " gave them.";
     }
+    // With erf.radiation.seb_init_t_deep_from_file the restoring temperature of the land
+    // columns is the file's too, and init_seb_t_deep_from_file reports it.
+    if (rc.seb_init_t_deep_from_file) {
+        Print() << "\n";
+        return;
+    }
     // The restoring temperature is still one value: say how far the start lies from it.
     Print() << " The restoring temperature stays erf.radiation.seb_t_deep_default = "
             << rc.seb_t_deep_default << " K in every column";
@@ -823,6 +844,97 @@ ERF::init_seb_skin_from_file (int lev)
         Print() << ", up to " << far << " K from the values set";
     }
     Print() << "; the skin relaxes toward it.\n";
+}
+
+// The first value of the two-stream force-restore balance's deep (restoring) temperature
+// from the initial file, with erf.radiation.seb_init_t_deep_from_file. Called from
+// MakeNewLevelFromScratch after fill_seb_from_coarse and init_seb_skin_from_file, at a
+// fresh start only.
+//
+// The file's field is TMN, the soil temperature at the lower boundary, which
+// wrf_surface_fields holds as the wrfinput file gave it (erf.init_type = WRFInput; a
+// metgrid file is not read for it). Land columns (lmask_lev >= 1) take it. Water columns
+// keep what they hold: erf.radiation.seb_t_deep_default at level 0, the parent's value on a
+// finer level. The balance does not run on water, so that value is not used there.
+//
+// A finer level takes TMN only when it read an initial file of its own. One that did not,
+// or that takes its radiation from its parent, keeps what fill_seb_from_coarse gave it:
+// the parent's deep temperature, which is the parent's TMN on land. The erf.nc_low_file
+// case of init_seb_skin_from_file does not apply: the level's TMN is its own file's.
+//
+// With the input the deep temperature is carried state of the balance
+// (TwoStreamRadiation::seb_t_deep_is_state): it is not reset each step, a level made later
+// takes its parent's, and the checkpoint holds it. So this is not called on a restart.
+//
+// Nothing runs when the input is false.
+void
+ERF::init_seb_t_deep_from_file (int lev)
+{
+    const RadChoice& rc = solverChoice.radChoice;
+    if (!rc.seb_init_t_deep_from_file) { return; }
+    // The combinations the input cannot be used in are refused in check_seb_surface_layer.
+    if (lev > 0) {
+        if (!has_own_init_file(lev)) { return; }
+        if (rad_level_needs_interpolation(lev)) { return; }
+    }
+
+    // With a land-surface or urban model the reader hands the file's soil fields to that
+    // model and wrf_surface_fields holds none, so the test below would blame the file. The
+    // surface model does not exist yet; check_seb_surface_layer refuses it afterwards.
+    if (solverChoice.lsm_type != LandSurfaceType::None ||
+        solverChoice.urban_type != UrbanType::None) {
+        Abort("erf.radiation.seb_init_t_deep_from_file = true cannot be used with a "
+              "land-surface, urban or surface model: it owns the surface temperature, and the "
+              "two-stream balance does not restore its skin toward the deep temperature then");
+    }
+    const MultiFab* tmn = wrf_surface_fields.get(lev, WRFSurfaceFields::Field::TMN);
+    if (!tmn) {
+        Abort("erf.radiation.seb_init_t_deep_from_file = true: the initial file of level " +
+              std::to_string(lev) + " gave no usable TMN. It needs erf.init_type = WRFInput "
+              "with TMN in the file, on every column of the level and inside the range the "
+              "reader accepts (see the reader's report above)");
+    }
+    MultiFab* t_deep = two_stream_rad.seb_t_deep_state(lev);
+    if (!t_deep) {
+        Abort("erf.radiation.seb_init_t_deep_from_file = true: the two-stream balance has no "
+              "deep temperature at level " + std::to_string(lev));
+    }
+    const iMultiFab* lmask = lmask_lev[lev].empty() ? nullptr : lmask_lev[lev][0].get();
+
+    // The copy, the land test and the range test are those of the skin temperature.
+    SEBSkinInitReport report = seb_init_skin_from_file(*t_deep, *tmn, lmask,
+                                                       rc.seb_prognostic_t_min_k,
+                                                       rc.seb_prognostic_t_max_k);
+    // Three collectives, only with the input and once per level at the start.
+    ParallelDescriptor::ReduceLongSum({report.n_set, report.n_refused});
+    ParallelDescriptor::ReduceRealMin(report.t_min);
+    ParallelDescriptor::ReduceRealMax(report.t_max);
+    if (report.n_refused > 0) {
+        Abort("erf.radiation.seb_init_t_deep_from_file = true: at level " + std::to_string(lev) +
+              " the TMN of the initial file is not finite or lies outside "
+              "[erf.radiation.seb_prognostic_t_min_k, erf.radiation.seb_prognostic_t_max_k] = [" +
+              std::to_string(rc.seb_prognostic_t_min_k) + ", " +
+              std::to_string(rc.seb_prognostic_t_max_k) + "] K on " +
+              std::to_string(report.n_refused) + " land column(s)");
+    }
+    t_deep->FillBoundary(geom[lev].periodicity());
+
+    Print() << "ERF::init_seb_t_deep_from_file: level " << lev << ": the deep temperature of "
+            << report.n_set << " land column(s) is the TMN of the initial file";
+    if (report.n_set > 0) {
+        Print() << " (" << report.t_min << " K to " << report.t_max << " K)";
+    }
+    if (lev == 0) {
+        Print() << "; water columns keep erf.radiation.seb_t_deep_default = "
+                << rc.seb_t_deep_default << " K.";
+    } else {
+        Print() << "; water columns keep what level " << lev-1 << " gave them.";
+    }
+    if (rc.seb_deep_prognostic_enable) {
+        Print() << " It is the first value of the deep reservoir, which evolves.\n";
+    } else {
+        Print() << " The balance does not evolve it.\n";
+    }
 }
 
 /**

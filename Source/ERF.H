@@ -620,6 +620,10 @@ public:
     //! temperature of the land columns of level lev from the initial file's TSK or SKINTEMP
     void init_seb_skin_from_file (int lev);
 
+    //! With erf.radiation.seb_init_t_deep_from_file, start the two-stream SEB deep
+    //! (restoring) temperature of the land columns of level lev from the initial file's TMN
+    void init_seb_t_deep_from_file (int lev);
+
     //! With erf.radiation.seb_surface_layer_uses_skin, hand the two-stream surface energy
     //! balance's skin temperature of level lev to the zlo surface layer before it
     //! computes its fluxes

@@ -5590,10 +5590,19 @@ if(ERF_ENABLE_NETCDF AND ERF_TEST_PYTHON)
         # The run must stop; CHECK then finds the message in the log
         set(_run "( ! ${_exe} ${RUNTIME_OPTIONS} > ${_log} 2>&1 )")
       else()
-        # A run of two steps with a checkpoint after the first, then a restart from it
+        # A run of two steps with a checkpoint after the first, then a restart from it.
+        # With "restart_deep_on" only the restart sets seb_init_t_deep_from_file: the
+        # checkpoint is then one of a run without the input.
         set(_first ${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}_first.log)
         set(_two "max_step=2 erf.check_file=chk erf.check_int=1")
-        set(_run "rm -rf chk0000? && ( ${_exe} ${RUNTIME_OPTIONS} ${_two} erf.plot2d_file_1=plt2dA > ${_first} 2>&1 || ( tail -n 40 ${_first} && false ) ) && ( ${_exe} ${RUNTIME_OPTIONS} ${_two} erf.restart=chk00001 erf.plot2d_file_1=plt2dB > ${_log} 2>&1 || ( tail -n 40 ${_log} && false ) )")
+        # With "restart_deep_off" only the first run sets it.
+        set(_second "")
+        if("${EXPECT}" STREQUAL "restart_deep_on")
+          set(_second "erf.radiation.seb_init_t_deep_from_file=true")
+        elseif("${EXPECT}" STREQUAL "restart_deep_off")
+          set(_second "erf.radiation.seb_init_t_deep_from_file=false")
+        endif()
+        set(_run "rm -rf chk0000? && ( ${_exe} ${RUNTIME_OPTIONS} ${_two} erf.plot2d_file_1=plt2dA > ${_first} 2>&1 || ( tail -n 40 ${_first} && false ) ) && ( ${_exe} ${RUNTIME_OPTIONS} ${_second} ${_two} erf.restart=chk00001 erf.plot2d_file_1=plt2dB > ${_log} 2>&1 || ( tail -n 40 ${_log} && false ) )")
       endif()
       string(REPLACE "@PY@" "${_py}" _check "${CHECK}")
       string(REPLACE "@LOG@" "${_log}" _check "${_check}")
@@ -5645,6 +5654,97 @@ if(ERF_ENABLE_NETCDF AND ERF_TEST_PYTHON)
           "@PY@ nested plt2d00000 --log @LOG@ --count 78 --count 62" 3)
       add_test_wrfinput_seb_skin(WRFInput_SEBSkinInit_Restart_MPI "" "" restart
           "@PY@ same plt2dA00002 plt2dB00002 --log @LOG@ && @PY@ log @LOG@ 'NOTE: erf.radiation.seb_init_skin_from_file is not used on a restart'" 3)
+    endif()
+
+    # The deep (restoring) temperature of the same balance from the TMN of the wrfinput file
+    # (erf.radiation.seb_init_t_deep_from_file), on the same deck. make_wrfinput.py writes
+    # TMN = 275 + 0.25 i + 0.5 j; erf.radiation.seb_t_deep_default is 290 K. check_skin.py
+    # --field deep compares every column of seb_t_deep with the formula: a land column holds
+    # TMN, a water column 290 K. The deck leaves the input off and the legs set it on the
+    # command line, which is read after the deck. The legs: the input on, two steps, with a water TMN of 350 K, which is not read, and the deep
+    # temperature still the file's after the two steps; off, when every column holds 290 K
+    # after two steps as before; on with the skin input off; a second level without a file,
+    # made by tagging; a nest with a file, with and without a lower boundary file of its own
+    # (TMN is the nest's own in both); a restart, whose deep and skin temperatures must be
+    # those of the run without a restart, bit for bit; a restart with the input from a
+    # checkpoint of a run without it, which keeps 290 K and says so; the input with the deep
+    # reservoir (seb_deep_prognostic_enable), at the start, after two steps (within 0.01 K
+    # of TMN and not equal to it) and through a restart; a restart without the input from a
+    # checkpoint that holds the field, which goes back to 290 K and says so; a restart of
+    # the nest, where the coarse columns under the nest hold the mean of the nest's land
+    # TMN after the first step; a land TMN of 150 K, below seb_prognostic_t_min_k; a file
+    # without TMN, a start without a file, a water TMN of -999 K (the reader then does not
+    # hold the field), a land TMN of 350 K, another radiation model and the balance not
+    # prognostic, each of which must stop the run with a message that names the input; 350 K
+    # with the bound raised to 360 K, which runs; and, with MPI, four ranks on two boxes, a
+    # land TMN of 350 K on each of two ranks, the nest on small boxes and the restart.
+    set(_deep_on "erf.radiation.seb_init_t_deep_from_file=true")
+    set(_deep_named "@PY@ log @LOG@ 'erf.radiation.seb_init_t_deep_from_file = true'")
+    set(_deep_restart "@PY@ same plt2dA00002 plt2dB00002 --field deep && @PY@ file plt2dB00002 --field deep && @PY@ same plt2dA00002 plt2dB00002 && @PY@ log @LOG@ 'ERF::init_seb_t_deep_from_file' --absent")
+    add_test_wrfinput_seb_skin(WRFInput_SEBDeepInit "--tmn-water 350" "${_deep_on} max_step=2" runs
+        "@PY@ file plt2d00000 --field deep --log @LOG@ --count 78 && @PY@ file plt2d00002 --field deep && @PY@ file plt2d00000 --log @LOG@ --count 78 && @PY@ log @LOG@ 'water columns keep erf.radiation.seb_t_deep_default = 290 K. The balance does not evolve it.' && @PY@ log @LOG@ 'The restoring temperature stays' --absent")
+    add_test_wrfinput_seb_skin(WRFInput_SEBDeepInit_Off "" "max_step=2" runs
+        "@PY@ default plt2d00000 --field deep && @PY@ default plt2d00002 --field deep && @PY@ log @LOG@ 'ERF::init_seb_t_deep_from_file' --absent")
+    add_test_wrfinput_seb_skin(WRFInput_SEBDeepInit_SkinOff ""
+        "${_deep_on} erf.radiation.seb_init_skin_from_file=false" runs
+        "@PY@ file plt2d00000 --field deep --log @LOG@ --count 78 && @PY@ default plt2d00000")
+    add_test_wrfinput_seb_skin(WRFInput_SEBDeepInit_TaggedLevel "--all-land"
+        "${_deep_on} amr.max_level=1 amr.ref_ratio_vect=2 2 1 amr.n_error_buf=0 amr.blocking_factor=2 erf.regrid_int=-1 erf.refinement_indicators=boxa erf.boxa.max_level=1 erf.boxa.in_box_lo=2000.0 2000.0 erf.boxa.in_box_hi=6000.0 6000.0"
+        runs "@PY@ tagged plt2d00000 --field deep --log @LOG@ --count 96 && @PY@ log @LOG@ 'ERF::init_seb_t_deep_from_file: level 1' --absent")
+    add_test_wrfinput_seb_skin(WRFInput_SEBDeepInit_Nested "--nest"
+        "${_deep_on} ${_skin_nest} erf.nc_low_file_1=wrflowinp_d02" runs
+        "@PY@ nested plt2d00000 --field deep --log @LOG@ --count 78 --count 62")
+    # Without a lower boundary file of its own the nest's skin follows its parent's; its TMN
+    # is still its own file's
+    add_test_wrfinput_seb_skin(WRFInput_SEBDeepInit_NestedParentLow "--nest" "${_deep_on} ${_skin_nest}" runs
+        "@PY@ nested plt2d00000 --field deep --log @LOG@ --count 78 --count 62 && @PY@ log @LOG@ 'level 1: the skin temperature is that of level 0, interpolated'")
+    add_test_wrfinput_seb_skin(WRFInput_SEBDeepInit_Restart "" "${_deep_on}" restart "${_deep_restart}")
+    add_test_wrfinput_seb_skin(WRFInput_SEBDeepInit_OlderCheckpoint "" "" restart_deep_on
+        "@PY@ default plt2dB00002 --field deep && @PY@ same plt2dA00002 plt2dB00002 && @PY@ log @LOG@ 'NOTE: the checkpoint has no TwoStream_TDeep: erf.radiation.seb_init_t_deep_from_file is not used on this restart' && @PY@ log @LOG@ 'ERF::init_seb_t_deep_from_file' --absent")
+    add_test_wrfinput_seb_skin(WRFInput_SEBDeepInit_DeepPrognostic ""
+        "${_deep_on} erf.radiation.seb_deep_prognostic_enable=true erf.radiation.seb_soil_porosity=0.4 max_step=2" runs
+        "@PY@ file plt2d00000 --field deep --log @LOG@ --count 78 && @PY@ near plt2d00002 --field deep --tol 0.01 && @PY@ log @LOG@ 'It is the first value of the deep reservoir, which evolves.'")
+    add_test_wrfinput_seb_skin(WRFInput_SEBDeepInit_DeepPrognostic_Restart ""
+        "${_deep_on} erf.radiation.seb_deep_prognostic_enable=true erf.radiation.seb_soil_porosity=0.4" restart
+        "@PY@ same plt2dA00002 plt2dB00002 --field deep && @PY@ near plt2dB00002 --field deep --tol 0.01 && @PY@ same plt2dA00002 plt2dB00002 && @PY@ log @LOG@ 'ERF::init_seb_t_deep_from_file' --absent")
+    # The input on in the first run only: the restart goes back to the default
+    add_test_wrfinput_seb_skin(WRFInput_SEBDeepInit_RestartInputOff "" "${_deep_on}" restart_deep_off
+        "@PY@ file plt2dA00002 --field deep && @PY@ default plt2dB00002 --field deep && @PY@ log @LOG@ 'NOTE: the checkpoint holds TwoStream_TDeep, which is not read'")
+    # The nest through a restart: both levels come back, and the level 0 columns under the
+    # nest hold the mean of the nest's land TMN (two-way coupling) from the first step on
+    add_test_wrfinput_seb_skin(WRFInput_SEBDeepInit_Nested_Restart "--nest"
+        "${_deep_on} ${_skin_nest} erf.nc_low_file_1=wrflowinp_d02" restart
+        "@PY@ same plt2dA00002 plt2dB00002 --field deep && @PY@ nested plt2dB00002 --field deep --averaged && @PY@ same plt2dA00002 plt2dB00002 && @PY@ log @LOG@ 'ERF::init_seb_t_deep_from_file' --absent")
+    add_test_wrfinput_seb_skin(WRFInput_SEBDeepInit_NoTMN "--no-tmn" "${_deep_on}" stops
+        "${_deep_named} && @PY@ log @LOG@ 'the initial file of level 0 gave no usable TMN'")
+    add_test_wrfinput_seb_skin(WRFInput_SEBDeepInit_NoFile ""
+        "${_deep_on} erf.radiation.seb_init_skin_from_file=false erf.init_type=Uniform" stops
+        "${_deep_named} && @PY@ log @LOG@ 'the initial file of level 0 gave no usable TMN'")
+    # The reader does not hold a field with a value outside its own range, on water too
+    add_test_wrfinput_seb_skin(WRFInput_SEBDeepInit_FlagOnWater "--tmn-water -999" "${_deep_on}" stops
+        "${_deep_named} && @PY@ log @LOG@ 'the initial file of level 0 gave no usable TMN'")
+    add_test_wrfinput_seb_skin(WRFInput_SEBDeepInit_NotTwoStream "" "${_deep_on} erf.radiation.seb_init_skin_from_file=false erf.radiation_model=None" stops
+        "${_deep_named} && @PY@ log @LOG@ 'needs erf.radiation_model = TwoStream'")
+    add_test_wrfinput_seb_skin(WRFInput_SEBDeepInit_AboveRange "--tmn-land 350" "${_deep_on}" stops
+        "${_deep_named} && @PY@ log @LOG@ 'on 1 land column(s)' && @PY@ log @LOG@ '= [200.000000, 340.000000] K'")
+    add_test_wrfinput_seb_skin(WRFInput_SEBDeepInit_BelowRange "--tmn-land 150" "${_deep_on}" stops
+        "${_deep_named} && @PY@ log @LOG@ 'on 1 land column(s)' && @PY@ log @LOG@ '= [200.000000, 340.000000] K'")
+    add_test_wrfinput_seb_skin(WRFInput_SEBDeepInit_RangeRaised "--tmn-land 350"
+        "${_deep_on} erf.radiation.seb_prognostic_t_max_k=360" runs
+        "@PY@ file plt2d00000 --field deep --land 350 --log @LOG@ --count 78")
+    add_test_wrfinput_seb_skin(WRFInput_SEBDeepInit_NotPrognostic ""
+        "${_deep_on} erf.radiation.seb_init_skin_from_file=false erf.radiation.seb_prognostic_enable=false" stops
+        "${_deep_named} && @PY@ log @LOG@ 'needs erf.radiation.seb_prognostic_enable = true'")
+    if(ERF_ENABLE_MPI)
+      add_test_wrfinput_seb_skin(WRFInput_SEBDeepInit_MPI "" "${_deep_on} max_step=2" runs
+          "@PY@ file plt2d00000 --field deep --log @LOG@ --count 78 && @PY@ file plt2d00002 --field deep" 4)
+      # One bad column in each box, so each rank holds one: the count is the sum over the ranks
+      add_test_wrfinput_seb_skin(WRFInput_SEBDeepInit_AboveRange_MPI "--tmn-land 350 --tmn-land-west 350" "${_deep_on}" stops
+          "${_deep_named} && @PY@ log @LOG@ 'on 2 land column(s)'" 2)
+      add_test_wrfinput_seb_skin(WRFInput_SEBDeepInit_Nested_MPI "--nest"
+          "${_deep_on} ${_skin_nest} erf.nc_low_file_1=wrflowinp_d02 amr.max_grid_size=4" runs
+          "@PY@ nested plt2d00000 --field deep --log @LOG@ --count 78 --count 62" 3)
+      add_test_wrfinput_seb_skin(WRFInput_SEBDeepInit_Restart_MPI "" "${_deep_on}" restart "${_deep_restart}" 3)
     endif()
   else()
     message(STATUS "Skipping WRFInput_CroppedParent, WRFInput_LegacySurfaceTemperature, WRFInput_SurfaceFields, and WRFInput_SEBSkinInit: Python netCDF4 and numpy are required")

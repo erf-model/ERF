@@ -1,18 +1,25 @@
 #!/usr/bin/env python3
-"""Write a small wrfinput file whose skin temperature TSK varies from column to column.
+"""Write a small wrfinput file whose skin temperature TSK and deep soil temperature TMN
+vary from column to column.
 
-The state is at rest and uniform. TSK = 280 + 0.5 i + 0.25 j [K] (i, j column indices from
-zero) and LANDMASK is 0 (water) where i >= 6 and j <= 2, a block that lies in both boxes
-of the deck. check_skin.py imports the same formulas.
+The state is at rest and uniform. TSK = 280 + 0.5 i + 0.25 j [K] and
+TMN = 275 + 0.25 i + 0.5 j [K] (i, j column indices from zero), and LANDMASK is 0 (water)
+where i >= 6 and j <= 2, a block that lies in both boxes of the deck. check_skin.py
+imports the same formulas.
 
   --all-land           no water column
   --land VALUE         TSK of the land column (8, 5) is VALUE
   --land-west VALUE    TSK of the land column (2, 5), in the other box, is VALUE
   --water VALUE        TSK of the water column (8, 1) is VALUE
   --nest               also write wrfinput_d02 and wrflowinp_d02: 8 x 8 columns refined by 2 over the level 0
-                       columns 2..5 x 2..5, with TSK = 290 + 0.125 I + 0.0625 J [K] (I, J
-                       the fine column indices of the whole domain, 4..11) and water in the
-                       fine columns (10, 5) and (11, 5)
+                       columns 2..5 x 2..5, with TSK = 290 + 0.125 I + 0.0625 J [K] and
+                       TMN = 284 + 0.0625 I + 0.125 J [K] (I, J the fine column indices of
+                       the whole domain, 4..11) and water in the fine columns (10, 5) and
+                       (11, 5)
+  --no-tmn             leave TMN out of the files
+  --tmn-land VALUE     TMN of the land column (8, 5) is VALUE
+  --tmn-land-west VALUE  TMN of the land column (2, 5), in the other box, is VALUE
+  --tmn-water VALUE    TMN of the water column (8, 1) is VALUE
 """
 
 import argparse
@@ -24,6 +31,7 @@ DATE = "2026-01-01_00:00:00"
 NX, NY, NZ = 12, 8, 8
 GRAV = 9.81
 RAD_T_SFC = 300.0        # erf.rad_t_sfc of the deck [K]
+T_DEEP_DEFAULT = 290.0   # erf.radiation.seb_t_deep_default of the deck [K]
 SST = 285.0              # the sea surface temperature of the file [K]
 LAND_COLUMN = (8, 5)     # (i, j): the first column of the deck's second box
 WEST_LAND_COLUMN = (2, 5)  # a land column of the deck's first box
@@ -33,6 +41,11 @@ WATER_COLUMN = (8, 1)
 def tsk(i, j):
     """The skin temperature of the file [K] at column (i, j)."""
     return 280.0 + 0.5 * i + 0.25 * j
+
+
+def tmn(i, j):
+    """The deep soil temperature of the file [K] at column (i, j)."""
+    return 275.0 + 0.25 * i + 0.5 * j
 
 
 def is_water(i, j, all_land=False):
@@ -48,12 +61,17 @@ def nest_tsk(i, j):
     return 290.0 + 0.125 * i + 0.0625 * j
 
 
+def nest_tmn(i, j):
+    """The deep soil temperature of wrfinput_d02 [K] at the fine column (i, j) of the whole domain."""
+    return 284.0 + 0.0625 * i + 0.125 * j
+
+
 def nest_is_water(i, j):
     return j == 5 and i >= 10
 
 
-def write_file(path, nx, ny, ratio, parent_start, dx, skin, landmask):
-    """skin: (ny, nx) array, or None to leave TSK out."""
+def write_file(path, nx, ny, ratio, parent_start, dx, skin, landmask, deep=None):
+    """skin, deep: (ny, nx) arrays; None leaves TSK or TMN out."""
     with nc.Dataset(path, "w", format="NETCDF4_CLASSIC") as ds:
         for name, size in (
             ("Time", 1), ("DateStrLen", len(DATE)),
@@ -97,6 +115,8 @@ def write_file(path, nx, ny, ratio, parent_start, dx, skin, landmask):
             put(name, xy, value)
         if skin is not None:
             put("TSK", xy, skin[None, ...])
+        if deep is not None:
+            put("TMN", xy, deep[None, ...])
         put("LANDMASK", xy, landmask[None, ...])
         put("MAPFAC_U", ("Time", "south_north", "west_east_stag"), 1.0)
         put("MAPFAC_V", ("Time", "south_north_stag", "west_east"), 1.0)
@@ -127,6 +147,10 @@ def main():
     parser.add_argument("--land-west", type=float, default=None)
     parser.add_argument("--water", type=float, default=None)
     parser.add_argument("--nest", action="store_true")
+    parser.add_argument("--no-tmn", action="store_true")
+    parser.add_argument("--tmn-land", type=float, default=None)
+    parser.add_argument("--tmn-land-west", type=float, default=None)
+    parser.add_argument("--tmn-water", type=float, default=None)
     args = parser.parse_args()
 
     i = np.arange(NX, dtype=np.float64)[None, :] + np.zeros((NY, 1))
@@ -142,7 +166,14 @@ def main():
     if args.water is not None:
         skin[WATER_COLUMN[1], WATER_COLUMN[0]] = args.water
 
-    write_file("wrfinput_d01", NX, NY, 1, 0, 1000.0, skin, landmask)
+    deep = None if args.no_tmn else tmn(i, j)
+    if deep is not None:
+        for column, value in ((LAND_COLUMN, args.tmn_land), (WEST_LAND_COLUMN, args.tmn_land_west),
+                              (WATER_COLUMN, args.tmn_water)):
+            if value is not None:
+                deep[column[1], column[0]] = value
+
+    write_file("wrfinput_d01", NX, NY, 1, 0, 1000.0, skin, landmask, deep)
 
     if args.nest:
         fi = NEST_RATIO * NEST_LO + np.arange(NEST_N, dtype=np.float64)[None, :] + np.zeros((NEST_N, 1))
@@ -150,7 +181,7 @@ def main():
         fine_mask = np.ones((NEST_N, NEST_N))
         fine_mask[(fj == 5) & (fi >= 10)] = 0.0
         write_file("wrfinput_d02", NEST_N, NEST_N, NEST_RATIO, NEST_LO, 1000.0 / NEST_RATIO,
-                   nest_tsk(fi, fj), fine_mask)
+                   nest_tsk(fi, fj), fine_mask, None if args.no_tmn else nest_tmn(fi, fj))
 
     write_low_file("wrflowinp_d01", NX, NY)
     if args.nest:

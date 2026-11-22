@@ -711,10 +711,14 @@ TwoStreamRadiation::write_checkpoint (int lev, const std::string& checkpointname
         VisMF::Write(*m_q_sfc[lev],
                      MultiFabFileFullPrefix(lev, checkpointname, "Level_", "TwoStream_QSfc"));
     }
-    // The deep state evolves only with erf.radiation.seb_deep_prognostic_enable.
-    if (m_rad->seb_deep_prognostic_enable && m_t_deep[lev] && m_q_deep[lev]) {
+    // The deep state evolves only with erf.radiation.seb_deep_prognostic_enable. The deep
+    // temperature is also written when erf.radiation.seb_init_t_deep_from_file set it per
+    // column: the restart does not read the initial file again.
+    if (seb_t_deep_is_state() && m_t_deep[lev]) {
         VisMF::Write(*m_t_deep[lev],
                      MultiFabFileFullPrefix(lev, checkpointname, "Level_", "TwoStream_TDeep"));
+    }
+    if (m_rad->seb_deep_prognostic_enable && m_q_deep[lev]) {
         VisMF::Write(*m_q_deep[lev],
                      MultiFabFileFullPrefix(lev, checkpointname, "Level_", "TwoStream_QDeep"));
     }
@@ -749,21 +753,48 @@ TwoStreamRadiation::read_checkpoint (int lev, const std::string& restart_chkfile
                                                  m_q_sfc[lev]->nGrowVect(), true, period);
     }
     // A checkpoint written without the deep reservoir has no deep state: the defaults stand.
-    if (m_rad->seb_deep_prognostic_enable) {
+    // With erf.radiation.seb_init_t_deep_from_file and no deep reservoir only the deep
+    // temperature is read. A checkpoint without it was written by a run whose deep
+    // temperature was erf.radiation.seb_t_deep_default in every column, so that value, set
+    // by define_level, continues that run; the initial file is not read on a restart.
+    if (seb_t_deep_is_state()) {
+        const bool reservoir = m_rad->seb_deep_prognostic_enable;
+        const bool from_file = m_rad->seb_init_t_deep_from_file;
+        bool t_deep_read = false;
         MultiFab* deep[] = {m_t_deep[lev].get(), m_q_deep[lev].get()};
         const char* deep_names[] = {"TwoStream_TDeep", "TwoStream_QDeep"};
-        for (int n = 0; n < 2; ++n) {
+        for (int n = 0; n < (reservoir ? 2 : 1); ++n) {
             const std::string name =
                 MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", deep_names[n]);
             if (deep[n] && amrex::FileExists(name + "_H")) {
                 erf_checkpoint::read_checkpoint_multifab(*deep[n], name, 0, 0, 1,
                                                          deep[n]->nGrowVect(), true, period);
+                if (n == 0) { t_deep_read = true; }
+            } else if (deep[n] && lev == 0 && n == 0 && from_file) {
+                // Written by a run without the input and without the reservoir
+                amrex::Print() << "NOTE: the checkpoint has no " << deep_names[n]
+                               << ": erf.radiation.seb_init_t_deep_from_file is not used on "
+                                  "this restart and the deep temperature "
+                               << (reservoir ? "starts from " : "is ")
+                               << "erf.radiation.seb_t_deep_default = "
+                               << m_rad->seb_t_deep_default << " K in every column\n";
+            } else if (deep[n] && lev == 0 && n == 1 && t_deep_read) {
+                // Written with seb_init_t_deep_from_file and without the reservoir
+                amrex::Print() << "NOTE: the checkpoint has no " << deep_names[n]
+                               << "; the deep temperature is the checkpoint's and "
+                                  "erf.radiation.seb_q_deep_default starts the deep moisture\n";
             } else if (deep[n] && lev == 0) {
                 amrex::Print() << "NOTE: the checkpoint has no " << deep_names[n]
                                << "; erf.radiation.seb_t_deep_default and seb_q_deep_default "
                                   "start the deep reservoir\n";
             }
         }
+    } else if (lev == 0 && amrex::FileExists(
+                   MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "TwoStream_TDeep") + "_H")) {
+        amrex::Print() << "NOTE: the checkpoint holds TwoStream_TDeep, which is not read: "
+                          "neither erf.radiation.seb_deep_prognostic_enable nor "
+                          "erf.radiation.seb_init_t_deep_from_file is set, and the deep "
+                          "temperature is erf.radiation.seb_t_deep_default in every column\n";
     }
     m_hydro.read_checkpoint(lev, restart_chkfile, period);
     m_snow.read_checkpoint(lev, restart_chkfile, period);
@@ -776,10 +807,10 @@ TwoStreamRadiation::seb_prognostic_fields (int lev)
     if (!seb_prognostic_active() || lev >= static_cast<int>(m_t_sfc.size())) { return out; }
     out.push_back(m_t_sfc[lev].get());
     out.push_back(m_q_sfc[lev].get());
-    if (m_rad->seb_deep_prognostic_enable) {
-        out.push_back(m_t_deep[lev].get());
-        out.push_back(m_q_deep[lev].get());
-    }
+    // The deep temperature is carried when it evolves and when it was set per column from
+    // the initial file (seb_t_deep_is_state); the deep moisture only when it evolves.
+    if (seb_t_deep_is_state()) { out.push_back(m_t_deep[lev].get()); }
+    if (m_rad->seb_deep_prognostic_enable) { out.push_back(m_q_deep[lev].get()); }
     if (m_hydro.totals(lev)) { out.push_back(m_hydro.totals(lev)); }
     if (m_snow.defined(lev)) {
         out.push_back(m_snow.swe(lev));
@@ -1158,9 +1189,12 @@ TwoStreamRadiation::advance (int lev,
             // name (Noah-MP's smstav / smstot are soil-moisture availability
             // and total column water), so the reservoir values are the
             // scalar defaults. With erf.radiation.seb_deep_prognostic_enable they evolve
-            // (ERF_ForceRestoreHydrology.H) and are left alone here.
-            if (!rad_choice.seb_deep_prognostic_enable) {
+            // (ERF_ForceRestoreHydrology.H) and are left alone here. So is the deep
+            // temperature that erf.radiation.seb_init_t_deep_from_file set per column.
+            if (!seb_t_deep_is_state()) {
                 m_t_deep[lev]->setVal(rad_choice.seb_t_deep_default);
+            }
+            if (!rad_choice.seb_deep_prognostic_enable) {
                 m_q_deep[lev]->setVal(rad_choice.seb_q_deep_default);
             }
         }

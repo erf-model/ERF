@@ -6019,8 +6019,34 @@ atmospheric cell), ``start_datetime`` and the
 |                                                    | used on a restart (a NOTE says so): T_s comes from the     |                    |                  |
 |                                                    | checkpoint. The restoring temperature stays the one        |                    |                  |
 |                                                    | value seb_t_deep_default: a start far from it relaxes      |                    |                  |
-|                                                    | toward it (the log prints the largest difference).         |                    |                  |
+|                                                    | toward it (the log prints the largest difference);         |                    |                  |
+|                                                    | seb_init_t_deep_from_file sets it per column.              |                    |                  |
 |                                                    | false: every column begins at erf.rad_t_sfc                |                    |                  |
++----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
+| **erf.radiation.seb_init_t_deep_from_file**        | At a fresh start the deep (restoring) temperature T_deep   | Boolean            | false            |
+|                                                    | of a land column is TMN of the wrfinput file [K], the soil |                    |                  |
+|                                                    | temperature at the lower boundary. A water column keeps    |                    |                  |
+|                                                    | seb_t_deep_default. T_deep is then kept per column: it is  |                    |                  |
+|                                                    | not reset each step, a level without a file of its own,    |                    |                  |
+|                                                    | one made later in the run and one that takes its radiation |                    |                  |
+|                                                    | from its parent take it from the parent, with two-way      |                    |                  |
+|                                                    | coupling the fine values are averaged down, and the        |                    |                  |
+|                                                    | checkpoint holds it (TwoStream_TDeep). A finer level with  |                    |                  |
+|                                                    | a wrfinput file of its own takes that file's TMN. Without  |                    |                  |
+|                                                    | seb_deep_prognostic_enable the balance does not evolve     |                    |                  |
+|                                                    | T_deep; with it TMN is the first value of the evolving     |                    |                  |
+|                                                    | T_deep. Needs the TwoStream model, seb_prognostic_enable,  |                    |                  |
+|                                                    | no land-surface, urban or surface model, erf.init_type =   |                    |                  |
+|                                                    | WRFInput and TMN on every column of the file of level 0    |                    |                  |
+|                                                    | and of each finer level that takes its file's TMN; the run |                    |                  |
+|                                                    | stops otherwise. It also stops when a land value is not    |                    |                  |
+|                                                    | finite or lies outside [seb_prognostic_t_min_k,            |                    |                  |
+|                                                    | seb_prognostic_t_max_k]. On a restart the file is not      |                    |                  |
+|                                                    | read: T_deep comes from the checkpoint, and from a         |                    |                  |
+|                                                    | checkpoint without it T_deep is seb_t_deep_default (a NOTE |                    |                  |
+|                                                    | says so). Keep the input set on the restart: without it    |                    |                  |
+|                                                    | T_deep is seb_t_deep_default again (a NOTE says so).       |                    |                  |
+|                                                    | false: T_deep is seb_t_deep_default in every column        |                    |                  |
 +----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
 | **erf.radiation.seb_surface_layer_uses_moisture**  | Two-way coupling of moisture as well: the zlo surface      | Boolean            | false            |
 |                                                    | layer takes its land surface mixing ratio from the         |                    |                  |
@@ -6107,7 +6133,11 @@ atmospheric cell), ``start_datetime`` and the
 |                                                    | seb_moisture_layer_depth_m                                 |                    |                  |
 +----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
 | **erf.radiation.seb_t_deep_default**               | SEB deep soil temperature [K]: fixed, or with              | Real               | 300.0            |
-|                                                    | seb_deep_prognostic_enable its initial value               |                    |                  |
+|                                                    | seb_deep_prognostic_enable its initial value. With         |                    |                  |
+|                                                    | seb_init_t_deep_from_file the value of the water columns,  |                    |                  |
+|                                                    | of a fine land column with no coarse land column next to   |                    |                  |
+|                                                    | it, and of every column after a restart from a checkpoint  |                    |                  |
+|                                                    | without TwoStream_TDeep                                    |                    |                  |
 +----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
 | **erf.radiation.seb_q_deep_default**               | Deep soil moisture q_s restores to, in q_s's units. With   | Real [0,1]         | 0.0              |
 |                                                    | seb_surface_layer_uses_moisture a NOTE at start-up flags a |                    |                  |
