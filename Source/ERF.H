@@ -550,6 +550,14 @@ public:
                                   amrex::MultiFab& az_sub,
                                   amrex::MultiFab& dJ_sub, amrex::MultiFab& znd_sub,
                                   bool use_gmres);
+    //! The equation solve_with_terrain_mlmg solves, on a region of a flat mesh whose boxes
+    //! need not make a rectangle
+    void solve_with_flat_mlmg (int lev, const amrex::Box& subdomain,
+                               amrex::MultiFab& rhs, amrex::MultiFab& phi,
+                               amrex::Array<amrex::MultiFab,AMREX_SPACEDIM>& fluxes,
+                               const amrex::MultiFab& ax_sub, const amrex::MultiFab& ay_sub,
+                               const amrex::MultiFab& az_sub,
+                               const amrex::MultiFab& dJ_sub, const amrex::MultiFab& znd_sub);
     //! FFT-preconditioned GMRES solve of div(sigma grad phi) = rhs (erf.if_implicit_projection);
     //! fluxes = -grad phi, without sigma
     void solve_with_if_gmres (int lev, const amrex::Box& subdomain,
@@ -607,6 +615,10 @@ public:
 
     //! Fill a newly built level's two-stream SEB state from its parent
     void fill_seb_from_coarse (int lev);
+
+    //! With erf.radiation.seb_init_skin_from_file, start the two-stream SEB skin
+    //! temperature of the land columns of level lev from the initial file's TSK or SKINTEMP
+    void init_seb_skin_from_file (int lev);
 
     //! With erf.radiation.seb_surface_layer_uses_skin, hand the two-stream surface energy
     //! balance's skin temperature of level lev to the zlo surface layer before it

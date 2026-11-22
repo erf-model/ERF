@@ -25,6 +25,7 @@
 #include "ERF_PlanarBoundary.H"
 #include "ERF_SEBLandAverageDown.H"
 #include "ERF_SEBLandFill.H"
+#include "ERF_SEBSkinInit.H"
 #include "ERF_TerrainMetrics.H"
 #include "ERF_TerrainFileChecks.H"
 #include "ERF_SrcHeaders.H"
@@ -554,7 +555,29 @@ ERF::check_seb_surface_layer ()
 {
     m_seb_surface_layer_checked = true;
     const RadChoice& rc = solverChoice.radChoice;
+    // RadChoice reads the two-stream inputs only with the two-stream model, so a deck that
+    // sets this one with another model would run with it unread.
+    if (solverChoice.rad_type != RadiationType::TwoStream) {
+        ParmParse pp(pp_prefix);
+        bool skin_from_file = false;
+        pp.query("radiation.seb_init_skin_from_file", skin_from_file);
+        if (skin_from_file) {
+            Abort("erf.radiation.seb_init_skin_from_file = true needs erf.radiation_model = "
+                  "TwoStream: the skin temperature it sets belongs to the two-stream balance");
+        }
+    }
     if (solverChoice.rad_type != RadiationType::TwoStream || !rc.seb_enable) { return; }
+    // Checked here and not in init_seb_skin_from_file, so that a restart is checked too, and
+    // because the surface model does not exist yet when the level is made. At a fresh start
+    // InitData calls this after MakeNewLevelFromScratch, so the skin has been written by
+    // then; the run stops here before the first step.
+    if (rc.seb_init_skin_from_file &&
+        (solverChoice.lsm_type != LandSurfaceType::None ||
+         solverChoice.urban_type != UrbanType::None || m_SurfaceModel)) {
+        Abort("erf.radiation.seb_init_skin_from_file = true cannot be used with a land-surface, "
+              "urban or surface model: it owns the surface temperature, and the two-stream "
+              "balance does not advance its skin then");
+    }
     SurfaceLayer* surface_layer = m_SurfaceLayer[Orientation::zlo()].get();
 
     // The balance takes H and LE from the surface layer wherever it has a flux field,
@@ -584,6 +607,15 @@ ERF::check_seb_surface_layer ()
                        "only the vertical-face part of the surface layer's flux, cos(slope) of "
                        "H and LE, as the sensible_heat_flux and latent_heat_flux outputs report.\n";
         }
+    }
+
+    // On a restart the initial file's value is not read again: the skin temperature of
+    // every level comes from the checkpoint, or is erf.rad_t_sfc when the checkpoint was
+    // written without the balance. Said once, since the input is still in the deck.
+    if (rc.seb_init_skin_from_file && !restart_chkfile.empty()) {
+        Print() << "NOTE: erf.radiation.seb_init_skin_from_file is not used on a restart: the "
+                   "skin temperature comes from the checkpoint, or is erf.rad_t_sfc where "
+                   "the checkpoint holds none.\n";
     }
 
     if (!rc.seb_surface_layer_uses_skin) { return; }
@@ -701,6 +733,96 @@ ERF::fill_seb_from_coarse (int lev)
                            << " level already had).\n";
         }
     }
+}
+
+// With erf.radiation.seb_init_skin_from_file, start the two-stream balance's skin
+// temperature of level lev from the skin temperature of the level's initial file: TSK of a
+// wrfinput file, SKINTEMP of a metgrid file, both held in tsk_lev as an absolute
+// temperature [K].
+//
+// Called once per level at a fresh start, after init_only read the file and the land mask
+// and after fill_seb_from_coarse. Level 0 and a finer level with a file of its own take
+// the file's value on land. A finer level with no file keeps what fill_seb_from_coarse
+// gave it from its parent, whose skin was set here before. A water column is not written:
+// the balance does not run there (ERF_SEBLandMask.H). At level 0 it keeps erf.rad_t_sfc and
+// at a finer level what fill_seb_from_coarse gave it.
+//
+// Not called for a level made later in the run (MakeNewLevelFromCoarse, RemakeLevel): by
+// then the parent's skin has evolved and is the newer value. Not called on a restart.
+//
+// Nothing runs when the input is false.
+void
+ERF::init_seb_skin_from_file (int lev)
+{
+    const RadChoice& rc = solverChoice.radChoice;
+    if (!rc.seb_init_skin_from_file) { return; }
+    // The combinations the input cannot be used in are refused in check_seb_surface_layer.
+    if (lev > 0) {
+        if (!has_own_init_file(lev)) { return; }
+        // A level that takes its radiation from its parent does not advance a skin.
+        if (rad_level_needs_interpolation(lev)) { return; }
+        // With erf.nc_low_file and no erf.nc_low_file_<lev>, init_fine_low_slices replaced the
+        // skin temperature the level read from its file by the parent's, interpolated, which
+        // holds the sea surface temperature in the parent's water columns. That is not the
+        // file's field, so the level keeps what fill_seb_from_coarse gave it.
+        if (!nc_low_file.empty() && !has_own_low_file(lev)) {
+            Print() << "ERF::init_seb_skin_from_file: level " << lev << ": the skin temperature "
+                       "is that of level " << lev-1 << ", interpolated: with erf.nc_low_file and "
+                       "no erf.nc_low_file_" << lev << " the level's surface temperature "
+                       "follows its parent's.\n";
+            return;
+        }
+    }
+
+    const MultiFab* file_skin = tsk_lev[lev].empty() ? nullptr : tsk_lev[lev][0].get();
+    if (!file_skin) {
+        Abort("erf.radiation.seb_init_skin_from_file = true: the initial file of level " +
+              std::to_string(lev) + " gave no skin temperature. It needs erf.init_type = "
+              "WRFInput with TSK in the file, or erf.init_type = Metgrid with SKINTEMP");
+    }
+    MultiFab* t_sfc = two_stream_rad.seb_t_sfc(lev);
+    if (!t_sfc) {
+        Abort("erf.radiation.seb_init_skin_from_file = true: the two-stream balance has no "
+              "skin temperature at level " + std::to_string(lev));
+    }
+    const iMultiFab* lmask = lmask_lev[lev].empty() ? nullptr : lmask_lev[lev][0].get();
+
+    SEBSkinInitReport report = seb_init_skin_from_file(*t_sfc, *file_skin, lmask,
+                                                       rc.seb_prognostic_t_min_k,
+                                                       rc.seb_prognostic_t_max_k);
+    // Three collectives, only with the input and once per level at the start.
+    ParallelDescriptor::ReduceLongSum({report.n_set, report.n_refused});
+    ParallelDescriptor::ReduceRealMin(report.t_min);
+    ParallelDescriptor::ReduceRealMax(report.t_max);
+    if (report.n_refused > 0) {
+        Abort("erf.radiation.seb_init_skin_from_file = true: at level " + std::to_string(lev) +
+              " the skin temperature of the initial file is not finite or lies outside "
+              "[erf.radiation.seb_prognostic_t_min_k, erf.radiation.seb_prognostic_t_max_k] = [" +
+              std::to_string(rc.seb_prognostic_t_min_k) + ", " +
+              std::to_string(rc.seb_prognostic_t_max_k) + "] K on " +
+              std::to_string(report.n_refused) + " land column(s)");
+    }
+    t_sfc->FillBoundary(geom[lev].periodicity());
+
+    Print() << "ERF::init_seb_skin_from_file: level " << lev << ": the skin temperature of "
+            << report.n_set << " land column(s) starts from the initial file";
+    if (report.n_set > 0) {
+        Print() << " (" << report.t_min << " K to " << report.t_max << " K)";
+    }
+    if (lev == 0) {
+        Print() << "; water columns keep erf.rad_t_sfc = " << rc.rad_t_sfc << " K.";
+    } else {
+        Print() << "; water columns keep what level " << lev-1 << " gave them.";
+    }
+    // The restoring temperature is still one value: say how far the start lies from it.
+    Print() << " The restoring temperature stays erf.radiation.seb_t_deep_default = "
+            << rc.seb_t_deep_default << " K in every column";
+    if (report.n_set > 0) {
+        const Real far = std::max(std::abs(report.t_min - rc.seb_t_deep_default),
+                                  std::abs(report.t_max - rc.seb_t_deep_default));
+        Print() << ", up to " << far << " K from the values set";
+    }
+    Print() << "; the skin relaxes toward it.\n";
 }
 
 /**

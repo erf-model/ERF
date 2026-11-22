@@ -279,7 +279,6 @@ void ERF::project_momenta (int lev, double l_time, double l_dt_d, Vector<MultiFa
     // If at lev > 0 we must first fill the momenta at the c/f interface with interpolated coarse values
     //
     if (lev > 0) {
-        PhysBCFunctNoOp null_bc;
         set_cf_fill_options(lev, true);
         FillSetHorizontalMomentaCF(lev, l_time, mom_mf[IntVars::xmom], mom_mf[IntVars::ymom]);
         FillSetZMomentumCF(lev, l_time, mom_mf[IntVars::zmom]);
@@ -1145,7 +1144,7 @@ void ERF::project_momenta (int lev, double l_time, double l_dt_d, Vector<MultiFa
         // Grid stretching (flat terrain)
         // ****************************************************************************
         else if (solverChoice.mesh_type == MeshType::StretchedDz && !use_terrain_solver) {
-            // Only the hybrid FFT solver handles a stretched mesh, and it is tridiagonal in z.
+            // The hybrid FFT solver handles a stretched mesh, and it is tridiagonal in z.
             // A subdomain whose RHS is already zero was skipped above, so this stops only a
             // projection that would have to do something (issue #4281).
             if (geom[lev].isPeriodic(2)) {
@@ -1153,21 +1152,25 @@ void ERF::project_momenta (int lev, double l_time, double l_dt_d, Vector<MultiFa
                              "stretched mesh (erf.grid_stretching_ratio, erf.initial_dz or "
                              "erf.terrain_z_levels) needs a non-periodic z direction");
             }
-#ifndef ERF_USE_FFT
-            amrex::Abort("Rebuild with USE_FFT = TRUE so you can use the FFT solver");
-#else
             bool boxes_make_rectangle = (my_region.numPts() == subdomains[lev][isub].numPts());
             if (!boxes_make_rectangle) {
-                amrex::Abort("FFT won't work unless the union of boxes is rectangular");
+                // The FFT needs a rectangle; multigrid does not
+                abort_if_regions_meet_across_periodic(geom[lev], subdomains[lev], lev, isub, my_region,
+                                                      "The projection of a region that is not a rectangle");
+                solve_with_flat_mlmg(lev, my_region, rhs_sub[0], phi_sub[0], fluxes_sub[0],
+                                     ax_sub, ay_sub, az_sub, dJ_sub, znd_sub);
             } else {
+#ifndef ERF_USE_FFT
+                amrex::Abort("Rebuild with USE_FFT = TRUE so you can use the FFT solver");
+#else
                 if (!use_fft) {
                     amrex::Warning("Using FFT even though you didn't set use_fft to true; it's the best choice");
                 }
                 abort_if_regions_meet_across_periodic(geom[lev], subdomains[lev], lev, isub, my_region,
                                                       "The hybrid FFT projection");
                 solve_with_fft(lev, isub, my_region, rhs_sub[0], phi_sub[0], fluxes_sub[0]);
-            }
 #endif
+            }
         } // grid stretching
 
         // ****************************************************************************
@@ -1177,15 +1180,16 @@ void ERF::project_momenta (int lev, double l_time, double l_dt_d, Vector<MultiFa
             bool boxes_make_rectangle = (my_region.numPts() == subdomains[lev][isub].numPts());
             // erf.terrain_poisson_solver applies to terrain-fitted meshes only; a flat mesh
             // uses MLTerrainPoisson, which needs no FFT
-            if (flat_terrain_solve || solverChoice.terrain_poisson_solver != TerrainPoissonSolver::gmres_fft) {
+            if (flat_terrain_solve && !boxes_make_rectangle) {
+                // MLTerrainPoisson needs a rectangle; on a flat mesh MLABecLaplacian solves the
+                // same equation without one
+                abort_if_regions_meet_across_periodic(geom[lev], subdomains[lev], lev, isub, my_region,
+                                                      "The projection of a region that is not a rectangle");
+                solve_with_flat_mlmg(lev, my_region, rhs_sub[0], phi_sub[0], fluxes_sub[0],
+                                     ax_sub, ay_sub, az_sub, dJ_sub, znd_sub);
+            } else if (flat_terrain_solve || solverChoice.terrain_poisson_solver != TerrainPoissonSolver::gmres_fft) {
                 // amrex::MLTerrainPoisson, multigrid alone or under GMRES; no FFT needed
                 if (!boxes_make_rectangle) {
-                    if (flat_terrain_solve) {
-                        amrex::Abort("The projection on a mesh without terrain-fitted coordinates that has "
-                                     "map factors other than one, or grid stretching with "
-                                     "erf.if_implicit_projection, needs the boxes of each region of a "
-                                     "level to make a rectangle");
-                    }
                     amrex::Abort("erf.terrain_poisson_solver = mlmg or gmres_mlmg needs the boxes of each "
                                  "region of a level to make a rectangle");
                 }

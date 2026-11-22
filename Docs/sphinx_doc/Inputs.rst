@@ -5833,7 +5833,8 @@ and ``erf.rad_cons_lon`` or at the grid's own latitude and longitude fields),
 distance factor of the date, or the unscaled 1360.9 W/m² when the zenith angle is fixed and no
 start date is known), ``erf.rad_t_sfc`` (required; with a land-surface model or a surface layer
 present it is the initial value of the prognostic surface temperature when the surface energy
-balance evolves one and unused otherwise, and the surface layer's potential temperature is
+balance evolves one and unused otherwise; with ``erf.radiation.seb_init_skin_from_file`` the land
+columns begin at the initial file's skin temperature instead, and the surface layer's potential temperature is
 converted with the Exner function at the physical surface pressure diagnosed from the lowest
 atmospheric cell), ``start_datetime`` and the
 ``erf.rad_orbital_*`` overrides. A deck that still sets one of the former two-stream-only keys
@@ -6000,6 +6001,26 @@ atmospheric cell), ``start_datetime`` and the
 |                                                    | no surf_heating_rate), not on EB terrain, without          |                    |                  |
 |                                                    | erf.use_rotate_surface_flux, with no land or surface       |                    |                  |
 |                                                    | model; each is checked at start-up                         |                    |                  |
++----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
+| **erf.radiation.seb_init_skin_from_file**          | At a fresh start the skin T_s of a land column begins      | Boolean            | false            |
+|                                                    | at the skin temperature of the initial file [K]: TSK of    |                    |                  |
+|                                                    | a wrfinput file, SKINTEMP of a metgrid file. A water       |                    |                  |
+|                                                    | column keeps erf.rad_t_sfc. A level without a file of      |                    |                  |
+|                                                    | its own takes T_s from its parent, as before; so does      |                    |                  |
+|                                                    | one made later in the run, one that takes its radiation    |                    |                  |
+|                                                    | from its parent, and one under erf.nc_low_file without     |                    |                  |
+|                                                    | erf.nc_low_file_<lev>. Needs the TwoStream model,          |                    |                  |
+|                                                    | seb_prognostic_enable, no land-surface, urban or           |                    |                  |
+|                                                    | surface model, and the field in the file of level 0 and    |                    |                  |
+|                                                    | of each finer level that takes its file's value at the     |                    |                  |
+|                                                    | start; the run stops otherwise. It also stops when a       |                    |                  |
+|                                                    | land value is not finite or lies outside                   |                    |                  |
+|                                                    | [seb_prognostic_t_min_k, seb_prognostic_t_max_k]. Not      |                    |                  |
+|                                                    | used on a restart (a NOTE says so): T_s comes from the     |                    |                  |
+|                                                    | checkpoint. The restoring temperature stays the one        |                    |                  |
+|                                                    | value seb_t_deep_default: a start far from it relaxes      |                    |                  |
+|                                                    | toward it (the log prints the largest difference).         |                    |                  |
+|                                                    | false: every column begins at erf.rad_t_sfc                |                    |                  |
 +----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
 | **erf.radiation.seb_surface_layer_uses_moisture**  | Two-way coupling of moisture as well: the zlo surface      | Boolean            | false            |
 |                                                    | layer takes its land surface mixing ratio from the         |                    |                  |

@@ -22,7 +22,8 @@
  *   constant dz, map factors of one, otherwise: multigrid with sigma as the face coefficient
  *       (solve_with_if_mlmg, amrex::MLABecLaplacian);
  *   stretched dz or map factors other than one: the terrain Poisson multigrid, with sigma in
- *       its face area factors (ERF::project_momenta).
+ *       its face area factors (ERF::project_momenta); a region that is not a rectangle goes to
+ *       solve_with_flat_mlmg with the same area factors (erf-model/ERF#5332).
  * A terrain-fitted mesh and a pseudo-incompressible level are not supported.
  *
  * For buildings (erf.buildings_type = ImmersedForcing, erf-model/ERF#4887) the rate is the linear

@@ -382,10 +382,12 @@ variable-coefficient equation follows the mesh
 - constant :math:`\Delta z` and map factors of one, in a build without FFT or with a refined region
   that is not a rectangle: geometric multigrid with :math:`\sigma` as its face coefficient;
 - stretched :math:`\Delta z`, or map factors other than one on a single level: the multigrid of the
-  terrain Poisson solver, which takes :math:`\sigma` through its face area factors. The limits of
-  that solver apply (each refined region a rectangle; no refined level with map factors other than
-  one). On a stretched mesh every projection of the level uses this solver, also the ones without
-  the drag (the initial projection, and after a regrid), so no FFT is needed.
+  terrain Poisson solver, which takes :math:`\sigma` through its face area factors. A refined
+  region that is not a rectangle is solved with the multigrid for such regions on a flat mesh
+  (`erf-model/ERF#5332 <https://github.com/erf-model/ERF/pull/5332>`_), which takes the same
+  area factors. A refined level with map factors other than one is refused with this option. On
+  a stretched mesh every projection of the level uses these solvers, also the ones without the
+  drag (the initial projection, and after a regrid), so no FFT is needed.
 
 The choice follows the build and the mesh, not ``erf.use_fft``. With the first and the third
 solver, refined regions that meet across a periodic boundary are refused. The third solver

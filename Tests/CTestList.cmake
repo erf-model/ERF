@@ -2785,6 +2785,16 @@ if(ERF_ENABLE_MPI AND NOT WIN32)
     add_test_immersed_cf_heat_balance(ImmersedLES2LevHeatBalance_Stretched_Freeze ImmersedLES2LevHeatBalance 300.0 1.0e-6 ON OFF
                                       "${if_hb_stretched} erf.if_implicit_projection=false" multilevel)
   endif()
+  # The L-shaped region on the stretched mesh: the terrain Poisson multigrid needs a rectangle, so
+  # the refined level is solved with solve_with_flat_mlmg (erf-model/ERF#5332), sigma in the face
+  # coefficients it takes from the area factors. Measured: -3.4e-7 K implicit, 0.014 K with the
+  # freeze, whose coarse level uses the hybrid FFT solve.
+  add_test_immersed_cf_heat_balance(ImmersedLES2LevHeatBalance_LShape_Stretched ImmersedLES2LevHeatBalance 300.0 1.0e-6 OFF OFF
+                                    "${if_hb_lshape} ${if_hb_stretched}" multilevel)
+  if(ERF_ENABLE_FFT)
+    add_test_immersed_cf_heat_balance(ImmersedLES2LevHeatBalance_LShape_Stretched_Freeze ImmersedLES2LevHeatBalance 300.0 1.0e-6 ON OFF
+                                      "${if_hb_lshape} ${if_hb_stretched} erf.if_implicit_projection=false" multilevel)
+  endif()
   # Immersed-forcing building (a box whose walls and roof are half-solid cells), one level in four
   # unequal boxes, theta uniform and no heat entering (erf-model/ERF#4887): with the implicit
   # projection the fluid-mean theta must hold within 1e-6 K (4e-10 K measured), with and without the
@@ -5539,8 +5549,100 @@ if(ERF_ENABLE_NETCDF AND ERF_TEST_PYTHON)
           "" ""
           "restart WRFInput_SurfaceFields_Restart_MPI.log" "max_step=0" 3)
     endif()
+
+    # The first skin temperature of the two-stream force-restore balance from the TSK of a
+    # wrfinput file (erf.radiation.seb_init_skin_from_file). make_wrfinput.py writes
+    # TSK = 280 + 0.5 i + 0.25 j and a block of water columns in both boxes; erf.rad_t_sfc is
+    # 300 K. check_skin.py compares every column of the 2D plotfile with the formula: a land
+    # column holds TSK, a water column 300 K. The legs: the input on, with a water TSK of
+    # -999 K, which is not read; off, when every column holds 300 K as before; a file without
+    # water and a second level without a file, made by tagging at the start, which must hold
+    # the same linear field at its own column centers; a restart, which must not read the file
+    # again; a nest with a file, with and without a lower boundary file of its own; a start
+    # without a file, another radiation model, a land TSK of 350 K (above
+    # seb_prognostic_t_max_k) and the balance not prognostic, each of which must stop the run
+    # with a message that names the input; 350 K with the bound raised to 360 K, which runs;
+    # and, with MPI, four ranks on two boxes, a land TSK of -999 K on each of two ranks, the
+    # nest on small boxes and the restart.
+    function(add_test_wrfinput_seb_skin TEST_NAME MAKE_OPTIONS RUNTIME_OPTIONS EXPECT CHECK)
+      set(_launch "")
+      set(_np 1)
+      if(ARGC GREATER 5)
+        set(_np ${ARGV5})
+        set(_launch "${MPIEXEC_EXECUTABLE} ${MPIEXEC_NUMPROC_FLAG} ${ARGV5} ${MPIEXEC_PREFLAGS} ")
+      endif()
+      set(TEST_FILES_DIR WRFInput_SEBSkinInit)
+      setup_test()
+      file(COPY ${PROJECT_SOURCE_DIR}/Exec/Tools/erf_plotfile.py DESTINATION "${CURRENT_TEST_BINARY_DIR}/")
+      resolve_test_exe("" "erf_exec" TEST_EXE)
+      set(_log ${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.log)
+      set(_make "${ERF_TEST_PYTHON} make_wrfinput.py ${MAKE_OPTIONS} > generate.log")
+      set(_exe "${_launch}${TEST_EXE} WRFInput_SEBSkinInit.i amrex.call_addr2line=0")
+      set(_py "${ERF_TEST_PYTHON} check_skin.py")
+      if("${EXPECT}" STREQUAL "runs")
+        set(_run "( ${_exe} ${RUNTIME_OPTIONS} > ${_log} 2>&1 || ( tail -n 40 ${_log} && false ) )")
+      elseif("${EXPECT}" STREQUAL "stops")
+        # The run must stop; CHECK then finds the message in the log
+        set(_run "( ! ${_exe} ${RUNTIME_OPTIONS} > ${_log} 2>&1 )")
+      else()
+        # A run of two steps with a checkpoint after the first, then a restart from it
+        set(_first ${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}_first.log)
+        set(_two "max_step=2 erf.check_file=chk erf.check_int=1")
+        set(_run "rm -rf chk0000? && ( ${_exe} ${RUNTIME_OPTIONS} ${_two} erf.plot2d_file_1=plt2dA > ${_first} 2>&1 || ( tail -n 40 ${_first} && false ) ) && ( ${_exe} ${RUNTIME_OPTIONS} ${_two} erf.restart=chk00001 erf.plot2d_file_1=plt2dB > ${_log} 2>&1 || ( tail -n 40 ${_log} && false ) )")
+      endif()
+      string(REPLACE "@PY@" "${_py}" _check "${CHECK}")
+      string(REPLACE "@LOG@" "${_log}" _check "${_check}")
+      add_test(${TEST_NAME} sh -c "rm -rf plt2d* && ${_make} && ${_run} && ${_check}")
+      set_tests_properties(${TEST_NAME} PROPERTIES TIMEOUT 300 PROCESSORS ${_np}
+          WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
+          LABELS "regression;wrfinput" ATTACHED_FILES_ON_FAIL "${_log}")
+    endfunction(add_test_wrfinput_seb_skin)
+    set(_skin_named "@PY@ log @LOG@ 'erf.radiation.seb_init_skin_from_file = true'")
+    # The water column (8, 1) of the file holds -999 K here: a water value is not read
+    add_test_wrfinput_seb_skin(WRFInput_SEBSkinInit "--water -999" "" runs
+        "@PY@ file plt2d00000 --log @LOG@ --count 78 && @PY@ log @LOG@ 'The restoring temperature stays erf.radiation.seb_t_deep_default = 290 K in every column, up to 10 K from the values set'")
+    add_test_wrfinput_seb_skin(WRFInput_SEBSkinInit_Off "" "erf.radiation.seb_init_skin_from_file=false" runs
+        "@PY@ default plt2d00000 --log @LOG@")
+    add_test_wrfinput_seb_skin(WRFInput_SEBSkinInit_TaggedLevel "--all-land"
+        "amr.max_level=1 amr.ref_ratio_vect=2 2 1 amr.n_error_buf=0 amr.blocking_factor=2 erf.regrid_int=-1 erf.refinement_indicators=boxa erf.boxa.max_level=1 erf.boxa.in_box_lo=2000.0 2000.0 erf.boxa.in_box_hi=6000.0 6000.0"
+        runs "@PY@ tagged plt2d00000 --log @LOG@ --count 96 && @PY@ log @LOG@ 'ERF::init_seb_skin_from_file: level 1' --absent")
+    add_test_wrfinput_seb_skin(WRFInput_SEBSkinInit_Restart "" "" restart
+        "@PY@ same plt2dA00002 plt2dB00002 --log @LOG@ && @PY@ log @LOG@ 'NOTE: erf.radiation.seb_init_skin_from_file is not used on a restart'")
+    # The wrfinput reader itself needs TSK, so "no skin temperature" is a start without a file
+    add_test_wrfinput_seb_skin(WRFInput_SEBSkinInit_NoFile "" "erf.init_type=Uniform" stops
+        "${_skin_named} && @PY@ log @LOG@ 'the initial file of level 0 gave no skin temperature'")
+    add_test_wrfinput_seb_skin(WRFInput_SEBSkinInit_NotTwoStream "" "erf.radiation_model=None" stops
+        "${_skin_named} && @PY@ log @LOG@ 'needs erf.radiation_model = TwoStream'")
+    # A second level with a wrfinput file of its own, and a lower boundary file of its own
+    set(_skin_nest "amr.max_level=1 amr.ref_ratio_vect='2 2 1' erf.nc_init_file_1=wrfinput_d02")
+    add_test_wrfinput_seb_skin(WRFInput_SEBSkinInit_Nested "--nest"
+        "${_skin_nest} erf.nc_low_file_1=wrflowinp_d02" runs
+        "@PY@ nested plt2d00000 --log @LOG@ --count 78 --count 62")
+    # ... and without one: the level's surface temperature follows its parent's
+    add_test_wrfinput_seb_skin(WRFInput_SEBSkinInit_NestedParentLow "--nest" "${_skin_nest}" runs
+        "@PY@ file plt2d00000 --log @LOG@ --count 78 && @PY@ log @LOG@ 'level 1: the skin temperature is that of level 0, interpolated'")
+    add_test_wrfinput_seb_skin(WRFInput_SEBSkinInit_AboveRange "--land 350" "" stops
+        "${_skin_named} && @PY@ log @LOG@ 'on 1 land column(s)' && @PY@ log @LOG@ '= [200.000000, 340.000000] K'")
+    add_test_wrfinput_seb_skin(WRFInput_SEBSkinInit_RangeRaised "--land 350"
+        "erf.radiation.seb_prognostic_t_max_k=360" runs
+        "@PY@ file plt2d00000 --land 350 --log @LOG@ --count 78")
+    add_test_wrfinput_seb_skin(WRFInput_SEBSkinInit_NotPrognostic ""
+        "erf.radiation.seb_prognostic_enable=false" stops
+        "${_skin_named} && @PY@ log @LOG@ 'needs erf.radiation.seb_prognostic_enable = true'")
+    if(ERF_ENABLE_MPI)
+      add_test_wrfinput_seb_skin(WRFInput_SEBSkinInit_MPI "" "" runs
+          "@PY@ file plt2d00000 --log @LOG@ --count 78" 4)
+      # One bad column in each box, so each rank holds one: the count is the sum over the ranks
+      add_test_wrfinput_seb_skin(WRFInput_SEBSkinInit_FlagOnLand_MPI "--land -999 --land-west -999" "" stops
+          "${_skin_named} && @PY@ log @LOG@ 'on 2 land column(s)'" 2)
+      add_test_wrfinput_seb_skin(WRFInput_SEBSkinInit_Nested_MPI "--nest"
+          "${_skin_nest} erf.nc_low_file_1=wrflowinp_d02 amr.max_grid_size=4" runs
+          "@PY@ nested plt2d00000 --log @LOG@ --count 78 --count 62" 3)
+      add_test_wrfinput_seb_skin(WRFInput_SEBSkinInit_Restart_MPI "" "" restart
+          "@PY@ same plt2dA00002 plt2dB00002 --log @LOG@ && @PY@ log @LOG@ 'NOTE: erf.radiation.seb_init_skin_from_file is not used on a restart'" 3)
+    endif()
   else()
-    message(STATUS "Skipping WRFInput_CroppedParent, WRFInput_LegacySurfaceTemperature, and WRFInput_SurfaceFields: Python netCDF4 and numpy are required")
+    message(STATUS "Skipping WRFInput_CroppedParent, WRFInput_LegacySurfaceTemperature, WRFInput_SurfaceFields, and WRFInput_SEBSkinInit: Python netCDF4 and numpy are required")
   endif()
 endif()
 
@@ -7084,6 +7186,14 @@ if(NOT WIN32 AND ERF_TEST_PYTHON AND ERF_PRECISION STREQUAL "DOUBLE")
   add_test_anelastic_scalar_advection(AnelasticScalarAdvection_Stretched_PartialDepth_TwoWay_VaryingMapFactor inputs_flat 30
       RUNTIME_OPTIONS "${_flat_amr} ${_flat_part} ${_flat_sdz}"
       CHECK check_uniform_scalar.py PLOTFILES ${_hill_amr_tol} --require-level)
+  # A refined level whose boxes make an L, not a rectangle (amr.grid_eff = 1 keeps the two
+  # boxes apart).  The FFT solvers and MLTerrainPoisson need a rectangle; on a flat mesh such a
+  # level is projected with MLABecLaplacian (solve_with_flat_mlmg).  One-way: measured 1.3e-11 at
+  # most; these stopped at the first projection before.
+  set(_flat_l "amr.max_level=1 'amr.ref_ratio_vect=2 2 2' 'erf.refinement_indicators=box1 box2' erf.box1.max_level=1 erf.box2.max_level=1 'erf.box1.in_box_lo_indices_crse=8 12 2' 'erf.box1.in_box_hi_indices_crse=19 23 8' 'erf.box2.in_box_lo_indices_crse=8 4 2' 'erf.box2.in_box_hi_indices_crse=15 11 8' amr.grid_eff=1.0 erf.coupling_type=OneWay erf.poisson_reltol=1e-12 erf.poisson_abstol=1e-12")
+  add_test_anelastic_scalar_advection(AnelasticScalarAdvection_Flat_LShaped_VaryingMapFactor inputs_flat 30
+      RUNTIME_OPTIONS "${_flat_l} erf.test_mapfactor_amp=0.2"
+      CHECK check_uniform_scalar.py PLOTFILES ${_hill_amr_tol} --require-level)
   # The other anelastic integrator (the default is RK2)
   add_test_anelastic_scalar_advection(AnelasticScalarAdvection_Hill_MidPoint inputs_hill 30
       RUNTIME_OPTIONS "erf.timestepping_type=MidPoint"
@@ -7117,6 +7227,10 @@ if(NOT WIN32 AND ERF_TEST_PYTHON AND ERF_PRECISION STREQUAL "DOUBLE")
     add_test_anelastic_scalar_advection(AnelasticScalarAdvection_Hill_GmresFFT inputs_hill 30
         RUNTIME_OPTIONS "erf.terrain_poisson_solver=gmres_fft"
         CHECK check_uniform_scalar.py PLOTFILES ${_hill_tol})
+    # The L-shaped refined level on a stretched mesh (level 0 uses the hybrid FFT)
+    add_test_anelastic_scalar_advection(AnelasticScalarAdvection_Stretched_LShaped inputs_flat 30
+        RUNTIME_OPTIONS "${_flat_l} ${_flat_sdz}"
+        CHECK check_uniform_scalar.py PLOTFILES ${_hill_amr_tol} --require-level)
   endif()
 
   # The pseudo-incompressible projection, div(rho0 theta0 u) = 0, solves div(beta grad phi) with
@@ -7150,6 +7264,13 @@ if(NOT WIN32 AND ERF_TEST_PYTHON AND ERF_PRECISION STREQUAL "DOUBLE")
       CHECK check_uniform_scalar.py PLOTFILES ${_hill_amr_tol} --require-level --density)
   add_test_anelastic_scalar_advection(PseudoIncompressibleScalarAdvection_Stretched_PartialDepth_TwoWay_VaryingMapFactor inputs_flat 30
       RUNTIME_OPTIONS "${_pi} ${_flat_amr} ${_flat_part} ${_flat_sdz}"
+      CHECK check_uniform_scalar.py PLOTFILES ${_hill_amr_tol} --require-level --density)
+  # The L-shaped refined level (see the anelastic case above)
+  add_test_anelastic_scalar_advection(PseudoIncompressibleScalarAdvection_Flat_LShaped inputs_flat 30
+      RUNTIME_OPTIONS "${_pi} ${_flat_l}"
+      CHECK check_uniform_scalar.py PLOTFILES ${_hill_amr_tol} --require-level --density)
+  add_test_anelastic_scalar_advection(PseudoIncompressibleScalarAdvection_Stretched_LShaped_VaryingMapFactor inputs_flat 30
+      RUNTIME_OPTIONS "${_pi} ${_flat_l} ${_flat_sdz} erf.test_mapfactor_amp=0.2"
       CHECK check_uniform_scalar.py PLOTFILES ${_hill_amr_tol} --require-level --density)
   add_test_anelastic_scalar_advection(PseudoIncompressibleScalarAdvection_Inertial_RK2 inputs_inertial 40
       RUNTIME_OPTIONS "${_pi} erf.timestepping_type=RK2 prob.T_0=300"

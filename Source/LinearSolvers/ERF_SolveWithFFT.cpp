@@ -10,6 +10,11 @@ using namespace amrex;
 /**
  * Build the FFT solver(s) -- one per subdomain in each level
  *
+ * None is built on a pseudo-incompressible level, which project_momenta solves with the terrain
+ * Poisson solver, nor for a region whose boxes do not make a rectangle, which it solves with
+ * multigrid.  (A flat level whose map factors are not all one does not use them either, but
+ * a refined level's map factors are not known yet when this is called from init_stuff.)
+ *
  * @param lev Level index for which FFT solvers are built
  */
 void ERF::build_fft_solvers (int lev)
@@ -27,6 +32,8 @@ void ERF::build_fft_solvers (int lev)
             m_2D_poisson[lev][n].reset();
         }
     }
+
+    if (solverChoice.compressibility_type[lev] == CompressibilityType::PseudoIncompressible) { return; }
 
     if ( (solverChoice.mesh_type == MeshType::ConstantDz )  ||
          (solverChoice.mesh_type == MeshType::StretchedDz) )
@@ -87,10 +94,9 @@ void ERF::build_fft_solvers (int lev)
                            (sub_hi.x+1)*dx[0], (sub_hi.y+1)*dx[1], (sub_hi.z+1)*dx[2]);
                 my_geom.define(subdomain, rb, coord_sys, is_per);
             }
+            // project_momenta solves a region that is not a rectangle with multigrid
             bool boxes_make_rectangle = (subdomain.numPts() == subdomains[lev][isub].numPts());
-            if (!boxes_make_rectangle && !will_solve_with_mlmg) {
-                amrex::Abort("FFT won't work unless the union of boxes is rectangular");
-            }
+            if (!boxes_make_rectangle) { continue; }
 
             if (solverChoice.mesh_type == MeshType::ConstantDz && !will_solve_with_mlmg)
             {
@@ -158,6 +164,8 @@ void ERF::solve_with_fft (int lev, int isub, const Box& subdomain,
         if (mg_verbose > 0) {
             amrex::Print() << "Using the 3D FFT solver on domain " << subdomain << std::endl;
         }
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(m_3D_poisson.size() > lev && m_3D_poisson[lev].size() > isub &&
+                                         m_3D_poisson[lev][isub], "solve_with_fft: the 3D FFT solver was not built");
         m_3D_poisson[lev][isub]->solve(phi, rhs);
 
     //
@@ -176,6 +184,8 @@ void ERF::solve_with_fft (int lev, int isub, const Box& subdomain,
         // The dz of the region's own layers, which is all my_geom covers
         Gpu::DeviceVector<Real> stretched_dz_d_sub = make_sub_dz(lev, subdomain);
 
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(m_2D_poisson.size() > lev && m_2D_poisson[lev].size() > isub &&
+                                         m_2D_poisson[lev][isub], "solve_with_fft: the hybrid FFT solver was not built");
         m_2D_poisson[lev][isub]->solve(phi, rhs, stretched_dz_d_sub);
     }
 
