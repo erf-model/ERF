@@ -647,6 +647,7 @@ ERF::ERF_shared ()
     t_old.resize(nlevs_max, -bogus_large_value);
     dt.resize(nlevs_max, std::min(static_cast<double>(bogus_large_value),dt_max_initial));
     dt_mri_ratio.resize(nlevs_max, 1);
+    acoustic_inv_dt.resize(nlevs_max, zero);
 
     vars_new.resize(nlevs_max);
     vars_old.resize(nlevs_max);

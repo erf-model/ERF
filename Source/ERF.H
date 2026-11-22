@@ -807,8 +807,9 @@ public:
     void MakeNewLevelFromScratch (int lev, amrex::Real time, const amrex::BoxArray& ba,
                                   const amrex::DistributionMapping& dm) override;
 
-    // compute dt from CFL considerations
-    double estTimeStep (int lev, long& dt_fast_ratio) const;
+    // compute dt from CFL considerations; acoustic_inv_dt is the largest inverse time step of
+    // the substepping rule on the level (1/s), zero where it sets no limit (acoustic_inv_dt below)
+    double estTimeStep (int lev, long& dt_fast_ratio, amrex::Real& acoustic_inv_dt) const;
 
     // largest explicit diffusion rates (eddy and molecular, 1/s) on level lev, momentum and scalars, for the
     // diffusive time-step check (erf.diffusive_dt_check / erf.diffusive_dt_limit)
@@ -1733,6 +1734,15 @@ private:
     amrex::Vector<double> t_old;
     amrex::Vector<double> dt;
     amrex::Vector<long> dt_mri_ratio;
+
+    // Largest horizontal acoustic inverse time step at each level (1/s), the sound speed over
+    // the horizontal spacing (Compute_InvDt_HorizAcoustic), as estTimeStep found it at the last
+    // ComputeDt.  Times the substep it is the horizontal acoustic Courant number of the substep,
+    // which the substeps scale the divergence damping with (DivergenceDampingCoeff).  Zero where
+    // there is none (a single column, an empty level, no substepping), and the damping
+    // coefficient is then erf.beta_d itself.
+    // Not checkpointed: ComputeDt sets it before the first step of a run or a restart.
+    amrex::Vector<amrex::Real> acoustic_inv_dt;
 
 #ifndef ERF_USE_MULTIBLOCK
     // Array of multifabs to store the solution at each level of refinement;

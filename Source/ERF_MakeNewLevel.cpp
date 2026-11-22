@@ -971,6 +971,9 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
     // Initialize the integrator class
     // ********************************************************************************************
     dt_mri_ratio[lev] = dt_mri_ratio[lev-1];
+    // Until the next ComputeDt: the coarser level's value at this level's horizontal spacing
+    acoustic_inv_dt[lev] = acoustic_inv_dt[lev-1] *
+        static_cast<Real>(std::max(ref_ratio[lev-1][0], ref_ratio[lev-1][1]));
     initialize_integrator(lev, vars_new[lev][Vars::cons], vars_new[lev][Vars::xvel]);
 
     // ********************************************************************************************

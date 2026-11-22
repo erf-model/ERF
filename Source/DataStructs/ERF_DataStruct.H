@@ -1382,7 +1382,8 @@ struct SolverChoice {
 
         pp.queryAdd("beta_s", beta_s);
 
-        // Divergence damping coefficient for the forward projection of (rho theta)
+        // Divergence damping coefficient for the forward projection of (rho theta), at a
+        // substep Courant number of one (the substeps use DivergenceDampingCoeff)
         pp.queryAdd("beta_d", beta_d);
         if (!(beta_d >= amrex::Real(0.0) && beta_d <= amrex::Real(1.0))) {
             amrex::Abort("erf.beta_d must lie in [0, 1]; got " + std::to_string(beta_d));
@@ -2990,8 +2991,9 @@ struct SolverChoice {
     // where the constant beta_s is below the stability limit min(sigma^2, 1) of the terrain
     bool auto_variable_beta_s = true;
 
-    // divergence damping coefficient: how far (rho theta) is projected forward
-    // in the horizontal momentum equations of the acoustic substepping
+    // divergence damping coefficient at a substep Courant number of one: the substeps
+    // project (rho theta) forward in the horizontal momentum equations by this value
+    // divided by the Courant number (DivergenceDampingCoeff)
     amrex::Real beta_d = amrex::Real(0.1);
 
     // This controls the time-centering of the *vertical* differences in the diffusive term for
@@ -3527,7 +3529,7 @@ struct SolverChoice {
  * @var SolverChoice::auto_variable_beta_s
  * @brief Whether erf.use_variable_beta_s may be turned on automatically (it is not set in the inputs).
  * @var SolverChoice::beta_d
- * @brief Divergence damping coefficient used in the acoustic substepping.
+ * @brief Divergence damping coefficient of the acoustic substepping at a substep Courant number of one.
  * @var SolverChoice::vert_implicit_fac
  * @brief Per-level, per-stage implicit vertical diffusion factors.
  * @var SolverChoice::implicit_thermal_diffusion

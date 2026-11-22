@@ -70,7 +70,7 @@ ERF::ComputeDt (int step, double cur_time_d)
             openface_grids[lev] = grids[lev];
         }
 
-        dt_tmp[lev] = estTimeStep(lev, dt_mri_ratio[lev]);
+        dt_tmp[lev] = estTimeStep(lev, dt_mri_ratio[lev], acoustic_inv_dt[lev]);
 
         if (do_diffusive_check) {
             ComputeDiffusiveRates(lev, rate_mom[lev], rate_scal[lev]);
@@ -407,9 +407,11 @@ ERF::ComputeMaxTerrainSlope (int lev)
  *
  * @param[in] level level of refinement (coarsest level i 0)
  * @param[out] dt_fast_ratio ratio of slow to fast time step
+ * @param[out] acoustic_inv_dt_lev largest horizontal acoustic inverse time step on the level
+ *             (1/s); zero where there is none (single column, empty level, no substepping)
  */
 double
-ERF::estTimeStep (int level, long& dt_fast_ratio) const
+ERF::estTimeStep (int level, long& dt_fast_ratio, Real& acoustic_inv_dt_lev) const
 {
     BL_PROFILE("ERF::estTimeStep()");
 
@@ -500,6 +502,7 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
     Real estdt_comp_inv_N, estdt_comp_inv_T;
     Real estdt_lowM_inv_N, estdt_lowM_inv_T;
     Real estdt_vert_comp_inv, estdt_vert_lowM_inv;
+    Real estdt_acou_inv = -bogus_large_value;
 
     const MultiFab& z_nd_mf = *z_phys_nd[level];
 
@@ -513,8 +516,8 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
         const eb_& eb_lev = get_eb(level);
         const MultiFab& detJ = (eb_lev.get_const_factory())->getVolFrac();
 
-        ReduceOps<ReduceOpMax> reduce_op;
-        ReduceData<Real>       reduce_data(reduce_op);
+        ReduceOps<ReduceOpMax,ReduceOpMax> reduce_op;
+        ReduceData<Real,Real>              reduce_data(reduce_op);
 
 #ifdef AMREX_USE_OMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
@@ -530,9 +533,10 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
             const Array4<const Real>& mf_my = mapfac[level][MapFacType::m_y]->const_array(mfi);
 
             reduce_op.eval(bx, reduce_data,
-            [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept -> GpuTuple<Real>
+            [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept -> GpuTuple<Real,Real>
             {
                Real new_comp_dt = -bogus_large_value;
+               Real new_acou_dt = -bogus_large_value;
                if (vf(i,j,k) > zero)
                {
                    const Real rho      = s(i, j, k, Rho_comp);
@@ -547,6 +551,8 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
                    // Inverse physical horizontal spacing
                    const Real idx = mf_mx(i,j,0) * dxinv_EB[0];
                    const Real idy = mf_my(i,j,0) * dxinv_EB[1];
+
+                   new_acou_dt = Compute_InvDt_HorizAcoustic(c, mf_mx(i,j,0), mf_my(i,j,0), dxinv_EB, nxc, nyc);
 
                    // If we are doing implicit acoustic substepping, then the z-direction does not contribute
                    //    to the computation of the time step
@@ -582,11 +588,13 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
 
                    }
                }
-               return {new_comp_dt};
+               return {new_comp_dt, new_acou_dt};
             });
         }
 
-        estdt_comp_inv_N = amrex::get<0>(reduce_data.value(reduce_op));
+        GpuTuple<Real,Real> hv = reduce_data.value(reduce_op);
+        estdt_comp_inv_N       = amrex::get<0>(hv);
+        estdt_acou_inv         = amrex::get<1>(hv);
 
         // The metric terms do not exist for EB, so the terrain aware
         // estimate is identical to the terrain unaware estimate
@@ -595,8 +603,8 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
     } else {
         // One pass over the data returning both the terrain aware (T) estimate,
         // and the terrain unaware (N) estimate
-        ReduceOps<ReduceOpMax,ReduceOpMax> reduce_op;
-        ReduceData<Real,Real>              reduce_data(reduce_op);
+        ReduceOps<ReduceOpMax,ReduceOpMax,ReduceOpMax> reduce_op;
+        ReduceData<Real,Real,Real>                     reduce_data(reduce_op);
 
 #ifdef AMREX_USE_OMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
@@ -613,7 +621,7 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
             const Array4<const Real>& mf_my = mapfac[level][MapFacType::m_y]->const_array(mfi);
 
             reduce_op.eval(bx, reduce_data,
-            [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept -> GpuTuple<Real,Real>
+            [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept -> GpuTuple<Real,Real,Real>
             {
                 const Real rho      = s(i,j,k,Rho_comp);
                 const Real rhotheta = s(i,j,k,RhoTheta_comp);
@@ -634,21 +642,31 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
                                     z_nd, mf_mx(i,j,0), mf_my(i,j,0), dxinv,
                                     false, l_substepping, nxc, nyc);
 
-                return {inv_dt_T, inv_dt_N};
+                Real inv_dt_A = Compute_InvDt_HorizAcoustic(c, mf_mx(i,j,0), mf_my(i,j,0), dxinv, nxc, nyc);
+
+                return {inv_dt_T, inv_dt_N, inv_dt_A};
             });
         }
 
-        GpuTuple<Real,Real> hv = reduce_data.value(reduce_op);
-        estdt_comp_inv_T       = amrex::get<0>(hv);
-        estdt_comp_inv_N       = amrex::get<1>(hv);
+        GpuTuple<Real,Real,Real> hv = reduce_data.value(reduce_op);
+        estdt_comp_inv_T            = amrex::get<0>(hv);
+        estdt_comp_inv_N            = amrex::get<1>(hv);
+        estdt_acou_inv              = amrex::get<2>(hv);
     } // not EB
 
     {
-        Real comp_inv[2] = {estdt_comp_inv_T, estdt_comp_inv_N};
-        ParallelDescriptor::ReduceRealMax(comp_inv,2);
+        Real comp_inv[3] = {estdt_comp_inv_T, estdt_comp_inv_N, estdt_acou_inv};
+        ParallelDescriptor::ReduceRealMax(comp_inv,3);
         estdt_comp_inv_T = comp_inv[0];
         estdt_comp_inv_N = comp_inv[1];
+        estdt_acou_inv   = comp_inv[2];
     }
+
+    // What the substeps scale the divergence damping with (DivergenceDampingCoeff): the largest
+    // horizontal acoustic inverse time step on the level.  A single column has no horizontal
+    // pressure gradient to damp and an empty level no cells; zero says there is none.
+    acoustic_inv_dt_lev = (l_substepping && !((nxc==1) && (nyc==1)) && (estdt_acou_inv > zero))
+                        ? estdt_acou_inv : zero;
 
     // Globally empty level -> ReduceMax = lowest(); treat level as non-constraining.
     estdt_comp_T = (estdt_comp_inv_T > zero) ? (cfl / estdt_comp_inv_T) : bogus_large_value;
@@ -1109,6 +1127,15 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
          Print() << "effective horiz,vert acoustic CFL with " << ns << " substeps : "
             << (dt_diag / ns) * estdt_comp_inv_T << " "
             << (dt_diag / ns) * estdt_vert_comp_inv << std::endl;
+
+         // The coefficient the substeps of the last two stages use (the first substep of a
+         // stage has no earlier value to project from and is not damped)
+         if (solverChoice.timestepping_type[level] == TimesteppingType::RK3_ImplicitSubstep) {
+             const Real dtau_diag = static_cast<Real>(dt_diag / static_cast<double>(ns));
+             Print() << "substep Courant number and divergence damping coefficient : "
+                << dtau_diag * acoustic_inv_dt_lev << " "
+                << DivergenceDampingCoeff(solverChoice.beta_d, dtau_diag, acoustic_inv_dt_lev) << std::endl;
+         }
 
          // vertical advective CFL should be < 1, otherwise w-damping may be needed
          Print() << "effective vert advective CFL : "
