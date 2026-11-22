@@ -7134,6 +7134,14 @@ if(NOT WIN32 AND ERF_TEST_PYTHON AND ERF_PRECISION STREQUAL "DOUBLE")
   add_test_anelastic_scalar_advection(AnelasticScalarAdvection_Stretched_PartialDepth_TwoWay_VaryingMapFactor inputs_flat 30
       RUNTIME_OPTIONS "${_flat_amr} ${_flat_part} ${_flat_sdz}"
       CHECK check_uniform_scalar.py PLOTFILES ${_hill_amr_tol} --require-level)
+  # A refined level whose boxes make an L, not a rectangle (amr.grid_eff = 1 keeps the two
+  # boxes apart).  The FFT solvers and MLTerrainPoisson need a rectangle; on a flat mesh such a
+  # level is projected with MLABecLaplacian (solve_with_flat_mlmg).  One-way: measured 1.3e-11 at
+  # most; these stopped at the first projection before.
+  set(_flat_l "amr.max_level=1 'amr.ref_ratio_vect=2 2 2' 'erf.refinement_indicators=box1 box2' erf.box1.max_level=1 erf.box2.max_level=1 'erf.box1.in_box_lo_indices_crse=8 12 2' 'erf.box1.in_box_hi_indices_crse=19 23 8' 'erf.box2.in_box_lo_indices_crse=8 4 2' 'erf.box2.in_box_hi_indices_crse=15 11 8' amr.grid_eff=1.0 erf.coupling_type=OneWay erf.poisson_reltol=1e-12 erf.poisson_abstol=1e-12")
+  add_test_anelastic_scalar_advection(AnelasticScalarAdvection_Flat_LShaped_VaryingMapFactor inputs_flat 30
+      RUNTIME_OPTIONS "${_flat_l} erf.test_mapfactor_amp=0.2"
+      CHECK check_uniform_scalar.py PLOTFILES ${_hill_amr_tol} --require-level)
   # The other anelastic integrator (the default is RK2)
   add_test_anelastic_scalar_advection(AnelasticScalarAdvection_Hill_MidPoint inputs_hill 30
       RUNTIME_OPTIONS "erf.timestepping_type=MidPoint"
@@ -7167,6 +7175,10 @@ if(NOT WIN32 AND ERF_TEST_PYTHON AND ERF_PRECISION STREQUAL "DOUBLE")
     add_test_anelastic_scalar_advection(AnelasticScalarAdvection_Hill_GmresFFT inputs_hill 30
         RUNTIME_OPTIONS "erf.terrain_poisson_solver=gmres_fft"
         CHECK check_uniform_scalar.py PLOTFILES ${_hill_tol})
+    # The L-shaped refined level on a stretched mesh (level 0 uses the hybrid FFT)
+    add_test_anelastic_scalar_advection(AnelasticScalarAdvection_Stretched_LShaped inputs_flat 30
+        RUNTIME_OPTIONS "${_flat_l} ${_flat_sdz}"
+        CHECK check_uniform_scalar.py PLOTFILES ${_hill_amr_tol} --require-level)
   endif()
 
   # The pseudo-incompressible projection, div(rho0 theta0 u) = 0, solves div(beta grad phi) with
@@ -7200,6 +7212,13 @@ if(NOT WIN32 AND ERF_TEST_PYTHON AND ERF_PRECISION STREQUAL "DOUBLE")
       CHECK check_uniform_scalar.py PLOTFILES ${_hill_amr_tol} --require-level --density)
   add_test_anelastic_scalar_advection(PseudoIncompressibleScalarAdvection_Stretched_PartialDepth_TwoWay_VaryingMapFactor inputs_flat 30
       RUNTIME_OPTIONS "${_pi} ${_flat_amr} ${_flat_part} ${_flat_sdz}"
+      CHECK check_uniform_scalar.py PLOTFILES ${_hill_amr_tol} --require-level --density)
+  # The L-shaped refined level (see the anelastic case above)
+  add_test_anelastic_scalar_advection(PseudoIncompressibleScalarAdvection_Flat_LShaped inputs_flat 30
+      RUNTIME_OPTIONS "${_pi} ${_flat_l}"
+      CHECK check_uniform_scalar.py PLOTFILES ${_hill_amr_tol} --require-level --density)
+  add_test_anelastic_scalar_advection(PseudoIncompressibleScalarAdvection_Stretched_LShaped_VaryingMapFactor inputs_flat 30
+      RUNTIME_OPTIONS "${_pi} ${_flat_l} ${_flat_sdz} erf.test_mapfactor_amp=0.2"
       CHECK check_uniform_scalar.py PLOTFILES ${_hill_amr_tol} --require-level --density)
   add_test_anelastic_scalar_advection(PseudoIncompressibleScalarAdvection_Inertial_RK2 inputs_inertial 40
       RUNTIME_OPTIONS "${_pi} erf.timestepping_type=RK2 prob.T_0=300"
