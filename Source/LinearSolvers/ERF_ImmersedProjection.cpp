@@ -33,13 +33,6 @@
 #include "ERF.H"
 #include "ERF_ImmersedWallCell.H"
 #include "ERF_ImmersedBuildingMasks.H"
-#include "ERF_SolverUtils.H"
-
-#include <AMReX_MLABecLaplacian.H>
-#include <AMReX_MLMG.H>
-
-#include <memory>
-#include <string>
 
 #ifdef ERF_USE_FFT
 #include "ERF_ImmersedPoisson.H"
@@ -47,27 +40,6 @@
 #endif
 
 using namespace amrex;
-
-// ERF_SolveWithMLMG.cpp
-bool projection_mlmg_is_aniso (const Geometry& geom, const BoxArray& grids, LPInfo& info);
-
-namespace {
-
-/**
- * MLABecLaplacian whose MG levels coarsen each direction on its own, as MLPoissonAniso of
- * solve_with_mlmg does for anisotropic cells (erf-model/ERF#5064)
- */
-class MLABecLaplacianAniso : public MLABecLaplacian {
-public:
-    MLABecLaplacianAniso (const Vector<Geometry>& a_geom, const Vector<BoxArray>& a_grids,
-                          const Vector<DistributionMapping>& a_dmap, const LPInfo& a_info)
-    {
-        mg_independent_coarsening = true;
-        define(a_geom, a_grids, a_dmap, a_info);
-    }
-};
-
-} // namespace
 
 /**
  * Face coefficients sigma = 1 / (1 + dt rate) of the implicit immersed drag in the projection,
@@ -263,87 +235,4 @@ void ERF::solve_with_if_gmres (int lev, const Box& subdomain, MultiFab& rhs, Mul
 #endif
 
     ImposeBCsOnPhi(lev, phi, subdomain);
-}
-
-/**
- * Multigrid solve of div(sigma grad phi) = rhs (erf.if_implicit_projection) on a constant-dz
- * mesh with map factors of one, for a build without FFT or a level whose regions are not
- * rectangles (erf-model/ERF#4887). As solve_with_mlmg, it takes the boxes of one region and the
- * geometry of the level, with zero normal gradient on the coarse/fine boundary.
- *
- * @param lev    Level index for the solve
- * @param rhs    Right-hand side, div(sigma m*)
- * @param phi    Solution field to fill
- * @param fluxes Face fluxes to fill: -grad phi, without sigma
- * @param sigma  Face coefficients (make_if_projection_sigma)
- */
-void ERF::solve_with_if_mlmg (int lev, Vector<MultiFab>& rhs, Vector<MultiFab>& phi,
-                              Vector<Array<MultiFab,AMREX_SPACEDIM>>& fluxes,
-                              Array<MultiFab const*,AMREX_SPACEDIM> const& sigma)
-{
-    BL_PROFILE("ERF::solve_with_if_mlmg()");
-
-    const Geometry& lev_geom = Geom(lev);
-    auto const dom_lo = lbound(lev_geom.Domain());
-    auto const dom_hi = ubound(lev_geom.Domain());
-
-    LPInfo info;
-    // Allow a hidden direction if the domain is one cell wide in any lateral direction
-    if (dom_lo.x == dom_hi.x) {
-        info.setHiddenDirection(0);
-    } else if (dom_lo.y == dom_hi.y) {
-        info.setHiddenDirection(1);
-    }
-
-    Vector<BoxArray>            ba_tmp;   ba_tmp.push_back(rhs[0].boxArray());
-    Vector<DistributionMapping> dm_tmp;   dm_tmp.push_back(rhs[0].DistributionMap());
-    Vector<Geometry>            geom_tmp; geom_tmp.push_back(lev_geom);
-
-    // Anisotropic cells: coarsen the directions on their own, as solve_with_mlmg does
-    const bool aniso = projection_mlmg_is_aniso(lev_geom, rhs[0].boxArray(), info);
-    std::unique_ptr<MLABecLaplacian> linop_ptr = aniso
-        ? std::make_unique<MLABecLaplacianAniso>(geom_tmp, ba_tmp, dm_tmp, info)
-        : std::make_unique<MLABecLaplacian>(geom_tmp, ba_tmp, dm_tmp, info);
-    MLABecLaplacian& linop = *linop_ptr;
-    linop.setMaxOrder(2);
-    linop.setDomainBC(get_lo_projection_bc(lev_geom, domain_bc_type),
-                      get_hi_projection_bc(lev_geom, domain_bc_type));
-    if (lev > 0) {
-        linop.setCoarseFineBC(nullptr, ref_ratio[lev-1], LinOpBCType::Neumann);
-    }
-    linop.setLevelBC(0, nullptr);
-
-    // (A alpha - B div(b grad)) phi = rhs with A = 0, B = 1 and b = -sigma: div(sigma grad phi) = rhs
-    linop.setScalars(zero, one);
-    Array<MultiFab,AMREX_SPACEDIM> bcoef;
-    for (int idim = 0; idim < AMREX_SPACEDIM; ++idim) {
-        bcoef[idim].define(sigma[idim]->boxArray(), sigma[idim]->DistributionMap(), 1, 0);
-        MultiFab::Copy(bcoef[idim], *sigma[idim], 0, 0, 1, 0);
-        bcoef[idim].mult(-one);
-    }
-    linop.setBCoeffs(0, amrex::GetArrOfConstPtrs(bcoef));
-
-    MLMG mlmg(linop);
-    mlmg.setMaxIter(100);
-    mlmg.setVerbose(mg_verbose);
-    mlmg.setBottomVerbose(0);
-    // As in solve_with_EB_mlmg: stop the bottom solve well below the tolerance of the solve
-    mlmg.setBottomToleranceAbs(Real(1.e-4) * solverChoice.poisson_abstol);
-
-    // MLMG stops the run when it does not converge; name the option and the inputs to change
-    mlmg.setThrowException(true);
-    try {
-        mlmg.solve(GetVecOfPtrs(phi), GetVecOfConstPtrs(rhs),
-                   solverChoice.poisson_reltol, solverChoice.poisson_abstol);
-    } catch (MLMG::error const& err) {
-        amrex::Abort(std::string("erf.if_implicit_projection, multigrid at level ") + std::to_string(lev)
-                     + ": " + err.what() + "  Loosen erf.poisson_reltol / erf.poisson_abstol.");
-    }
-
-    // Return -grad phi, as solve_with_if_gmres does: the gradient of the solution, not the flux
-    // sigma grad phi, so that no face is divided by sigma
-    mlmg.getGradSolution(GetVecOfArrOfPtrs(fluxes));
-    for (int idim = 0; idim < AMREX_SPACEDIM; ++idim) {
-        fluxes[0][idim].mult(-one);
-    }
 }

@@ -2785,6 +2785,11 @@ if(ERF_ENABLE_MPI AND NOT WIN32)
     add_test_immersed_cf_heat_balance(ImmersedLES2LevHeatBalance_Stretched_Freeze ImmersedLES2LevHeatBalance 300.0 1.0e-6 ON OFF
                                       "${if_hb_stretched} erf.if_implicit_projection=false" multilevel)
   endif()
+  # A slab one cell wide in y, so the multigrid of the implicit projection hides y on level 0: its
+  # face coefficients there are zero, or the V-cycle diverges and the run stops (MLABecLaplacian
+  # keeps the faces of a hidden direction in its stencil). Measured: 4e-8 K.
+  add_test_immersed_cf_heat_balance(ImmersedLES2LevHeatBalance_Slab ImmersedLES2LevHeatBalance 300.0 1.0e-6 OFF OFF
+                                    "amr.n_cell='16 1 20' geometry.prob_hi='320 20 400' amr.blocking_factor=1 erf.box1.in_box_hi_indices_crse='11 0 4'" multilevel)
   # The L-shaped region on the stretched mesh: the terrain Poisson multigrid needs a rectangle, so
   # the refined level is solved with solve_with_flat_mlmg (erf-model/ERF#5332), sigma in the face
   # coefficients it takes from the area factors. Measured: -3.4e-7 K implicit, 0.014 K with the
