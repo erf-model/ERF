@@ -215,7 +215,7 @@ configuration and runtime details that cannot be inferred from metadata alone.
      - ``Radiation``
      - ``K``
      - ``FillMinus999WhenUnavailable``
-     - Deep soil temperature of the two-stream force-restore balance (evolves with erf.radiation.seb_deep_prognostic_enable)
+     - Deep soil temperature of the two-stream force-restore balance (evolves with erf.radiation.seb_deep_prognostic_enable; per column with erf.radiation.seb_init_t_deep_from_file)
    * - ``seb_q_deep``
      - ``Radiation``
      - ``1``

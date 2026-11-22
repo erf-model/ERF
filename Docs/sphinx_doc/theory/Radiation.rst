@@ -480,7 +480,8 @@ Limitations
   radiation from its parent, or when ``erf.nc_low_file`` is set without ``erf.nc_low_file_<lev>``:
   the level's surface temperature then follows its parent's, and a line in the log says so.
   Only the first value changes: the balance, its restoring temperature ``seb_t_deep_default``
-  and the surface layer are as before. The restoring temperature :math:`T_{\text{deep}}` stays one
+  and the surface layer are as before. Unless ``seb_init_t_deep_from_file`` is set, the
+  restoring temperature :math:`T_{\text{deep}}` stays one
   value for every column, so a column whose file value differs from it by :math:`\Delta T` feels
   the restoring flux :math:`C_s (2\pi/\tau)\,\Delta T` from the first step, with :math:`C_s` the
   skin heat capacity per area: 1.45 W m\ :sup:`-2` per kelvin for
@@ -489,8 +490,8 @@ Limitations
   by about 43 W m\ :sup:`-2`, over the time :math:`\tau/2\pi` of 3.8 hours, so a start far
   from ``seb_t_deep_default`` relaxes toward it and the per-column start is partly lost. Set
   ``seb_t_deep_default`` near the mean of the file's land values; the log line of each level
-  prints the largest difference. A deep temperature per column, for example ``TMN`` of a
-  wrfinput file, is not part of this input. A real file can hold land values outside
+  prints the largest difference, or set the deep temperature per column from the file as
+  described next. A real file can hold land values outside
   the default range of 200 K to 340 K (a hot desert, a polar plateau); the two range inputs
   widen it. Without
   ``erf.radiation.seb_surface_layer_uses_skin`` the surface layer keeps using the file's skin
@@ -502,6 +503,68 @@ Limitations
   range the balance holds :math:`T_s` in. A level made later in the run is filled from its
   parent, whose skin has evolved by then, also when it has a file. A restart takes :math:`T_s`
   from the checkpoint, or ``erf.rad_t_sfc`` when the checkpoint was written without the balance.
+- **Deep temperature from the initial file.** The restoring term of the balance,
+  :math:`-C_s (2\pi/\tau)(T_s - T_{\text{deep}})`, pulls the skin of every column toward the
+  deep temperature :math:`T_{\text{deep}}`, which is the one value ``seb_t_deep_default``
+  unless this input is set. Over real terrain one value cannot be near the skin of both a
+  mountain and a valley. A wrfinput file carries ``TMN``, the soil temperature at the lower
+  boundary of WRF's soil column [K], in every column. With ``erf.radiation.seb_init_t_deep_from_file = true`` and the prognostic
+  balance,
+
+  .. math::
+
+     T_{\text{deep}}(i,j,t_0) =
+     \begin{cases}
+       T_{\text{TMN}}(i,j), & \text{land (mask} \neq 0\text{)} \\
+       T_{\text{deep,0}},   & \text{water (mask} = 0\text{)}
+     \end{cases}
+
+  where :math:`T_{\text{TMN}}` is the file's ``TMN`` and :math:`T_{\text{deep,0}}` is
+  ``seb_t_deep_default`` at level 0 and, at a finer level, the value the fill from its parent
+  gave the column. The balance does not run on a water column, so the value there is not used,
+  except as described for the skin above.
+
+  **What changes in the balance.** Without the input ERF sets :math:`T_{\text{deep}}` to
+  ``seb_t_deep_default`` before every step. With it :math:`T_{\text{deep}}` is part of the
+  surface state, like :math:`T_s`: it is not reset, a new level takes it from its parent,
+  fine levels are averaged down onto the coarse level under two-way coupling, a regrid keeps
+  it, and the checkpoint holds it (see `Multiple Levels`_ for the three rules). Without
+  ``seb_deep_prognostic_enable`` it then keeps the file's value for the whole run, apart from
+  the averaging down under a finer level. With ``seb_deep_prognostic_enable`` the file's value
+  is the first value of the evolving :math:`T_{\text{deep}}` (`Force-Restore Hydrology`_), in
+  place of ``seb_t_deep_default``.
+
+  **Levels.** A finer level that read a wrfinput file of its own takes that file's ``TMN`` on
+  land. A level without a file is filled from its parent, and so holds the parent's ``TMN``,
+  interpolated. So is a level that takes its radiation from its parent, and a level made
+  later in the run, also when it has a file. Unlike the skin temperature, ``TMN`` does not
+  depend on ``erf.nc_low_file``: ERF reads it from the initial file only.
+
+  **When the run stops.** The reader keeps ``TMN`` only when every column of the level has a
+  value between 0 K and 1000 K, water columns included, and reports a field it does not keep.
+  The run stops when the file of level 0, or of a finer level that has a file, gave no ``TMN``
+  the reader kept (so also with ``erf.init_type`` other than ``WRFInput``), when the radiation
+  model is not the two-stream one, when the balance is not prognostic, when a land-surface,
+  urban or surface model is on, and when a land value is not finite or lies outside
+  ``[seb_prognostic_t_min_k, seb_prognostic_t_max_k]``. The last range is the one the balance
+  holds :math:`T_s` in: a skin cannot reach a deep temperature outside it.
+
+  **What the file's value stands for.** With :math:`\tau` of one day the term restores the
+  skin toward :math:`T_{\text{deep}}` over a few hours, so a :math:`T_{\text{deep}}` that
+  differs from the mean of the skin over the day by :math:`\Delta T` adds the steady flux
+  :math:`C_s (2\pi/\tau)\,\Delta T` to the balance, 1.45 W m\ :sup:`-2` per kelvin with the
+  defaults. ERF takes ``TMN`` as the file gives it and does not test how near it is to that
+  mean. Without ``seb_deep_prognostic_enable`` the difference acts for the whole run. With
+  it :math:`T_{\text{deep}}` relaxes toward the skin with the e-folding time :math:`\tau`,
+  so the file's value is mostly replaced after a few days.
+
+  **Restart.** The file is not read on a restart. :math:`T_{\text{deep}}` comes from
+  ``TwoStream_TDeep`` of the checkpoint, so a restarted run continues bit for bit. A checkpoint
+  written without the input has no such file: every column then holds ``seb_t_deep_default``,
+  which is what that run used, and a NOTE says so. A fine land column with no coarse land column next to it also holds
+  ``seb_t_deep_default``, as described for the skin. The input must stay set on the restart;
+  without it ERF again sets :math:`T_{\text{deep}}` to ``seb_t_deep_default`` before every
+  step, and a NOTE says that the checkpoint's field is not read.
 - **Call cadence.** The sweep runs once every slow step, from the old state, and there is no
   call-frequency input: one gray sweep per column costs about a millisecond per ten thousand
   cells, so unlike RRTMGP (``erf.rad_freq_in_steps``) it is not worth skipping steps.

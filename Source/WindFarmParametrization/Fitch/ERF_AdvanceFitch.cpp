@@ -1,5 +1,6 @@
 #include <ERF_Fitch.H>
 #include <ERF_IndexDefines.H>
+#include <ERF_LengthScaleCellSize.H>
 #include <cmath>
 #include <ERF_NumericalConstants.H>
 #include <ERF_Interpolation_1D.H>
@@ -182,7 +183,8 @@ Fitch::source_terms_cellcentered (const Geometry& geom,
   get_turb_spec(rotor_rad, hub_height, thrust_coeff_standing,
                   wind_speed, thrust_coeff, power);
 
-  auto dx = geom.CellSizeArray();
+  // dx in place of a dy over one cell, and the reverse (only dz is used as a spacing)
+  auto dx = LengthScaleCellSize(geom);
 
   // Domain valid box
   const amrex::Box& domain = geom.Domain();

@@ -11,6 +11,7 @@
 #include "ERF_PBLModels.H"
 #include "ERF_TileNoZ.H"
 #include "ERF_TerrainMetrics.H"
+#include "ERF_LengthScaleCellSize.H"
 #include "ERF_TerrainDiffusionLimits.H"
 #include "ERF_MoistUtils.H"
 #include "ERF_RichardsonNumber.H"
@@ -47,6 +48,8 @@ void ComputeTurbulentViscosityLES (Vector<std::unique_ptr<MultiFab>>& Tau_lev,
                                    const MultiFab* yvel)
 {
     const GpuArray<Real, AMREX_SPACEDIM> cellSizeInv = geom.InvCellSizeArray();
+    // The filter widths take dx in place of a dy over one cell, and the reverse
+    const GpuArray<Real, AMREX_SPACEDIM> lenInv = LengthScaleInvCellSize(geom);
     const Box& domain = geom.Domain();
 
     Real inv_Pr_t    = turbChoice.Pr_t_inv;
@@ -119,8 +122,8 @@ void ComputeTurbulentViscosityLES (Vector<std::unique_ptr<MultiFab>>& Tau_lev,
                 // =====================================================================
                 // 2. GRID SCALE CALCULATION (filter width Δ)
                 // =====================================================================
-                Real dxInv = cellSizeInv[0];
-                Real dyInv = cellSizeInv[1];
+                Real dxInv = lenInv[0];
+                Real dyInv = lenInv[1];
                 Real dzInv = cellSizeInv[2];
                 if (use_terrain_fitted_coords) {
                     dzInv /= Compute_h_zeta_AtCellCenter(i,j,k, cellSizeInv, z_nd_arr);
@@ -215,8 +218,8 @@ void ComputeTurbulentViscosityLES (Vector<std::unique_ptr<MultiFab>>& Tau_lev,
 
             ParallelFor(bxcc, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
-                Real dxInv = cellSizeInv[0];
-                Real dyInv = cellSizeInv[1];
+                Real dxInv = lenInv[0];
+                Real dyInv = lenInv[1];
                 Real dzInv = cellSizeInv[2];
                 if (use_terrain_fitted_coords) {
                     // the terrain grid is only deformed in z for now
@@ -370,8 +373,10 @@ void ComputeTurbulentViscosityLES_EB (Vector<std::unique_ptr<MultiFab>>& Tau_lev
                                   const MultiFab* yvel)
 {
     const GpuArray<Real, AMREX_SPACEDIM> cellSizeInv = geom.InvCellSizeArray();
-    Real dxInv = cellSizeInv[0];
-    Real dyInv = cellSizeInv[1];
+    // The filter widths take dx in place of a dy over one cell, and the reverse
+    const GpuArray<Real, AMREX_SPACEDIM> lenInv = LengthScaleInvCellSize(geom);
+    Real dxInv = lenInv[0];
+    Real dyInv = lenInv[1];
     Real dzInv = cellSizeInv[2];
 
     const Box& domain = geom.Domain();

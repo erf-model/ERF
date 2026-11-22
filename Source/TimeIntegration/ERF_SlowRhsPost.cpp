@@ -908,7 +908,7 @@ void erf_slow_rhs_post (int level, int finest_level,
             // already left these momenta divergence free; zeroing the faces between solid cells here
             // would leave the surface faces unbalanced (a mass sink in the solid cells next to them,
             // under a terrain surface or behind building walls and roofs).
-            const bool l_freeze_mom = !solverChoice.if_implicit_projection;
+            const bool l_freeze_mom = !solverChoice.if_drag_in_projection(level);
             ParallelFor(xtbx, ytbx, ztbx,
             [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
                 // Use face-centered terrain_blanking if available, otherwise average from cell centers

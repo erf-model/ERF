@@ -564,6 +564,11 @@ public:
                               amrex::MultiFab& rhs, amrex::MultiFab& phi,
                               amrex::Array<amrex::MultiFab,AMREX_SPACEDIM>& fluxes,
                               amrex::Array<amrex::MultiFab const*,AMREX_SPACEDIM> const& sigma);
+    //! Multigrid solve of div(sigma grad phi) = rhs (erf.if_implicit_projection) where the FFT
+    //! preconditioner is not available; fluxes = -grad phi, without sigma
+    void solve_with_if_mlmg (int lev, amrex::Vector<amrex::MultiFab>& rhs, amrex::Vector<amrex::MultiFab>& phi,
+                             amrex::Vector<amrex::Array<amrex::MultiFab,AMREX_SPACEDIM>>& fluxes,
+                             amrex::Array<amrex::MultiFab const*,AMREX_SPACEDIM> const& sigma);
     void solve_with_gmres (int lev, const amrex::Box& subdomain,
                            amrex::MultiFab& rhs, amrex::MultiFab& p,
                            amrex::Array<amrex::MultiFab,AMREX_SPACEDIM>& fluxes,
@@ -614,6 +619,10 @@ public:
     //! With erf.radiation.seb_init_skin_from_file, start the two-stream SEB skin
     //! temperature of the land columns of level lev from the initial file's TSK or SKINTEMP
     void init_seb_skin_from_file (int lev);
+
+    //! With erf.radiation.seb_init_t_deep_from_file, start the two-stream SEB deep
+    //! (restoring) temperature of the land columns of level lev from the initial file's TMN
+    void init_seb_t_deep_from_file (int lev);
 
     //! With erf.radiation.seb_surface_layer_uses_skin, hand the two-stream surface energy
     //! balance's skin temperature of level lev to the zlo surface layer before it

@@ -323,6 +323,12 @@ target_sources(${erf_exe_name}
     # erf.rad_t_sfc; a land value that is not finite or lies outside the range the balance
     # holds the skin in is counted (ERF then stops) and not copied.
     ${CMAKE_CURRENT_SOURCE_DIR}/Radiation/ERF_GTestSEBSkinInit.cpp
+    # Motivation: with erf.radiation.seb_init_t_deep_from_file the deep temperature of the
+    # balance is set per column from the initial file's TMN, so the balance must stop
+    # resetting it to erf.radiation.seb_t_deep_default each step, restore the skin toward
+    # the column's own value, hand it to new levels and hold it in the checkpoint; without
+    # the input every one of these stays as it was.
+    ${CMAKE_CURRENT_SOURCE_DIR}/Radiation/ERF_GTestSEBDeepInit.cpp
     # Motivation: with erf.ibseb.sun_mode = two_stream the building faces must
     # see the two-stream columns' sun: the same zenith, a morning sun in the
     # east, and the start date read the same way.
@@ -398,6 +404,9 @@ target_sources(${erf_exe_name}
     # lat/lon arrays put it on a rotated grid and on a grid across 180 degrees.
     ${CMAKE_CURRENT_SOURCE_DIR}/Utils/ERF_GTestLatLonMap.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/Utils/ERF_GTestGridUtils.cpp
+    # Motivation: on an x-z slice dy is arbitrary, so a lateral cell size used as a length
+    # scale (the LES filter width, for one) must take dx in its place.
+    ${CMAKE_CURRENT_SOURCE_DIR}/Utils/ERF_GTestLengthScaleCellSize.cpp
     # Motivation: erf.initial_dz without a stretching ratio must solve for the ratio that
     # closes the grid on prob_hi, and an explicit ratio must not be solved for.
     ${CMAKE_CURRENT_SOURCE_DIR}/Utils/ERF_GTestInitZLevels.cpp

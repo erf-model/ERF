@@ -1,5 +1,6 @@
 #include <ERF_GeneralAD.H>
 #include <ERF_IndexDefines.H>
+#include <ERF_LengthScaleCellSize.H>
 #include <ERF_Interpolation_1D.H>
 #include <cmath>
 #include <ERF_NumericalConstants.H>
@@ -357,6 +358,8 @@ GeneralAD::source_terms_cellcentered (const Geometry& geom,
     Gpu::copy(Gpu::hostToDevice, zloc_h.begin(), zloc_h.end(), d_zloc.begin());
 
       auto dx = geom.CellSizeArray();
+      // The kernel thickness takes dy in place of a dx over one cell
+      const Real dx_kernel = LengthScaleCellSize(geom)[0];
 
   // Domain valid box
       const amrex::Box& domain = geom.Domain();
@@ -552,9 +555,9 @@ GeneralAD::source_terms_cellcentered (const Geometry& geom,
 
                         //Real dn = (
 
-                        source_x = -Fx/(two*PI*rad*dx[0])*one/std::pow(two*PI,myhalf);
-                        source_y = -Fy/(two*PI*rad*dx[0])*one/std::pow(two*PI,myhalf);
-                        source_z = -Fz/(two*PI*rad*dx[0])*one/std::pow(two*PI,myhalf);
+                        source_x = -Fx/(two*PI*rad*dx_kernel)*one/std::pow(two*PI,myhalf);
+                        source_y = -Fy/(two*PI*rad*dx_kernel)*one/std::pow(two*PI,myhalf);
+                        source_z = -Fz/(two*PI*rad*dx_kernel)*one/std::pow(two*PI,myhalf);
 
 
                         //printf("Val source_x, is %0.15g, %0.15g, %0.15g %0.15g %0.15g %0.15g\n", rad, Fn, Ft, source_x, source_y, source_z);

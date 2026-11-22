@@ -5,6 +5,7 @@
 #include "ERF_ImmersedWallStability.H"
 #include "ERF_ImmersedWallCell.H"
 #include "ERF_ImmersedBuildingMasks.H"
+#include "ERF_LengthScaleCellSize.H"
 
 using namespace amrex;
 
@@ -90,12 +91,15 @@ void ImmersedForcingTerrain_Xmom (const Box& tbx,
                                   const Array4<      Real>& xmom_src_arr,
                                   const Geometry& geom,
                                   const SolverChoice& solverChoice,
-                                  const Real fac)
+                                  const Real fac,
+                                  const bool l_drag_in_projection)
 {
     // geometric properties
     const auto dx_arr = geom.CellSizeArray();
-    const Real dx_x = dx_arr[0];
-    const Real dx_y = dx_arr[1];
+    // The drag rates take dx in place of a dy over one cell, and the reverse
+    const auto len_arr = LengthScaleCellSize(geom);
+    const Real len_x = len_arr[0];
+    const Real len_y = len_arr[1];
     const Real dt = fac;  // fac is actually dt in the calling code
 
     const Real alpha_m = solverChoice.if_Cd_momentum;
@@ -103,7 +107,7 @@ void ImmersedForcingTerrain_Xmom (const Box& tbx,
     const Real U_s = one; // unit velocity scale
     const bool l_implicit_drag = solverChoice.if_implicit_drag;
     // erf.if_implicit_projection: the drag of the solid is applied inside the anelastic projection
-    const bool l_drag = !solverChoice.if_implicit_projection;
+    const bool l_drag = !l_drag_in_projection;
 
     // MOST parameters (the similarity functions from erf.most.stable_functions)
     const similarity_funs sfuns = solverChoice.most_sfuns;
@@ -141,7 +145,7 @@ void ImmersedForcingTerrain_Xmom (const Box& tbx,
         const Real t_blank_above = (t_blank_above_raw < small_volfrac) ? zero : t_blank_above_raw;
 
         const Real dx_z = (z_cc_arr) ? (z_cc_arr(i,j,k) - z_cc_arr(i,j,k-1)) : dx_arr[2];
-        const Real drag_coefficient = alpha_m / std::pow(dx_x*dx_y*dx_z, one/three);
+        const Real drag_coefficient = alpha_m / std::pow(len_x*len_y*dx_z, one/three);
         const Real CdM = std::min(drag_coefficient / (windspeed + tiny), drag_coefficient);
 
         const Real rho_xface = myhalf * ( cell_data(i,j,k,Rho_comp) + cell_data(i-1,j,k,Rho_comp) );
@@ -212,12 +216,15 @@ void ImmersedForcingTerrain_Ymom (const Box& tby,
                                   const Array4<      Real>& ymom_src_arr,
                                   const Geometry& geom,
                                   const SolverChoice& solverChoice,
-                                  const Real fac)
+                                  const Real fac,
+                                  const bool l_drag_in_projection)
 {
     // geometric properties
     const auto dx_arr = geom.CellSizeArray();
-    const Real dx_x = dx_arr[0];
-    const Real dx_y = dx_arr[1];
+    // The drag rates take dx in place of a dy over one cell, and the reverse
+    const auto len_arr = LengthScaleCellSize(geom);
+    const Real len_x = len_arr[0];
+    const Real len_y = len_arr[1];
     const Real dt = fac;  // fac is actually dt in the calling code
 
     const Real alpha_m = solverChoice.if_Cd_momentum;
@@ -225,7 +232,7 @@ void ImmersedForcingTerrain_Ymom (const Box& tby,
     const Real U_s = one; // unit velocity scale
     const bool l_implicit_drag = solverChoice.if_implicit_drag;
     // erf.if_implicit_projection: the drag of the solid is applied inside the anelastic projection
-    const bool l_drag = !solverChoice.if_implicit_projection;
+    const bool l_drag = !l_drag_in_projection;
 
     // MOST parameters (the similarity functions from erf.most.stable_functions)
     const similarity_funs sfuns = solverChoice.most_sfuns;
@@ -262,7 +269,7 @@ void ImmersedForcingTerrain_Ymom (const Box& tby,
         const Real t_blank_above = (t_blank_above_raw < small_volfrac) ? zero : t_blank_above_raw;
 
         const Real dx_z = (z_cc_arr) ? (z_cc_arr(i,j,k) - z_cc_arr(i,j,k-1)) : dx_arr[2];
-        const Real drag_coefficient = alpha_m / std::pow(dx_x*dx_y*dx_z, one/three);
+        const Real drag_coefficient = alpha_m / std::pow(len_x*len_y*dx_z, one/three);
         const Real CdM = std::min(drag_coefficient / (windspeed + tiny), drag_coefficient);
 
         const Real rho_yface =  myhalf * ( cell_data(i,j,k,Rho_comp) + cell_data(i,j-1,k,Rho_comp) );
@@ -421,17 +428,20 @@ void ImmersedForcingTerrain_HorizMom_FractionStress (const Box& tb,
                                                     const Geometry& geom,
                                                     const SolverChoice& solverChoice,
                                                     const Real dt,
-                                                    const Real time)
+                                                    const Real time,
+                                                    const bool l_drag_in_projection)
 {
     const Real* dx_arr = geom.CellSize();
-    const Real dx_x = dx_arr[0];
-    const Real dx_y = dx_arr[1];
+    // The drag rates take dx in place of a dy over one cell, and the reverse
+    const auto len_arr = LengthScaleCellSize(geom);
+    const Real len_x = len_arr[0];
+    const Real len_y = len_arr[1];
     const Real dz   = dx_arr[2];   // fraction_stress runs on a constant-dz mesh
     const Real alpha_m = solverChoice.if_Cd_momentum;
     const Real z0      = solverChoice.if_z0;
     const bool l_implicit_drag = solverChoice.if_implicit_drag;
     // erf.if_implicit_projection: the drag of the solid is applied inside the anelastic projection
-    const bool l_drag = !solverChoice.if_implicit_projection;
+    const bool l_drag = !l_drag_in_projection;
     const Real tiny  = std::numeric_limits<Real>::epsilon();
     const Real small = solverChoice.if_small_volfrac;
     const ib_wall::WallCond cond = make_wall_cond(solverChoice, time);
@@ -468,7 +478,7 @@ void ImmersedForcingTerrain_HorizMom_FractionStress (const Box& tb,
                                        : fourth * ( w(i, j, k) + w(i, j-1, k) + w(i, j, k+1) + w(i, j-1, k+1) );
             const Real uh = if_face_speed<dir>(u, v, i, j, k);
             const Real windspeed = std::sqrt(uh * uh + wz * wz);
-            const Real drag_coefficient = alpha_m / std::pow(dx_x*dx_y*dz, one/three);
+            const Real drag_coefficient = alpha_m / std::pow(len_x*len_y*dz, one/three);
             const Real CdM = std::min(drag_coefficient / (windspeed + tiny), drag_coefficient);
             const Real lambda = b_k * CdM * windspeed;   // linear drag rate [1/s]; zero in fluid cells
             const Real fac_local = l_implicit_drag ? lambda / (one + lambda*dt) : lambda;
@@ -488,10 +498,11 @@ void ImmersedForcingTerrain_Xmom_FractionStress (const Box& tbx,
                                                  const Geometry& geom,
                                                  const SolverChoice& solverChoice,
                                                  const Real fac,
-                                                 const Real time)
+                                                 const Real time,
+                                                 const bool l_drag_in_projection)
 {
     ImmersedForcingTerrain_HorizMom_FractionStress<0>(tbx, u, v, w, cell_data, t_blank_arr, t_blank_xface_arr,
-                                                      xmom_src_arr, geom, solverChoice, fac, time);
+                                                      xmom_src_arr, geom, solverChoice, fac, time, l_drag_in_projection);
 }
 
 void ImmersedForcingTerrain_Ymom_FractionStress (const Box& tby,
@@ -505,10 +516,11 @@ void ImmersedForcingTerrain_Ymom_FractionStress (const Box& tby,
                                                  const Geometry& geom,
                                                  const SolverChoice& solverChoice,
                                                  const Real fac,
-                                                 const Real time)
+                                                 const Real time,
+                                                 const bool l_drag_in_projection)
 {
     ImmersedForcingTerrain_HorizMom_FractionStress<1>(tby, u, v, w, cell_data, t_blank_arr, t_blank_yface_arr,
-                                                      ymom_src_arr, geom, solverChoice, fac, time);
+                                                      ymom_src_arr, geom, solverChoice, fac, time, l_drag_in_projection);
 }
 
 /**
@@ -545,12 +557,14 @@ void ImmersedForcingTerrain_Scalar_FractionStress (const Box& bx,
 {
     const Real* dx_arr = geom.CellSize();
     const Real dz = dx_arr[2];   // fraction_stress runs on a constant-dz mesh
+    // The drag rate takes dx in place of a dy over one cell, and the reverse
+    const auto len_arr = LengthScaleCellSize(geom);
     const Real tke_time_factor = solverChoice.if_wall_tke_time_factor;
     // a time factor of 1 pins the wall cell at the wall value after every stage (erf_slow_rhs_post
     // and the implicit TKE solve read wall_ktarget), as erf.dirichlet_k does on flat ground;
     // larger factors relax toward it here as a source
     const bool tke_pin = (tke_time_factor <= one);
-    const Real drag_coefficient = solverChoice.if_Cd_scalar / std::pow(dx_arr[0]*dx_arr[1]*dz, one/three);
+    const Real drag_coefficient = solverChoice.if_Cd_scalar / std::pow(len_arr[0]*len_arr[1]*dz, one/three);
     const Real z0    = solverChoice.if_z0;
     const Real small = solverChoice.if_small_volfrac;
     const ib_wall::WallCond cond = make_wall_cond(solverChoice, time);
@@ -628,19 +642,22 @@ void ImmersedForcingTerrain_Zmom (const Box& tbz,
                                   const Array4<      Real>& zmom_src_arr,
                                   const Geometry& geom,
                                   const SolverChoice& solverChoice,
-                                  const Real fac)
+                                  const Real fac,
+                                  const bool l_drag_in_projection)
 {
     // geometric properties
     const auto dx_arr = geom.CellSizeArray();
-    const Real dx_x = dx_arr[0];
-    const Real dx_y = dx_arr[1];
+    // The drag rates take dx in place of a dy over one cell, and the reverse
+    const auto len_arr = LengthScaleCellSize(geom);
+    const Real len_x = len_arr[0];
+    const Real len_y = len_arr[1];
     const Real dt = fac;  // fac is actually dt in the calling code
 
     const Real alpha_m = solverChoice.if_Cd_momentum;
     const Real tiny = std::numeric_limits<amrex::Real>::epsilon();
     const bool l_implicit_drag = solverChoice.if_implicit_drag;
     // erf.if_implicit_projection: the drag of the solid is applied inside the anelastic projection
-    const bool l_drag = !solverChoice.if_implicit_projection;
+    const bool l_drag = !l_drag_in_projection;
 
     const Real small_volfrac = solverChoice.if_small_volfrac;
     // The terrain kernels keep the raw fractions: erf.if_snap_partial_cells
@@ -661,7 +678,7 @@ void ImmersedForcingTerrain_Zmom (const Box& tbz,
         const Real t_blank = (t_blank_raw < small_volfrac) ? zero : t_blank_raw;
 
         const Real dx_z = (z_cc_arr) ? (z_cc_arr(i,j,k) - z_cc_arr(i,j,k-1)) : dx_arr[2];
-        const Real drag_coefficient = alpha_m / std::pow(dx_x*dx_y*dx_z, one/three);
+        const Real drag_coefficient = alpha_m / std::pow(len_x*len_y*dx_z, one/three);
         const Real CdM = std::min(drag_coefficient / (windspeed + tiny), drag_coefficient);
 
         const Real rho_zface =  myhalf * ( cell_data(i,j,k,Rho_comp) + cell_data(i,j,k-1,Rho_comp) );
@@ -689,12 +706,16 @@ void ImmersedForcingBuildings_Xmom (const Box& tbx,
                                     const Geometry& geom,
                                     const SolverChoice& solverChoice,
                                     const Real fac,
-                                    bool is_slow_step)
+                                    bool is_slow_step,
+                                    const bool l_drag_in_projection)
 {
     // geometric properties
     const auto dx_arr = geom.CellSizeArray();
-    const Real dx_x = dx_arr[0];
     const Real dx_y = dx_arr[1];
+    // The drag rates take dx in place of a dy over one cell, and the reverse
+    const auto len_arr = LengthScaleCellSize(geom);
+    const Real len_x = len_arr[0];
+    const Real len_y = len_arr[1];
     const Real dt = fac;
 
     const Real alpha_m          = solverChoice.if_Cd_momentum;
@@ -718,7 +739,7 @@ void ImmersedForcingBuildings_Xmom (const Box& tbx,
     const bool l_implicit_drag    = solverChoice.if_implicit_drag;
     // erf.if_implicit_projection: the linear drag of the solid is applied inside the anelastic
     // projection (ERF::make_if_projection_sigma), not here
-    const bool l_ip               = solverChoice.if_implicit_projection;
+    const bool l_ip               = l_drag_in_projection;
 
     const Real small_volfrac = solverChoice.if_small_volfrac;
     // erf.if_snap_partial_cells: read the cell blanking snapped to solid (1)
@@ -766,7 +787,7 @@ void ImmersedForcingBuildings_Xmom (const Box& tbx,
         const Real t_blank_north = fc.hi;
 
         const Real dx_z = (z_cc_arr) ? (z_cc_arr(i,j,k) - z_cc_arr(i,j,k-1)) : dx_arr[2];
-        const Real drag_coefficient = alpha_m / std::pow(dx_x*dx_y*dx_z, one/three);
+        const Real drag_coefficient = alpha_m / std::pow(len_x*len_y*dx_z, one/three);
         const Real CdM = std::min(drag_coefficient / (windspeed + tiny), drag_coefficient);
         // With the snap a face joining a solid and a fluid cell is wall-normal:
         // it gets the interior drag (no penetration), not a wall law, whatever
@@ -885,12 +906,16 @@ void ImmersedForcingBuildings_Ymom (const Box& tby,
                                     const Geometry& geom,
                                     const SolverChoice& solverChoice,
                                     const Real fac,
-                                    bool is_slow_step)
+                                    bool is_slow_step,
+                                    const bool l_drag_in_projection)
 {
     // geometric properties
     const auto dx_arr = geom.CellSizeArray();
     const Real dx_x = dx_arr[0];
-    const Real dx_y = dx_arr[1];
+    // The drag rates take dx in place of a dy over one cell, and the reverse
+    const auto len_arr = LengthScaleCellSize(geom);
+    const Real len_x = len_arr[0];
+    const Real len_y = len_arr[1];
     const Real dt = fac;
 
     const Real alpha_m          = solverChoice.if_Cd_momentum;
@@ -914,7 +939,7 @@ void ImmersedForcingBuildings_Ymom (const Box& tby,
     const bool l_implicit_drag    = solverChoice.if_implicit_drag;
     // erf.if_implicit_projection: the linear drag of the solid is applied inside the anelastic
     // projection (ERF::make_if_projection_sigma), not here
-    const bool l_ip               = solverChoice.if_implicit_projection;
+    const bool l_ip               = l_drag_in_projection;
 
     const Real small_volfrac = solverChoice.if_small_volfrac;
     // erf.if_snap_partial_cells: read the cell blanking snapped to solid (1)
@@ -962,7 +987,7 @@ void ImmersedForcingBuildings_Ymom (const Box& tby,
         const Real t_blank_east  = fc.hi;
 
         const Real dx_z = (z_cc_arr) ? (z_cc_arr(i,j,k) - z_cc_arr(i,j,k-1)) : dx_arr[2];
-        const Real drag_coefficient = alpha_m / std::pow(dx_x*dx_y*dx_z, one/three);
+        const Real drag_coefficient = alpha_m / std::pow(len_x*len_y*dx_z, one/three);
         const Real CdM = std::min(drag_coefficient / (windspeed + tiny), drag_coefficient);
         // With the snap a face joining a solid and a fluid cell is wall-normal:
         // it gets the interior drag (no penetration), not a wall law, whatever
@@ -1079,12 +1104,17 @@ void ImmersedForcingBuildings_Zmom (const Box& tbz,
                                     const Geometry& geom,
                                     const SolverChoice& solverChoice,
                                     const Real fac,
-                                    bool is_slow_step)
+                                    bool is_slow_step,
+                                    const bool l_drag_in_projection)
 {
     // geometric properties
     const auto dx_arr = geom.CellSizeArray();
     const Real dx_x = dx_arr[0];
     const Real dx_y = dx_arr[1];
+    // The drag rates take dx in place of a dy over one cell, and the reverse
+    const auto len_arr = LengthScaleCellSize(geom);
+    const Real len_x = len_arr[0];
+    const Real len_y = len_arr[1];
     const Real dt = fac;
 
     const Real alpha_m          = solverChoice.if_Cd_momentum;
@@ -1108,7 +1138,7 @@ void ImmersedForcingBuildings_Zmom (const Box& tbz,
     const bool l_implicit_drag    = solverChoice.if_implicit_drag;
     // erf.if_implicit_projection: the linear drag of the solid is applied inside the anelastic
     // projection (ERF::make_if_projection_sigma), not here
-    const bool l_ip               = solverChoice.if_implicit_projection;
+    const bool l_ip               = l_drag_in_projection;
 
     const Real small_volfrac = solverChoice.if_small_volfrac;
     // erf.if_snap_partial_cells: read the cell blanking snapped to solid (1)
@@ -1156,7 +1186,7 @@ void ImmersedForcingBuildings_Zmom (const Box& tbz,
         const Real t_blank_east  = fc.east;
 
         const Real dx_z = (z_cc_arr) ? (z_cc_arr(i,j,k) - z_cc_arr(i,j,k-1)) : dx_arr[2];
-        const Real drag_coefficient = alpha_m / std::pow(dx_x*dx_y*dx_z, one/three);
+        const Real drag_coefficient = alpha_m / std::pow(len_x*len_y*dx_z, one/three);
         const Real CdM = std::min(drag_coefficient / (windspeed + tiny), drag_coefficient);
         // With the snap a face joining a solid and a fluid cell is wall-normal:
         // it gets the interior drag (no penetration), not a wall law, whatever
@@ -1285,8 +1315,10 @@ void ImmersedForcingTerrain_Scalar (const Box& bx,
 {
     // geometric properties
     const auto dx_arr = geom.CellSizeArray();
-    const Real dx_x = dx_arr[0];
-    const Real dx_y = dx_arr[1];
+    // The drag rates take dx in place of a dy over one cell, and the reverse
+    const auto len_arr = LengthScaleCellSize(geom);
+    const Real len_x = len_arr[0];
+    const Real len_y = len_arr[1];
 
     const Real alpha_h          = solverChoice.if_Cd_scalar;
     // The terrain kernels keep the raw fractions: erf.if_snap_partial_cells
@@ -1316,7 +1348,7 @@ void ImmersedForcingTerrain_Scalar (const Box& bx,
                 AMREX_GPU_DEVICE(int i, int j, int k) noexcept
     {
         const Real dx_z = (z_cc_arr) ? (z_cc_arr(i,j,k) - z_cc_arr(i,j,k-1)) : dx_arr[2];
-        const Real drag_coefficient = alpha_h / std::pow(dx_x*dx_y*dx_z, one/three);
+        const Real drag_coefficient = alpha_h / std::pow(len_x*len_y*dx_z, one/three);
 
         const Real t_blank       = t_blank_arr(i, j, k);
         const Real t_blank_above = t_blank_arr(i, j, k+1);
@@ -1443,6 +1475,10 @@ void ImmersedForcingBuildings_Scalar (const Box& bx,
     const auto dx_arr = geom.CellSizeArray();
     const Real dx_x = dx_arr[0];
     const Real dx_y = dx_arr[1];
+    // The drag rates take dx in place of a dy over one cell, and the reverse
+    const auto len_arr = LengthScaleCellSize(geom);
+    const Real len_x = len_arr[0];
+    const Real len_y = len_arr[1];
 
     const Real alpha_h          = solverChoice.if_Cd_scalar;
     // erf.if_snap_partial_cells: read the cell blanking snapped to solid (1)
@@ -1482,7 +1518,7 @@ void ImmersedForcingBuildings_Scalar (const Box& bx,
         const Real t_blank_west  = snapb(t_blank_arr(i-1, j  , k));
 
         const Real dx_z = (z_cc_arr) ? (z_cc_arr(i,j,k) - z_cc_arr(i,j,k-1)) : dx_arr[2];
-        Real drag_coefficient = alpha_h / std::pow(dx_x*dx_y*dx_z, one/three);
+        Real drag_coefficient = alpha_h / std::pow(len_x*len_y*dx_z, one/three);
 
         // Wall cells of the building, named by the face they carry: a
         // partially blanked cell with a more solid neighbor behind it and a

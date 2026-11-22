@@ -373,9 +373,37 @@ drag inside the projection instead. On each face
 
 with :math:`r = \beta_f\, C_{d,m} / \sqrt[3]{\Delta x_1 \Delta x_2 \Delta x_3}` the drag rate of the source
 term (:math:`\beta_f` the solid fraction of the face, without the cap :math:`\min(1, U)` the source term
-applies) and :math:`r = 0` on the faces where the MOST wall law acts instead. The variable-coefficient
-equation is solved with GMRES, preconditioned by the FFT Poisson solve, so it needs a
-constant-:math:`\Delta z` mesh with map factors of one and a build with FFT. The source term then drops
+applies) and :math:`r = 0` on the faces where the MOST wall law acts instead. The solver of the
+variable-coefficient equation follows the mesh
+(`erf-model/ERF#4887 <https://github.com/erf-model/ERF/issues/4887>`_):
+
+- constant :math:`\Delta z`, map factors of one, a build with FFT and every refined region a
+  rectangle: GMRES, preconditioned by the FFT Poisson solve;
+- constant :math:`\Delta z` and map factors of one, in a build without FFT or with a refined region
+  that is not a rectangle: geometric multigrid with :math:`\sigma` as its face coefficient;
+- stretched :math:`\Delta z`, or map factors other than one on a single level: the multigrid of the
+  terrain Poisson solver, which takes :math:`\sigma` through its face area factors. A refined
+  region that is not a rectangle is solved with the multigrid for such regions on a flat mesh
+  (`erf-model/ERF#5332 <https://github.com/erf-model/ERF/pull/5332>`_), which takes the same
+  area factors. A refined level with map factors other than one is refused with this option. On
+  a stretched mesh every projection of the level uses these solvers, also the ones without the
+  drag (the initial projection, and after a regrid), so no FFT is needed.
+
+The choice follows the build and the mesh, not ``erf.use_fft``. Refined regions that meet
+across a periodic boundary are solved as one region with multigrid on the level's periodic
+geometry: with the second solver on a constant :math:`\Delta z`, and with the multigrid for
+regions that are not rectangles otherwise (:ref:`subsec:LinearSolvers`). The third solver
+multiplies the largest real number by 1.5 while it sets up its coarse levels, so a run with
+``amrex.fpe_trap_overflow = 1`` stops there; run it with that trap off.
+
+Thin immersed bodies (``erf.zero_xflux_faces``, ``erf.zero_yflux_faces``, ``erf.zero_zflux_faces``)
+have their own projection, which does not take :math:`\sigma`. The option is refused with them
+when the inputs are read.
+
+A terrain-fitted mesh and a pseudo-incompressible level are not supported. A ``FullyCompressible``
+level has no projection: in a hierarchy that mixes the two, the option acts on the levels that
+project and the ``FullyCompressible`` levels keep the drag in the source term; at least one level
+must project. On the levels that project the source term then drops
 its drag, and the solid faces are not zeroed after the projection: the projected momenta are
 divergence free in every cell, the solid included. The pressure gradient kept for the next step is
 :math:`\nabla\phi / \Delta t` itself. The same option applies to immersed-forcing buildings (see
@@ -589,9 +617,10 @@ wall law (a partial wall face of :math:`u` or :math:`v` not under the MOST law, 
 explicit treatment zeroes after the projection. The MOST wall law itself adds no weight: a
 horizontal wall-law face has :math:`w = 0`, and a :math:`w`-face on the roof row that carries a side
 wall law keeps the roof weight :math:`\beta_f`. The kernels then apply the wall law only, on the
-partial faces that carry it, and the solid faces are not zeroed afterwards. The requirements are
-those of the terrain case: a constant-:math:`\Delta z` mesh, map factors of one, ``erf.compressibility_type`` not ``FullyCompressible``
-on every level and a build with FFT. A level coarser than the 50 m cutoff of the building forcing
+partial faces that carry it, and the solid faces are not zeroed afterwards. The requirements and
+the choice of solver are those of the terrain case: a mesh without terrain-fitted coordinates, no
+pseudo-incompressible level, and ``erf.compressibility_type`` not ``FullyCompressible`` on at least
+one level (a ``FullyCompressible`` level keeps the drag in the source term). A level coarser than the 50 m cutoff of the building forcing
 (:math:`\sqrt{\Delta x \Delta y} > 50` m) has no building blanking, and its faces keep
 :math:`\sigma = 1`. As for terrain, the faces on a non-periodic lateral domain boundary and on a
 coarse/fine boundary keep :math:`\sigma = 1` and take their data from the boundary condition or the

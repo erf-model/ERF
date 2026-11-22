@@ -143,6 +143,15 @@ CASES: List[Tuple[str, str, List[Tuple[str, str]], List[Tuple[str, str]]]] = [
      "erf.terrain_type = EB", [("ERROR", "erf.eb_boundary_type")], []),
     ("EB surface layer with eb_boundary_type", "zlo.type = surface_layer\nerf.les_type = Smagorinsky\nerf.Cs = 0.1\n"
      "erf.terrain_type = EB\nerf.eb_boundary_type = SurfaceLayer", [], [("ERROR", "erf.eb_boundary_type")]),
+    # erf.eb_cover_zero_area_faces is forced on when a level is Anelastic or PseudoIncompressible
+    ("EB anelastic cover off", "erf.terrain_type = EB\nerf.compressibility_type = Anelastic\n"
+     "erf.eb_cover_zero_area_faces = false", [("ERROR", "erf.eb_cover_zero_area_faces")], []),
+    ("EB anelastic cover on", "erf.terrain_type = EB\nerf.compressibility_type = Anelastic\n"
+     "erf.eb_cover_zero_area_faces = true", [], [("ERROR", "erf.eb_cover_zero_area_faces")]),
+    ("EB compressible cover off", "erf.terrain_type = EB\nerf.eb_cover_zero_area_faces = false",
+     [], [("ERROR", "erf.eb_cover_zero_area_faces")]),
+    ("anelastic cover off without EB", "erf.compressibility_type = Anelastic\nerf.eb_cover_zero_area_faces = false",
+     [], [("ERROR", "erf.eb_cover_zero_area_faces")]),
     # several conditions per indicator (erf.<indicator>.conditions, ERF_Tagging.cpp)
     ("refinement conditions", "amr.max_level = 1\nerf.refinement_indicators = cu\nerf.cu.max_level = 1\n"
      "erf.cu.conditions = warm rising\nerf.cu.combine = or\nerf.cu.warm.field_name = theta\n"

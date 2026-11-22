@@ -480,6 +480,20 @@ public:
   bool seb_init_skin_from_file = false;
 
   /**
+   * @brief At a fresh start, the deep (restoring) temperature T_deep of a land column is
+   * the deep soil temperature of the wrfinput file (TMN) in place of seb_t_deep_default. A
+   * water column keeps seb_t_deep_default. T_deep is then part of the state of the
+   * balance: it is not reset to seb_t_deep_default, it follows the grids through a regrid
+   * and it is written to the checkpoint and read back. Without seb_deep_prognostic_enable
+   * a column holds its value for the run; with it the file's value is the first value of
+   * the evolving T_deep. Requires seb_prognostic_enable and a wrfinput file with TMN; a
+   * land value that is not finite or lies outside [seb_prognostic_t_min_k,
+   * seb_prognostic_t_max_k] stops the run. Default false: T_deep is seb_t_deep_default in
+   * every column.
+   */
+  bool seb_init_t_deep_from_file = false;
+
+  /**
    * @brief Two-way coupling of moisture as well: the surface layer takes its land surface
    * mixing ratio from the balance's surface water, so its moisture flux follows the soil
    * and dries as the balance's q_s does. Without seb_soil_type it is
@@ -587,7 +601,8 @@ public:
   amrex::Real seb_q_sfc_default = 0.0;
 
   /**
-   * @brief Fallback SEB deep soil temperature [K].
+   * @brief SEB deep soil temperature [K] of every column; with seb_init_t_deep_from_file,
+   * of the water columns and of a restart from a checkpoint without the deep temperature.
    */
   amrex::Real seb_t_deep_default = 300.0;
 
@@ -953,6 +968,7 @@ public:
    * - erf.radiation.seb_turbulent_flux_source (string "surface_layer"|"defaults", optional, default "surface_layer")
    * - erf.radiation.seb_surface_layer_uses_skin (bool, optional, default false)
    * - erf.radiation.seb_init_skin_from_file (bool, optional, default false)
+   * - erf.radiation.seb_init_t_deep_from_file (bool, optional, default false)
    * - erf.radiation.seb_surface_layer_uses_moisture (bool, optional, default false)
    * - erf.radiation.seb_soil_moisture_wilt (real, optional, default 0.066, 0 <= wilt < fc)
    * - erf.radiation.seb_soil_moisture_fc (real, optional, default 0.329, wilt < fc <= 1)
@@ -1330,6 +1346,7 @@ public:
       }
       pp.query("radiation.seb_surface_layer_uses_skin", seb_surface_layer_uses_skin);
       pp.query("radiation.seb_init_skin_from_file", seb_init_skin_from_file);
+      pp.query("radiation.seb_init_t_deep_from_file", seb_init_t_deep_from_file);
       pp.query("radiation.seb_surface_layer_uses_moisture", seb_surface_layer_uses_moisture);
       pp.query("radiation.seb_soil_moisture_wilt", seb_soil_moisture_wilt);
       pp.query("radiation.seb_soil_moisture_fc", seb_soil_moisture_fc);
@@ -1503,6 +1520,14 @@ public:
           amrex::Abort("erf.radiation.seb_init_skin_from_file = true needs "
                        "erf.radiation.seb_prognostic_enable = true: without it the skin "
                        "temperature is erf.rad_t_sfc at every radiation step");
+      }
+
+      // The deep temperature is read only by the prognostic update of the skin, and the
+      // wrfinput reader holds TMN only when that update runs.
+      if (seb_init_t_deep_from_file && !seb_prognostic_enable) {
+          amrex::Abort("erf.radiation.seb_init_t_deep_from_file = true needs "
+                       "erf.radiation.seb_prognostic_enable = true: only the prognostic "
+                       "skin temperature restores toward the deep temperature");
       }
 
       // Moisture coupling: the surface mixing ratio is q_sat at the skin temperature, so

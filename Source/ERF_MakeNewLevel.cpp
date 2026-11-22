@@ -84,7 +84,8 @@ ERF::make_eb_factories (int lev, const BoxArray& ba, const DistributionMapping& 
         const amrex::EB2::IndexSpace& ebis = amrex::EB2::IndexSpace::top();
         const EB2::Level& eb_level = ebis.getLevel(geom[lev]);
         if (solverChoice.terrain_type == TerrainType::EB) {
-            eb[lev]->make_all_factories(lev, geom[lev], ba, dm, eb_level);
+            eb[lev]->make_all_factories(lev, geom[lev], ba, dm, eb_level,
+                                        solverChoice.ebChoice.eb_cover_zero_area_faces);
         } else if (solverChoice.terrain_type == TerrainType::ImmersedForcing ||
                    solverChoice.buildings_type == BuildingsType::ImmersedForcing) {
             if (use_native_fc_factories()) {
@@ -415,6 +416,9 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
         // the level's own file is the finer source. A level with no file keeps the fill,
         // which reads the parent's skin that was set here a moment ago.
         init_seb_skin_from_file(lev);
+        // With erf.radiation.seb_init_t_deep_from_file the same for the deep temperature,
+        // from the file's TMN.
+        init_seb_t_deep_from_file(lev);
     }
 
     // Initialize the non-cons auxiliary tracer only after the host atmospheric

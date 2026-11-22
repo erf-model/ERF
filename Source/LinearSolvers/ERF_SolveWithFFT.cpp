@@ -10,10 +10,11 @@ using namespace amrex;
 /**
  * Build the FFT solver(s) -- one per subdomain in each level
  *
- * None is built on a pseudo-incompressible level, which project_momenta solves with the terrain
- * Poisson solver, nor for a region whose boxes do not make a rectangle, which it solves with
- * multigrid.  (A flat level whose map factors are not all one does not use them either, but
- * a refined level's map factors are not known yet when this is called from init_stuff.)
+ * None is built on a pseudo-incompressible level, or on a stretched level with the implicit
+ * immersed drag, which project_momenta solves with the terrain Poisson solver, nor for a region
+ * whose boxes do not make a rectangle, which it solves with multigrid.  (A flat level whose map
+ * factors are not all one does not use them either, but a refined level's map factors are not
+ * known yet when this is called from init_stuff.)
  *
  * @param lev Level index for which FFT solvers are built
  */
@@ -34,6 +35,9 @@ void ERF::build_fft_solvers (int lev)
     }
 
     if (solverChoice.compressibility_type[lev] == CompressibilityType::PseudoIncompressible) { return; }
+    // Nor with the implicit immersed drag on a stretched mesh, which project_momenta solves with
+    // multigrid too (erf.if_implicit_projection)
+    if (solverChoice.if_drag_in_projection(lev) && solverChoice.mesh_type == MeshType::StretchedDz) { return; }
 
     if ( (solverChoice.mesh_type == MeshType::ConstantDz )  ||
          (solverChoice.mesh_type == MeshType::StretchedDz) )
