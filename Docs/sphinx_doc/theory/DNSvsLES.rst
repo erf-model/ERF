@@ -101,6 +101,15 @@ Smagorinsky Model
 
 :math:`C_s` is the Smagorinsky constant and :math:`\Delta` is the cube root of cell volume, the representative grid spacing.
 
+On a domain with only one cell in a lateral direction (an x-z or y-z slice), the cell size in that
+direction is arbitrary, so it is replaced by the cell size in the other lateral direction:
+:math:`\Delta = (\Delta x^2 \Delta z)^{1/3}` on an x-z slice.  The same substitution is made wherever
+ERF uses a lateral cell size as a length scale rather than to take a difference: the Deardorff and
+anisotropic filter widths, the SHOC mixing-length cap, the MRF scale-aware blending, the surface-layer
+subgrid velocity, the immersed-forcing drag rates and building cutoff, the wind-farm and mass-source
+normalizations, and the super-droplet ground accumulation.  A single column (one cell in both lateral
+directions) keeps the :math:`\Delta x` and :math:`\Delta y` of the inputs as its nominal column size.
+
 .. math::
    \tau_{ij} = -2\mu_{t} \tilde{\sigma}_{ij} = -K \tilde{\sigma}_{ij}
 

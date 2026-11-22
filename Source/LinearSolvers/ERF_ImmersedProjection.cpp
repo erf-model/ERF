@@ -33,6 +33,7 @@
 #include "ERF.H"
 #include "ERF_ImmersedWallCell.H"
 #include "ERF_ImmersedBuildingMasks.H"
+#include "ERF_LengthScaleCellSize.H"
 
 #ifdef ERF_USE_FFT
 #include "ERF_ImmersedPoisson.H"
@@ -74,15 +75,16 @@ void ERF::make_if_projection_sigma (int lev, Real l_dt, Array<MultiFab,AMREX_SPA
     }
 
     // The drag rate of a solid face in the source terms, without their windspeed cap
-    // (CdM * windspeed = min(1, |u|) * drag_coefficient there)
-    const auto dx = geom[lev].CellSizeArray();
-    const Real rate_solid    = solverChoice.if_Cd_momentum / std::pow(dx[0]*dx[1]*dx[2], one/three);
+    // (CdM * windspeed = min(1, |u|) * drag_coefficient there),
+    // with dx in place of a dy over one cell, and the reverse, as the source terms
+    const auto len = LengthScaleCellSize(geom[lev]);
+    const Real rate_solid    = solverChoice.if_Cd_momentum / std::pow(len[0]*len[1]*len[2], one/three);
     // On a stretched mesh those kernels take dz from the cell-center heights, z_cc(k) - z_cc(k-1)
     // at the indices of the face; the rate here must be the one they drop (erf-model/ERF#4887).
     // On a constant-dz mesh the two are the same and the constant is kept.
     const bool local_dz      = (solverChoice.mesh_type != MeshType::ConstantDz);
     const Real cd_momentum   = solverChoice.if_Cd_momentum;
-    const Real dxdy          = dx[0]*dx[1];
+    const Real dxdy          = len[0]*len[1];
     const Real small_volfrac = solverChoice.if_small_volfrac;
     const bool use_most      = solverChoice.if_use_most;
     // the fraction-stress law (erf.if_wall_form = fraction_stress) has its own wall cell

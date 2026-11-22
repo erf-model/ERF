@@ -398,6 +398,9 @@ target_sources(${erf_exe_name}
     # lat/lon arrays put it on a rotated grid and on a grid across 180 degrees.
     ${CMAKE_CURRENT_SOURCE_DIR}/Utils/ERF_GTestLatLonMap.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/Utils/ERF_GTestGridUtils.cpp
+    # Motivation: on an x-z slice dy is arbitrary, so a lateral cell size used as a length
+    # scale (the LES filter width, for one) must take dx in its place.
+    ${CMAKE_CURRENT_SOURCE_DIR}/Utils/ERF_GTestLengthScaleCellSize.cpp
     # Motivation: erf.initial_dz without a stretching ratio must solve for the ratio that
     # closes the grid on prob_hi, and an explicit ratio must not be solved for.
     ${CMAKE_CURRENT_SOURCE_DIR}/Utils/ERF_GTestInitZLevels.cpp

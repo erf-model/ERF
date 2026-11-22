@@ -5,6 +5,7 @@
 
 #include "ERF_MOSTAverage.H"
 #include "ERF_TileNoZ.H"
+#include "ERF_LengthScaleCellSize.H"
 
 using namespace amrex;
 
@@ -419,7 +420,8 @@ MOSTAverage::make_MOSTAverage_at_level (const int& lev,
     if (include_subgrid_vel) {
         AMREX_ALWAYS_ASSERT_WITH_MESSAGE(dir == 2, "Subgrid velocity correction only for Z faces!");
         Print() << "Subgrid velocity scale correction at level : " << lev << ' ';
-        const auto dxArr = m_geom[lev].CellSizeArray();
+        // dx in place of a dy over one cell, and the reverse
+        const auto dxArr = LengthScaleCellSize(m_geom[lev]);
         Real dx = std::sqrt(dxArr[0]*dxArr[1]);
         if (dx > Real(5000.)) {
             m_Vsg[lev] = Real(0.32) * std::pow(dx/Real(5000.)-1, Real(0.33));
