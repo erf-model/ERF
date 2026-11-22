@@ -15,6 +15,16 @@
  *
  * the projected momenta are divergence free everywhere, the solid included, and no freeze is
  * needed. The faces where the source term applies the wall law instead of the drag keep sigma = 1.
+ *
+ * The solve of div(sigma grad phi) (erf-model/ERF#4887):
+ *   constant dz, map factors of one, FFT build, every region of the level a rectangle:
+ *       GMRES with the constant-coefficient FFT solve as preconditioner (solve_with_if_gmres);
+ *   constant dz, map factors of one, otherwise: multigrid with sigma as the face coefficient
+ *       (solve_with_if_mlmg, amrex::MLABecLaplacian);
+ *   stretched dz or map factors other than one: the terrain Poisson multigrid, with sigma in
+ *       its face area factors (ERF::project_momenta).
+ * A terrain-fitted mesh and a pseudo-incompressible level are not supported.
+ *
  * For buildings (erf.buildings_type = ImmersedForcing, erf-model/ERF#4887) the rate is the linear
  * drag of ImmersedForcingBuildings_{X,Y,Z}mom (partial-wall and interior faces, from the masks of
  * ERF_ImmersedBuildingMasks.H), and the faces between two solid cells take the full rate.
@@ -22,6 +32,13 @@
 #include "ERF.H"
 #include "ERF_ImmersedWallCell.H"
 #include "ERF_ImmersedBuildingMasks.H"
+#include "ERF_SolverUtils.H"
+
+#include <AMReX_MLABecLaplacian.H>
+#include <AMReX_MLMG.H>
+
+#include <memory>
+#include <string>
 
 #ifdef ERF_USE_FFT
 #include "ERF_ImmersedPoisson.H"
@@ -29,6 +46,27 @@
 #endif
 
 using namespace amrex;
+
+// ERF_SolveWithMLMG.cpp
+bool projection_mlmg_is_aniso (const Geometry& geom, const BoxArray& grids, LPInfo& info);
+
+namespace {
+
+/**
+ * MLABecLaplacian whose MG levels coarsen each direction on its own, as MLPoissonAniso of
+ * solve_with_mlmg does for anisotropic cells (erf-model/ERF#5064)
+ */
+class MLABecLaplacianAniso : public MLABecLaplacian {
+public:
+    MLABecLaplacianAniso (const Vector<Geometry>& a_geom, const Vector<BoxArray>& a_grids,
+                          const Vector<DistributionMapping>& a_dmap, const LPInfo& a_info)
+    {
+        mg_independent_coarsening = true;
+        define(a_geom, a_grids, a_dmap, a_info);
+    }
+};
+
+} // namespace
 
 /**
  * Face coefficients sigma = 1 / (1 + dt rate) of the implicit immersed drag in the projection,
@@ -66,6 +104,12 @@ void ERF::make_if_projection_sigma (int lev, Real l_dt, Array<MultiFab,AMREX_SPA
     // (CdM * windspeed = min(1, |u|) * drag_coefficient there)
     const auto dx = geom[lev].CellSizeArray();
     const Real rate_solid    = solverChoice.if_Cd_momentum / std::pow(dx[0]*dx[1]*dx[2], one/three);
+    // On a stretched mesh those kernels take dz from the cell-center heights, z_cc(k) - z_cc(k-1)
+    // at the indices of the face; the rate here must be the one they drop (erf-model/ERF#4887).
+    // On a constant-dz mesh the two are the same and the constant is kept.
+    const bool local_dz      = (solverChoice.mesh_type != MeshType::ConstantDz);
+    const Real cd_momentum   = solverChoice.if_Cd_momentum;
+    const Real dxdy          = dx[0]*dx[1];
     const Real small_volfrac = solverChoice.if_small_volfrac;
     const bool use_most      = solverChoice.if_use_most;
     // the fraction-stress law (erf.if_wall_form = fraction_stress) has its own wall cell
@@ -87,6 +131,7 @@ void ERF::make_if_projection_sigma (int lev, Real l_dt, Array<MultiFab,AMREX_SPA
     {
         const Array4<const Real> t  = tb.const_array(mfi);
         const Array4<const int>  in = inside.const_array(mfi);
+        const Array4<const Real> zc = (local_dz) ? z_phys_cc[lev]->const_array(mfi) : Array4<const Real>{};
 
         for (int dir = 0; dir < AMREX_SPACEDIM; ++dir)
         {
@@ -115,7 +160,9 @@ void ERF::make_if_projection_sigma (int lev, Real l_dt, Array<MultiFab,AMREX_SPA
                         const if_bld::VertFace f = if_bld::vert_face(t, tf, i, j, k, snap, small_volfrac);
                         w = if_bld::implicit_weight(if_bld::vert_masks(f, k >= dom_klo + 1, use_most, snap).linear(f.t), f.raw);
                     }
-                    sg(i,j,k) = one / (one + l_dt * w * rate_solid);
+                    const Real rs = (zc) ? cd_momentum / std::pow(dxdy*(zc(i,j,k) - zc(i,j,k-1)), one/three)
+                                         : rate_solid;
+                    sg(i,j,k) = one / (one + l_dt * w * rs);
                 });
                 continue;
             }
@@ -141,7 +188,9 @@ void ERF::make_if_projection_sigma (int lev, Real l_dt, Array<MultiFab,AMREX_SPA
                 const bool wall = (dir < 2) && use_most &&
                                   (fraction_stress ? ib_wall::is_wall_cell(face_blank(k-1), b, face_blank(k+1), small_volfrac)
                                                    : ((b > zero) && (b < one) && (face_blank(k+1) == zero)));
-                const Real rate = wall ? zero : b * rate_solid;
+                const Real rs   = (zc) ? cd_momentum / std::pow(dxdy*(zc(i,j,k) - zc(i,j,k-1)), one/three)
+                                       : rate_solid;
+                const Real rate = wall ? zero : b * rs;
                 sg(i,j,k) = one / (one + l_dt * rate);
             });
         }
@@ -209,8 +258,91 @@ void ERF::solve_with_if_gmres (int lev, const Box& subdomain, MultiFab& rhs, Mul
     ip.getFluxes(phi, fluxes);
 #else
     amrex::ignore_unused(lev, rhs, phi, fluxes, sigma);
-    amrex::Abort("erf.if_implicit_projection needs a build with FFT");
+    amrex::Abort("solve_with_if_gmres needs a build with FFT; erf.if_implicit_projection uses multigrid without it");
 #endif
 
     ImposeBCsOnPhi(lev, phi, subdomain);
+}
+
+/**
+ * Multigrid solve of div(sigma grad phi) = rhs (erf.if_implicit_projection) on a constant-dz
+ * mesh with map factors of one, for a build without FFT or a level whose regions are not
+ * rectangles (erf-model/ERF#4887). As solve_with_mlmg, it takes the boxes of one region and the
+ * geometry of the level, with zero normal gradient on the coarse/fine boundary.
+ *
+ * @param lev    Level index for the solve
+ * @param rhs    Right-hand side, div(sigma m*)
+ * @param phi    Solution field to fill
+ * @param fluxes Face fluxes to fill: -grad phi, without sigma
+ * @param sigma  Face coefficients (make_if_projection_sigma)
+ */
+void ERF::solve_with_if_mlmg (int lev, Vector<MultiFab>& rhs, Vector<MultiFab>& phi,
+                              Vector<Array<MultiFab,AMREX_SPACEDIM>>& fluxes,
+                              Array<MultiFab const*,AMREX_SPACEDIM> const& sigma)
+{
+    BL_PROFILE("ERF::solve_with_if_mlmg()");
+
+    const Geometry& lev_geom = Geom(lev);
+    auto const dom_lo = lbound(lev_geom.Domain());
+    auto const dom_hi = ubound(lev_geom.Domain());
+
+    LPInfo info;
+    // Allow a hidden direction if the domain is one cell wide in any lateral direction
+    if (dom_lo.x == dom_hi.x) {
+        info.setHiddenDirection(0);
+    } else if (dom_lo.y == dom_hi.y) {
+        info.setHiddenDirection(1);
+    }
+
+    Vector<BoxArray>            ba_tmp;   ba_tmp.push_back(rhs[0].boxArray());
+    Vector<DistributionMapping> dm_tmp;   dm_tmp.push_back(rhs[0].DistributionMap());
+    Vector<Geometry>            geom_tmp; geom_tmp.push_back(lev_geom);
+
+    // Anisotropic cells: coarsen the directions on their own, as solve_with_mlmg does
+    const bool aniso = projection_mlmg_is_aniso(lev_geom, rhs[0].boxArray(), info);
+    std::unique_ptr<MLABecLaplacian> linop_ptr = aniso
+        ? std::make_unique<MLABecLaplacianAniso>(geom_tmp, ba_tmp, dm_tmp, info)
+        : std::make_unique<MLABecLaplacian>(geom_tmp, ba_tmp, dm_tmp, info);
+    MLABecLaplacian& linop = *linop_ptr;
+    linop.setMaxOrder(2);
+    linop.setDomainBC(get_lo_projection_bc(lev_geom, domain_bc_type),
+                      get_hi_projection_bc(lev_geom, domain_bc_type));
+    if (lev > 0) {
+        linop.setCoarseFineBC(nullptr, ref_ratio[lev-1], LinOpBCType::Neumann);
+    }
+    linop.setLevelBC(0, nullptr);
+
+    // (A alpha - B div(b grad)) phi = rhs with A = 0, B = 1 and b = -sigma: div(sigma grad phi) = rhs
+    linop.setScalars(zero, one);
+    Array<MultiFab,AMREX_SPACEDIM> bcoef;
+    for (int idim = 0; idim < AMREX_SPACEDIM; ++idim) {
+        bcoef[idim].define(sigma[idim]->boxArray(), sigma[idim]->DistributionMap(), 1, 0);
+        MultiFab::Copy(bcoef[idim], *sigma[idim], 0, 0, 1, 0);
+        bcoef[idim].mult(-one);
+    }
+    linop.setBCoeffs(0, amrex::GetArrOfConstPtrs(bcoef));
+
+    MLMG mlmg(linop);
+    mlmg.setMaxIter(100);
+    mlmg.setVerbose(mg_verbose);
+    mlmg.setBottomVerbose(0);
+    // As in solve_with_EB_mlmg: stop the bottom solve well below the tolerance of the solve
+    mlmg.setBottomToleranceAbs(Real(1.e-4) * solverChoice.poisson_abstol);
+
+    // MLMG stops the run when it does not converge; name the option and the inputs to change
+    mlmg.setThrowException(true);
+    try {
+        mlmg.solve(GetVecOfPtrs(phi), GetVecOfConstPtrs(rhs),
+                   solverChoice.poisson_reltol, solverChoice.poisson_abstol);
+    } catch (MLMG::error const& err) {
+        amrex::Abort(std::string("erf.if_implicit_projection, multigrid at level ") + std::to_string(lev)
+                     + ": " + err.what() + "  Loosen erf.poisson_reltol / erf.poisson_abstol.");
+    }
+
+    // Return -grad phi, as solve_with_if_gmres does: the gradient of the solution, not the flux
+    // sigma grad phi, so that no face is divided by sigma
+    mlmg.getGradSolution(GetVecOfArrOfPtrs(fluxes));
+    for (int idim = 0; idim < AMREX_SPACEDIM; ++idim) {
+        fluxes[0][idim].mult(-one);
+    }
 }

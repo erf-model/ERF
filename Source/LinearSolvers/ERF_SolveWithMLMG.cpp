@@ -73,6 +73,33 @@ aniso_max_coarsening_level (const Geometry& geom, const BoxArray& grids, const L
 } // namespace
 
 /**
+ * Whether the cells of a level are anisotropic enough (a direction 1.5 times longer than the
+ * shortest) that the multigrid levels of a cell-centered projection must coarsen each direction
+ * on its own (mg_independent_coarsening); if so, the number of coarsenings is set in info.
+ *
+ * @param geom  Geometry of the level
+ * @param grids Boxes of the solve
+ * @param info  Multigrid options; the hidden direction is read, the coarsening level may be set
+ */
+bool
+projection_mlmg_is_aniso (const Geometry& geom, const BoxArray& grids, LPInfo& info)
+{
+    bool aniso = false;
+    const Real* dx = geom.CellSize();
+    Real hmin = std::numeric_limits<Real>::max();
+    for (int idim = 0; idim < AMREX_SPACEDIM; ++idim) {
+        if (idim != info.hidden_direction) { hmin = std::min(hmin, dx[idim]); }
+    }
+    for (int idim = 0; idim < AMREX_SPACEDIM; ++idim) {
+        if (idim != info.hidden_direction && dx[idim] >= Real(1.5)*hmin) { aniso = true; }
+    }
+    if (aniso) {
+        info.setMaxCoarseningLevel(aniso_max_coarsening_level(geom, grids, info));
+    }
+    return aniso;
+}
+
+/**
  * Solve the Poisson equation using MLMG
  * Note that the level may or may not be level zero
  *
@@ -114,20 +141,7 @@ solve_with_mlmg (int lev, Vector<MultiFab>& rhs, Vector<MultiFab>& phi,
     // along the short directions, and with piecewise-constant prolongation the coarse-grid
     // correction overshoots the error left along the long ones: at a cell aspect ratio of 4 the
     // V-cycle diverges (#5064). For anisotropic cells, coarsen the directions on their own.
-    bool aniso = false;
-    {
-        const Real* dx = geom.CellSize();
-        Real hmin = std::numeric_limits<Real>::max();
-        for (int idim = 0; idim < AMREX_SPACEDIM; ++idim) {
-            if (idim != info.hidden_direction) { hmin = std::min(hmin, dx[idim]); }
-        }
-        for (int idim = 0; idim < AMREX_SPACEDIM; ++idim) {
-            if (idim != info.hidden_direction && dx[idim] >= Real(1.5)*hmin) { aniso = true; }
-        }
-    }
-    if (aniso) {
-        info.setMaxCoarseningLevel(aniso_max_coarsening_level(geom, rhs[0].boxArray(), info));
-    }
+    const bool aniso = projection_mlmg_is_aniso(geom, rhs[0].boxArray(), info);
 
     // Make sure the solver only sees the levels over which we are solving
     Vector<BoxArray>            ba_tmp;   ba_tmp.push_back(rhs[0].boxArray());

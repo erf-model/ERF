@@ -2743,28 +2743,70 @@ if(ERF_ENABLE_MPI AND NOT WIN32)
                                  "erf.if_average_down=plain")
   # Immersed LES on two levels, a patch whose lateral coarse/fine faces cross the surface, theta
   # uniform and no heat entering (erf-model/ERF#4920): with the implicit projection
-  # (erf.if_implicit_projection, FFT) the fluid-mean theta must hold within 1e-6 K; the explicit
+  # (erf.if_implicit_projection) the fluid-mean theta must hold within 1e-6 K; the explicit
   # freeze of the solid after the projection leaves the partial cells at the patch edges a
   # divergence (0.04 K in 20 steps on one build) and must fail the same check. The third leg runs
   # the log-law coarse/fine fill and a mismatch threshold the surface crosses: the mean must hold
   # and the start-up warning must be printed.
+  # The implicit projection is solved with FFT-preconditioned GMRES in a build with FFT and with
+  # multigrid in a build without (erf-model/ERF#4887), so these legs run in both.
+  set(if_hb_fft_option "")
+  if(NOT ERF_ENABLE_FFT)
+    set(if_hb_fft_option "erf.use_fft=false")   # the building deck asks for FFT
+  endif()
+  add_test_immersed_cf_heat_balance(ImmersedLES2LevHeatBalance ImmersedLES2LevHeatBalance 300.0 1.0e-6 OFF OFF "" multilevel)
+  add_test_immersed_cf_heat_balance(ImmersedLES2LevHeatBalance_Freeze ImmersedLES2LevHeatBalance 300.0 1.0e-6 ON OFF
+                                    "erf.if_implicit_projection=false" multilevel)
+  add_test_immersed_cf_heat_balance(ImmersedLES2LevHeatBalance_LogLaw ImmersedLES2LevHeatBalance 300.0 1.0e-6 OFF ON
+                                    "erf.cf_loglaw_fill=true erf.if_cf_mismatch_warning=0.4" multilevel)
+  # The same case with a second tag box, so the refined region is an L in the x-z plane and not a
+  # rectangle: the FFT preconditioner does not apply and the implicit projection is solved with
+  # multigrid in every build (erf-model/ERF#4887). Measured: 4e-7 K implicit, 0.05 K with the freeze.
+  set(if_hb_lshape "erf.refinement_indicators='box1 box2' erf.box2.max_level=1 erf.box2.in_box_lo_indices_crse='8 0 0' erf.box2.in_box_hi_indices_crse='13 7 7' amr.grid_eff=1.0 amr.n_error_buf=0")
+  add_test_immersed_cf_heat_balance(ImmersedLES2LevHeatBalance_LShape ImmersedLES2LevHeatBalance 300.0 1.0e-6 OFF OFF
+                                    "${if_hb_lshape}" multilevel)
+  add_test_immersed_cf_heat_balance(ImmersedLES2LevHeatBalance_LShape_Freeze ImmersedLES2LevHeatBalance 300.0 1.0e-6 ON OFF
+                                    "${if_hb_lshape} erf.if_implicit_projection=false" multilevel)
+  # The L-shaped region with cells four times wider than tall (80 levels of 5 m): the multigrid
+  # coarsens each direction on its own, as the projection without the drag does
+  # (erf-model/ERF#5064); with every direction coarsened together it diverges and the run stops.
+  # Measured: 8e-8 K, at most 7 iterations.
+  add_test_immersed_cf_heat_balance(ImmersedLES2LevHeatBalance_LShape_Aniso ImmersedLES2LevHeatBalance 300.0 1.0e-6 OFF OFF
+                                    "${if_hb_lshape} amr.n_cell='16 8 80' erf.box1.in_box_hi_indices_crse='11 7 19' erf.box2.in_box_hi_indices_crse='13 7 31'" multilevel)
+  # The same case on a stretched mesh (ratio 1.05 from 20 m): the implicit projection is solved with
+  # the multigrid of the terrain Poisson solver, sigma in its face area factors (erf-model/ERF#4887).
+  # Measured: 1.5e-8 K implicit, 0.010 K with the freeze, whose hybrid FFT solve needs a build with
+  # FFT. amrex.fpe_trap_overflow=0: the coarsening set-up of that multigrid multiplies the largest
+  # Real by 1.5 when no direction can be coarsened further, which the deck's overflow trap stops.
+  set(if_hb_stretched "erf.grid_stretching_ratio=1.05 erf.initial_dz=20.0 amrex.fpe_trap_overflow=0")
+  add_test_immersed_cf_heat_balance(ImmersedLES2LevHeatBalance_Stretched ImmersedLES2LevHeatBalance 300.0 1.0e-6 OFF OFF
+                                    "${if_hb_stretched}" multilevel)
   if(ERF_ENABLE_FFT)
-    add_test_immersed_cf_heat_balance(ImmersedLES2LevHeatBalance ImmersedLES2LevHeatBalance 300.0 1.0e-6 OFF OFF "" multilevel)
-    add_test_immersed_cf_heat_balance(ImmersedLES2LevHeatBalance_Freeze ImmersedLES2LevHeatBalance 300.0 1.0e-6 ON OFF
-                                      "erf.if_implicit_projection=false" multilevel)
-    add_test_immersed_cf_heat_balance(ImmersedLES2LevHeatBalance_LogLaw ImmersedLES2LevHeatBalance 300.0 1.0e-6 OFF ON
-                                      "erf.cf_loglaw_fill=true erf.if_cf_mismatch_warning=0.4" multilevel)
-    # Immersed-forcing building (a box whose walls and roof are half-solid cells), one level in four
-    # unequal boxes, theta uniform and no heat entering (erf-model/ERF#4887): with the implicit
-    # projection the fluid-mean theta must hold within 1e-6 K (4e-10 K measured), with and without the
-    # snap of the partial cells; the explicit treatment (the faces between two solid cells zeroed
-    # after the projection) leaves the partial cells at the walls and roof a divergence (0.012 K
-    # measured) and must fail the same check.
-    add_test_immersed_cf_heat_balance(ImmersedBuildingHeatBalance ImmersedBuildingHeatBalance 300.0 1.0e-6 OFF OFF "" "")
-    add_test_immersed_cf_heat_balance(ImmersedBuildingHeatBalance_Snap ImmersedBuildingHeatBalance 300.0 1.0e-6 OFF OFF
-                                      "erf.if_snap_partial_cells=true" "")
-    add_test_immersed_cf_heat_balance(ImmersedBuildingHeatBalance_Freeze ImmersedBuildingHeatBalance 300.0 1.0e-6 ON OFF
-                                      "erf.if_implicit_projection=false" "")
+    add_test_immersed_cf_heat_balance(ImmersedLES2LevHeatBalance_Stretched_Freeze ImmersedLES2LevHeatBalance 300.0 1.0e-6 ON OFF
+                                      "${if_hb_stretched} erf.if_implicit_projection=false" multilevel)
+  endif()
+  # Immersed-forcing building (a box whose walls and roof are half-solid cells), one level in four
+  # unequal boxes, theta uniform and no heat entering (erf-model/ERF#4887): with the implicit
+  # projection the fluid-mean theta must hold within 1e-6 K (4e-10 K measured), with and without the
+  # snap of the partial cells; the explicit treatment (the faces between two solid cells zeroed
+  # after the projection) leaves the partial cells at the walls and roof a divergence (0.012 K
+  # measured) and must fail the same check.
+  add_test_immersed_cf_heat_balance(ImmersedBuildingHeatBalance ImmersedBuildingHeatBalance 300.0 1.0e-6 OFF OFF
+                                    "${if_hb_fft_option}" "")
+  add_test_immersed_cf_heat_balance(ImmersedBuildingHeatBalance_Snap ImmersedBuildingHeatBalance 300.0 1.0e-6 OFF OFF
+                                    "erf.if_snap_partial_cells=true ${if_hb_fft_option}" "")
+  add_test_immersed_cf_heat_balance(ImmersedBuildingHeatBalance_Freeze ImmersedBuildingHeatBalance 300.0 1.0e-6 ON OFF
+                                    "erf.if_implicit_projection=false ${if_hb_fft_option}" "")
+  # The building with map factors that vary in x and y (erf.test_mapfactor_amp, 1 +- 0.1): both
+  # treatments are solved with the multigrid of the terrain Poisson solver, the implicit one with
+  # sigma in its face area factors (erf-model/ERF#4887). Measured: 6e-9 K implicit, -0.022 K with the
+  # explicit treatment.
+  set(if_hb_mapfac "erf.test_mapfactor_amp=0.1 amrex.fpe_trap_overflow=0 ${if_hb_fft_option}")
+  add_test_immersed_cf_heat_balance(ImmersedBuildingHeatBalance_MapFactor ImmersedBuildingHeatBalance 300.0 1.0e-6 OFF OFF
+                                    "${if_hb_mapfac}" "")
+  add_test_immersed_cf_heat_balance(ImmersedBuildingHeatBalance_MapFactor_Freeze ImmersedBuildingHeatBalance 300.0 1.0e-6 ON OFF
+                                    "${if_hb_mapfac} erf.if_implicit_projection=false" "")
+  if(ERF_ENABLE_FFT)
     # Neutral ABL with the k-eqn RANS over an immersed plane on a cell face, two solid rows below it,
     # against the same ABL on flat ground (erf-model/ERF#4134): with the fraction-stress wall law the
     # profiles over the lowest 500 m must agree within 1 % (measured: wind 0.02 %, TKE 0.2 %); the legacy law leaves

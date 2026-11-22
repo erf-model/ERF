@@ -15,7 +15,8 @@
 # it within 1e-6 K, the freeze run must not. A third leg adds the log-law coarse/fine fill
 # (erf.cf_loglaw_fill) and a mismatch threshold the surface crosses (erf.if_cf_mismatch_warning =
 # 0.4: the fine cell 40-50 m is half solid, a spread of 0.5) and must hold the mean and print the
-# warning. The implicit projection needs an FFT build.
+# warning. The implicit projection uses FFT-preconditioned
+# GMRES in a build with FFT and multigrid in a build without.
 #
 erf.prob_name = "ABL"
 

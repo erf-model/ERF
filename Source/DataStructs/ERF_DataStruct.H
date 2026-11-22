@@ -1738,17 +1738,25 @@ struct SolverChoice {
                 amrex::Abort("erf.if_implicit_projection needs erf.terrain_type = ImmersedForcing or "
                              "erf.buildings_type = ImmersedForcing");
             }
-            if (mesh_type != MeshType::ConstantDz) {
-                amrex::Abort("erf.if_implicit_projection needs a constant-dz mesh");
+            if (mesh_type == MeshType::VariableDz) {
+                amrex::Abort("erf.if_implicit_projection needs a mesh without terrain-fitted coordinates "
+                             "(constant or stretched dz)");
             }
+            // The drag is inside the projection on the levels that project; a FullyCompressible
+            // level has no projection and keeps the drag in the momentum source (if_drag_in_projection)
+            bool any_projecting_level = false;
             for (int lev = 0; lev <= max_level; ++lev) {
-                if (compressibility_type[lev] == CompressibilityType::FullyCompressible) {
-                    amrex::Abort("erf.if_implicit_projection needs erf.compressibility_type not FullyCompressible on every level");
+                if (compressibility_type[lev] != CompressibilityType::FullyCompressible) {
+                    any_projecting_level = true;
+                }
+                if (compressibility_type[lev] == CompressibilityType::PseudoIncompressible) {
+                    amrex::Abort("erf.if_implicit_projection is not yet supported with "
+                                 "erf.compressibility_type = PseudoIncompressible");
                 }
             }
-#ifndef ERF_USE_FFT
-            amrex::Abort("erf.if_implicit_projection needs a build with FFT (its GMRES solve is FFT-preconditioned)");
-#endif
+            if (!any_projecting_level) {
+                amrex::Abort("erf.if_implicit_projection needs erf.compressibility_type not FullyCompressible on at least one level");
+            }
         }
 
         // Flag to do MOST rotations with terrain
@@ -3157,6 +3165,17 @@ struct SolverChoice {
     // Reset interval means after each plotfile or once at a requested time
     std::string mean_vars_reset_mode = "plotfile";
     amrex::Real mean_vars_reset_time = -one;
+
+    /**
+     * True when the drag of the immersed solid is applied inside the anelastic projection on this
+     * level (erf.if_implicit_projection on a level that is not FullyCompressible). A
+     * FullyCompressible level has no projection, so it keeps the drag in the momentum source.
+     */
+    [[nodiscard]] bool if_drag_in_projection (int lev) const noexcept
+    {
+        return if_implicit_projection &&
+               (compressibility_type[lev] != CompressibilityType::FullyCompressible);
+    }
 
     // Building forcing and its landmask use the same horizontal resolution cutoff.
     [[nodiscard]] bool use_building_immersed_forcing (const amrex::Geometry& geom) const noexcept

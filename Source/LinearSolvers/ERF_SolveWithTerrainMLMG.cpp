@@ -130,6 +130,12 @@ void ERF::solve_with_terrain_mlmg (int lev, const Box& subdomain, MultiFab& rhs,
         try {
             mlmg.solve({&phi}, {&rhs}, reltol, abstol);
         } catch (MLMG::error const& err) {
+            if (solverChoice.mesh_type != MeshType::VariableDz) {
+                // erf.terrain_poisson_solver is not read on a mesh without terrain-fitted coordinates
+                amrex::Abort(std::string("The multigrid projection (map factors other than one, or grid "
+                             "stretching with erf.if_implicit_projection) at level ") + std::to_string(lev)
+                             + ": " + err.what() + "  Loosen erf.poisson_reltol / erf.poisson_abstol.");
+            }
             amrex::Abort(std::string("erf.terrain_poisson_solver = mlmg at level ") + std::to_string(lev)
                          + ": " + err.what() + "  Loosen erf.poisson_reltol / erf.poisson_abstol, or use "
                          + "erf.terrain_poisson_solver = gmres_mlmg or gmres_fft, which continue with "
