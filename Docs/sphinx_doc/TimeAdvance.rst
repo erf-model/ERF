@@ -293,11 +293,11 @@ and a two-dimensional run keeps only its own horizontal direction. For a fluid a
 the number of substeps or on the flow, and
 :math:`\beta_d` is the coefficient at :math:`C_r = 1`. The default is
 :math:`\beta_d = 0.1`; it can be set with ``erf.beta_d``, which must lie in :math:`[0, 1]`.
-WRF uses :math:`\beta = 0.1` without the scaling, and so did ERF before this change: a run
-whose substeps have :math:`C_r < 1` is now damped more than before (:math:`\beta` can exceed one
-when the number of substeps is set by its minimum and not by the acoustic limit), and its
-results differ from earlier versions. ``erf.substepping_diag`` prints :math:`C_r` and
+WRF applies :math:`\beta = 0.1` without the scaling. In ERF a run whose substeps have
+:math:`C_r < 1` applies a coefficient larger than :math:`\beta_d`, and :math:`\beta` can exceed
+one when the number of substeps is set by its minimum and not by the acoustic limit.
+``erf.substepping_diag`` prints :math:`C_r` and
 :math:`\beta` for each level. The first substep of a stage has no earlier value to project
 from and is not damped. A single-column run has no horizontal pressure gradient and uses
 :math:`\beta = \beta_d`. With too little damping per unit time, a two-way coupled run with a
-refined level can grow acoustic waves at the coarse-fine faces (issue #5003).
+refined level can grow acoustic waves at the coarse-fine faces.

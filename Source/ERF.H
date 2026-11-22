@@ -807,8 +807,9 @@ public:
     void MakeNewLevelFromScratch (int lev, amrex::Real time, const amrex::BoxArray& ba,
                                   const amrex::DistributionMapping& dm) override;
 
-    // compute dt from CFL considerations; acoustic_inv_dt is the largest inverse time step of
-    // the substepping rule on the level (1/s), zero where it sets no limit (acoustic_inv_dt below)
+    // compute dt from CFL considerations; acoustic_inv_dt is the largest horizontal acoustic
+    // inverse time step on the level (1/s), the sound speed times (m_x/dx + m_y/dy) with no wind
+    // term, and zero where there is none (the member acoustic_inv_dt below)
     double estTimeStep (int lev, long& dt_fast_ratio, amrex::Real& acoustic_inv_dt) const;
 
     // largest explicit diffusion rates (eddy and molecular, 1/s) on level lev, momentum and scalars, for the

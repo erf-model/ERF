@@ -213,7 +213,7 @@ Compute_InvDt_Anelastic (const int i, const int j, const int k,
  * @param[in] nyc    number of cells in y on this level
  * @return           c (m_x/dx + m_y/dy), with only its own direction in a two-dimensional run
  */
-AMREX_GPU_DEVICE
+AMREX_GPU_HOST_DEVICE
 AMREX_FORCE_INLINE
 amrex::Real
 Compute_InvDt_HorizAcoustic (const amrex::Real c,

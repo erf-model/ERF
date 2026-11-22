@@ -971,9 +971,19 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
     // Initialize the integrator class
     // ********************************************************************************************
     dt_mri_ratio[lev] = dt_mri_ratio[lev-1];
-    // Until the next ComputeDt: the coarser level's value at this level's horizontal spacing
-    acoustic_inv_dt[lev] = acoustic_inv_dt[lev-1] *
-        static_cast<Real>(std::max(ref_ratio[lev-1][0], ref_ratio[lev-1][1]));
+    // Until the next ComputeDt: the coarser level's value at this level's horizontal spacing.
+    // The stored value is c (m_x/dx + m_y/dy), so each direction takes its own refinement
+    // ratio; a direction with one cell on the level 0 domain is not part of it
+    // (Compute_InvDt_HorizAcoustic).  Exact for a uniform sound speed and unit map factors.
+    {
+        const auto dxi_crse = geom[lev-1].InvCellSizeArray();
+        const Real wx = (geom[0].Domain().length(0) > 1) ? dxi_crse[0] : zero;
+        const Real wy = (geom[0].Domain().length(1) > 1) ? dxi_crse[1] : zero;
+        const Real rx = static_cast<Real>(ref_ratio[lev-1][0]);
+        const Real ry = static_cast<Real>(ref_ratio[lev-1][1]);
+        const Real scale = ((wx + wy) > zero) ? (rx*wx + ry*wy) / (wx + wy) : one;
+        acoustic_inv_dt[lev] = acoustic_inv_dt[lev-1] * scale;
+    }
     initialize_integrator(lev, vars_new[lev][Vars::cons], vars_new[lev][Vars::xvel]);
 
     // ********************************************************************************************
