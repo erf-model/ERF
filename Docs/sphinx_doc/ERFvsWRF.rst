@@ -62,7 +62,7 @@ ERF provides **performance portability** on different computing architectures **
 
 **Vertical Coordinates**: Unlike WRF, ERF uses a height-based vertical coordinate, with vertical grid stretching permitted.
 
-**Governing Equations**: ERF supports both fully compressible and anelastic equation sets.
+**Governing Equations**: ERF supports fully compressible, anelastic and pseudo-incompressible equation sets.
 
 **Time Integration**: ERF supports using a 3rd-order Runge-Kutta scheme with explicit acoustic substepping or no substepping
 (in addition to the implicit acoustic substepping in WRF).
