@@ -372,6 +372,11 @@ All three terrain solvers (``erf.terrain_poisson_solver``) run such a level.  Th
 coarser level.  With one-way coupling this is all the level needs; two-way coupling of such a
 level over terrain has not been tested yet.
 
+**Pseudo-incompressible runs** treat these faces the same way.  The projection there works on
+:math:`\beta\,\rho u` rather than :math:`\rho_0 u`, so the horizontal momenta outside the level and
+the coarse :math:`\Omega` come in the :math:`\rho u` scaling of the level's own momenta, and are
+multiplied by the level's :math:`\beta` with them, as on the side faces.
+
 .. _subsec:moving-boxes:
 
 Moving Refinement Regions
