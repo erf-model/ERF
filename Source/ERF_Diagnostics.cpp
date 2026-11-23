@@ -13,7 +13,7 @@ using namespace amrex;
 void
 ERF::compute_max_pressure_gradient_diagnostic (int lev)
 {
-    // We don't require HSE when anelastic because the pressure gradient
+    // We don't require HSE when anelastic or pseudo-incompressible because the pressure gradient
     //    is computed from the Poisson solve
     if (solverChoice.compressibility_type[lev] != CompressibilityType::FullyCompressible) return;
 
@@ -300,7 +300,7 @@ ERF::compute_max_pressure_gradient_diagnostic (int lev)
             }
             Print() << " " << std::endl;
         } // if moist
-    } // if !anelastic
+    } // if FullyCompressible
 }
 
 void

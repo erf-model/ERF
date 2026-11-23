@@ -160,7 +160,8 @@ bool ERF::projection_uses_terrain_solver (int lev) const
 }
 
 /**
- * Project the single-level velocity field to enforce the anelastic constraint
+ * Project the single-level velocity field to enforce the level's divergence constraint
+ * (anelastic or pseudo-incompressible)
  * Note that the level may or may not be level zero
  *
  * @param lev Level index for the velocity projection
@@ -253,7 +254,8 @@ void ERF::define_pi_upw_dir (int lev)
 }
 
 /**
- * Project the single-level momenta to enforce the anelastic constraint
+ * Project the single-level momenta to enforce the level's divergence constraint
+ * (anelastic or pseudo-incompressible)
  * Note that the level may or may not be level zero
  *
  * @param lev Level index for the momentum projection

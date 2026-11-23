@@ -36,7 +36,7 @@ public:
     void
     Update_Micro_Vars (amrex::MultiFab& /*cons_in*/) { }
 
-    // Optional explicit anelastic thermodynamic context.  The default routes
+    // Optional explicit anelastic / pseudo-incompressible thermodynamic context (base-state p0).  The default routes
     // to the legacy model entry point so non-SatAdj models retain behavior.
     virtual
     void

@@ -965,7 +965,7 @@ void WDM6::AdvanceColumns (const Real& dt_advance,
             m_use_anelastic_reference_pressure;
         ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
             // Use the same held pressure that was passed to WDM6. In
-            // anelastic mode this is the BaseState p0; in compressible mode
+            // anelastic and pseudo-incompressible mode this is the BaseState p0; in compressible mode
             // it is the pressure diagnosed from the incoming state.
             theta_arr(i,j,k) = wdm6_theta_from_temperature_and_pressure(
                 t_arr(i,j,k), p_arr(i,j,k), configured_rdOcp,

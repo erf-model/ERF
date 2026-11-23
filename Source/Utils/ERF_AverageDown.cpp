@@ -124,7 +124,8 @@ ERF::AverageDownTo (int crse_lev, int scomp, int ncomp, bool do_full_state_and_m
         //    w (rho S) with w = detJ/(m_x m_y) gives rho_c S for a uniform S only if the fine
         //    w (rho) average exactly to the coarse w (rho), which fails when m varies (#4904).
         //    Rescale the covered coarse cells by w_c rho_c / avg(w_f rho_f) so that
-        //    (rho S)_c = rho_c * (the same-weighted mean of S_f).
+        //    (rho S)_c = rho_c * (the same-weighted mean of S_f).  A pseudo-incompressible level
+        //    evolves rho and averages it down, as a compressible level does, so it is not rescaled.
         const bool rescale_by_rho = solverChoice.compressibility_type[crse_lev] == CompressibilityType::Anelastic && (scomp > Rho_comp);
 
         // A flat mesh whose map factors vary: a covered coarse cell's volume 1/(m_x m_y)
@@ -360,7 +361,8 @@ ERF::AverageDownTo (int crse_lev, int scomp, int ncomp, bool do_full_state_and_m
  * zero otherwise.  With the base state removed, a fine level in its base state averages to the
  * coarse base state.  The fine level is read only.
  *
- * On an anelastic level rho is not averaged down (it is rho0 on each level), so the specific
+ * On an anelastic level rho is not averaged down (it is rho0 on each level; a pseudo-incompressible
+ * level averages it down, as a compressible level does), so the specific
  * value S = q / rho is averaged with the fine masses w_f rho_f, as the plain anelastic branch of
  * AverageDownTo does (#4904), and the coarse rho multiplies it:
  *
