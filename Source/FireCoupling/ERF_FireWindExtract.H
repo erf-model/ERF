@@ -4,6 +4,7 @@
 #include <AMReX_MultiFab.H>
 #include <AMReX_Geometry.H>
 #include <cmath>
+#include <string>
 #include <ERF_FireGrid.H>
 
 /**
@@ -46,6 +47,10 @@
  *                             lowest center's wind as it is; true scales it
  *                             with a neutral log profile of roughness z0_log,
  *                             U(z) = U(z_1) ln(z/z0)/ln(z_1/z0)
+ * @param[in]  col_z0          Roughness length [m] of each atmospheric column
+ *                             (2D, laid out as col_open, one filled ghost
+ *                             cell), used in place of z0_log in both log
+ *                             profiles; nullptr = the scalar z0_log everywhere
  *
  * Algorithm per fire cell (i_f, j_f):
  * 1. Map to atmospheric column: i_a = i_f / C, j_a = j_f / C
@@ -94,6 +99,29 @@
  * Model (Jimenez y Munoz et al. 2026), meant to drive the fire with a wind
  * taken above its own plume. fire_wind_extract_z then records the sampled
  * height; the open-column test uses that height as well.
+ *
+ * With col_z0 given (a 2D roughness field [m] of the atmospheric columns)
+ * both log profiles above use the roughness of the column being sampled
+ * instead of z0_log: the below-first-center scaling of each column, and with
+ * z_sample > 0 the resampling factor, which is then applied to each column
+ * before the bilinear blend. Without col_z0 the result is unchanged, bit for
+ * bit. The field is read with the fire grid's MFIter, so it must have the fire
+ * grid's boxes, in its order and with its owners: a copy of the surface
+ * layer's z_0 (SurfaceLayer::get_z0) onto the level's k = 0 slabs, the layout
+ * of col_open, works; z_0 itself does not where the fire grid covers a cropped
+ * region or the terrain is EB (z_0 is then 3D). Its ghost cell must be filled
+ * (FillBoundary) before the call; a column outside the fab is clamped to its
+ * edge. Where the sea roughness varies in time
+ * (SurfaceLayer::have_variable_sea_roughness) the copy is refreshed before
+ * every call. The call aborts unless every valid value is positive and e
+ * times the largest does not exceed the lowest height a log profile is
+ * evaluated at (z_ref or the smallest z_ref_cell, and z_sample when
+ * resampling), the bound fire_column_z0_range_error checks.
+ *
+ * The per-column log law from z_sample assumes each column is in equilibrium
+ * with its own roughness up to z_sample. Across a sharp roughness change the
+ * internal boundary layer one atmospheric cell downwind is often shallower
+ * than that, so the per-column factor overstates the local effect there.
  */
 void fill_fire_wind_from_interpolation(
     amrex::MultiFab&       fire_wind_ref,
@@ -112,7 +140,18 @@ void fill_fire_wind_from_interpolation(
     const amrex::MultiFab* col_roof       = nullptr,
     amrex::Real            z_sample       = 0.0,
     amrex::Real            z0_log         = 0.1,
-    bool                   below_first_log = false);
+    bool                   below_first_log = false,
+    const amrex::MultiFab* col_z0         = nullptr);
+
+/**
+ * @brief Range check of a column roughness field for the fire wind sampler
+ *
+ * @param[in] col_z0 Roughness [m] of the atmospheric columns (valid cells are checked)
+ * @param[in] z_low  Lowest height [m] a log profile is evaluated at
+ * @return An empty string when every value z0 satisfies 0 < z0 and e z0 <= z_low
+ *         (so ln(z_low / z0) >= 1), otherwise the reason. Collective over MPI.
+ */
+std::string fire_column_z0_range_error (const amrex::MultiFab& col_z0, amrex::Real z_low);
 
 /**
  * @brief The wind at the lowest cell center of each atmospheric column, and

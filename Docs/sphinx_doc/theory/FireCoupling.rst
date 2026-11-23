@@ -234,7 +234,17 @@ a GPU build its data is on the device:
 
 **Shared helpers.** ``fill_fire_wind_from_interpolation``
 (``ERF_FireWindExtract.H``) samples the 3D wind at a height above ground on
-the fire grid; ``extract_fire_wind_k0`` gives the wind of the lowest cell of
+the fire grid. Below the lowest cell center, and when the engine samples
+higher and brings the wind down, it uses the neutral log profile
+:math:`U(z) = U(z_1)\,\ln(z/z_0)/\ln(z_1/z_0)`; :math:`z_0` is one roughness
+length the engine passes, or, when the engine passes a field of roughness per
+atmospheric column, the roughness of each column it samples. Such a field is a
+copy of the surface layer's :math:`z_0` (``SurfaceLayer::get_z0``, which a
+fire engine can call on its const surface layer) on the level's
+:math:`k = 0` slabs, with its ghost cells filled, refreshed every step where
+the sea roughness varies in time. The sampler aborts unless every value is
+positive and :math:`e\,z_0` does not exceed the lowest height the profile is
+evaluated at. ``extract_fire_wind_k0`` gives the wind of the lowest cell of
 each atmospheric column and its height above that column's ground, for an
 engine driven by the lowest-cell wind; ``compute_fire_surface_height``
 (``ERF_FireSurfaceHeight.H``) gives the ground of each fire cell's column.
