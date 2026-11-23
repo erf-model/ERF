@@ -566,8 +566,8 @@ Limitations
   without it ERF again sets :math:`T_{\text{deep}}` to ``seb_t_deep_default`` before every
   step, and a NOTE says that the checkpoint's field is not read.
 - **Call cadence.** The sweep runs once every slow step, from the old state, and there is no
-  call-frequency input: one gray sweep per column costs about a millisecond per ten thousand
-  cells, so unlike RRTMGP (``erf.rad_freq_in_steps``) it is not worth skipping steps.
+  call-frequency input: one gray sweep per column costs about a millisecond per seven thousand
+  cells (see `Comparison with RRTMGP`_), so unlike RRTMGP (``erf.rad_freq_in_steps``) it is not worth skipping steps.
 - **Diagnostics file.** The diagnostics are off by default. Setting
   ``erf.radiation.diag_enable = true`` writes ``radiation_diag.dat``
   (``erf.radiation.diag_file``) in the run directory, with a ``pre_dycore`` and a
@@ -577,6 +577,105 @@ Limitations
   report -- so on a refined run the rows present are those of the sweeping levels, not one
   set per level in the hierarchy. The file is appended to rather than truncated, as ERF's other
   data logs are, so a rerun in the same directory extends the previous run's rows.
+
+.. _sec:TwoStreamVsRRTMGP:
+
+Comparison with RRTMGP
+--------------------------------------
+
+The two-stream model is a gray, broadband scheme. RRTMGP is a k-distribution model with gas
+optics from lookup tables. The table below lists what each one represents in ERF, and what the
+two-stream model leaves out. It describes the models; it is not a measurement of accuracy.
+No case in ERF yet compares the fluxes or heating rates of the two models. Two-stream keys are
+read under ``erf.radiation.``; RRTMGP keys are written in full.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 16 28 28 28
+
+   * - Aspect
+     - Two-stream
+     - RRTMGP
+     - Limitation of the two-stream model
+   * - Spectral resolution
+     - One gray shortwave band and one gray longwave band
+     - 224 shortwave and 256 longwave g-points
+     - No water-vapor window and no CO\ :sub:`2` band. Absorption does not depend on pressure
+       or temperature, and longwave scattering is not included. Longwave cooling-to-space and
+       heating-rate profiles are therefore approximate.
+   * - Gases
+     - Dry air and water vapor only, through user coefficients
+       (``tau_sw_coeff_qv`` and ``tau_lw_coeff_qv`` with ``per_layer``; ``sw_kabs_vapor`` and
+       ``lw_kabs_vapor`` with the mass model)
+     - H\ :sub:`2`\ O, CO\ :sub:`2`, O\ :sub:`3`, N\ :sub:`2`\ O, CO, CH\ :sub:`4`,
+       O\ :sub:`2`, N\ :sub:`2`
+     - No CO\ :sub:`2`, ozone or methane. With ``per_layer`` water vapor has no radiative
+       effect unless ``tau_sw_dynamic_enable`` / ``tau_lw_dynamic_enable`` are true and the
+       coefficients are set (all off or zero by default).
+   * - Optical depth
+     - ``tau_model = per_layer`` (default) or ``mass``
+     - Computed from the gas state
+     - With ``per_layer`` the column optical depth grows with the number of vertical cells
+       (42 cells with the default longwave value give a column optical depth of 42), so its
+       coefficients must be tuned again when the grid changes. ``mass`` removes this dependence,
+       except for the ``tau_*_coeff_*`` terms, which are added per layer in both modes. The mass
+       coefficients are flux coefficients (no diffusivity factor), to be tuned rather than
+       taken from line data.
+   * - Cloud phase
+     - Liquid water (``qc``) only
+     - Liquid, and ice when the moisture model carries cloud ice
+     - Ice and mixed-phase clouds are not represented.
+   * - Cloud fraction and overlap
+     - Clear and cloudy fluxes blended linearly by :math:`C_f` (``cloud_fraction``, default 0,
+       or diagnosed from RH and ``qc``; see `Cloud Fraction Diagnosis`_)
+     - Cloud fraction 1 where :math:`q_c + q_i > 0`, else 0. McICA with maximum-random overlap
+       is coded, but with this fraction ``erf.rad_do_subcol_sampling`` has no effect (#5212).
+     - The overlap of cloud layers is not represented. Neither model represents overlap in
+       ERF today; only the two-stream model represents partial cloud cover in a cell.
+   * - Cloud optics
+     - ``sw_cloud_omega``, ``sw_cloud_g``, ``sw_kext_cloud``. Longwave: with ``mass``, the
+       Stephens (1978) emissivity :math:`1 - e^{-0.158\,\text{LWP}}`; with ``per_layer``, a
+       prescribed cloud-band optical depth (``tau_profile_type = CloudLayer``)
+     - Cloud-optics lookup tables
+     - The result depends on the chosen cloud parameters and mode.
+   * - Aerosol
+     - Prescribed aerosol optical depth (``aerosol_enable``, default false)
+     - Not supported (``erf.rad_do_aerosol = true`` stops the run)
+     - --
+   * - Surface coupling
+     - Direct and diffuse broadband albedo, and emissivity
+     - Direct and diffuse albedo in the visible and near-infrared bands
+     - No visible / near-infrared split. The two-stream model forces Noah-MP with broadband
+       fluxes but cannot force SLM (see `Radiative Forcing of a Land-Surface Model`_).
+   * - Top of the domain
+     - Taken as the top of the atmosphere: no downward longwave, full solar beam
+     - Same: no layer is added above the domain top
+     - Shared by both models. Nothing is emitted, absorbed or scattered above the top. With
+       ``mass`` and the default coefficients, a gray-column estimate gives a downward longwave
+       flux at the surface about 11% too small for a 2 km top (28% for 1 km), and a surface
+       direct beam about 9% too large for a 2 km top with the sun overhead. With
+       ``per_layer`` the column is usually opaque, so the longwave effect is small.
+   * - Solar geometry
+     - Instantaneous :math:`\cos\theta_z` at each step
+     - :math:`\cos\theta_z` averaged over ``erf.rad_freq_in_steps`` steps (one step by
+       default)
+     - Small difference that grows with ``erf.rad_freq_in_steps``; both use the same orbital
+       code.
+   * - Cost
+     - One column sweep per step (the ``post_dycore`` call reuses the ``pre_dycore`` sweep);
+       about 1 ms per sweep for 7,000 cells
+     - About 400 times one two-stream sweep per call on one CPU core; called every
+       ``erf.rad_freq_in_steps`` steps
+     - --
+
+The cost row comes from ``Exec/CanonicalTests/Radiation/TwoStream_vs_RRTMGP_Timing``
+(one CPU core, the same grid, sounding and moisture model for both; measured in September 2026,
+when each two-stream call ran its own sweep). RRTMGP is designed for GPUs, so the ratio on a GPU
+is expected to differ. The top-of-domain numbers come from a standalone gray-column calculation
+with a standard atmosphere, not from an ERF run. The two-stream checks in
+``Exec/CanonicalTests/Radiation/TwoStream_Benchmark_Suite`` compare against closed-form
+solutions (clear-sky shortwave, isothermal longwave) and qualitative checks (cloud layers,
+time stepping), not against RRTMGP.
 
 Surface Energy Balance
 --------------------------------------
