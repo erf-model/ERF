@@ -352,8 +352,10 @@ void ERF::project_momenta (int lev, double l_time, double l_dt_d, Vector<MultiFa
     const bool l_pi = (solverChoice.compressibility_type[lev] == CompressibilityType::PseudoIncompressible);
     Array<MultiFab,AMREX_SPACEDIM> pi_beta;
     if (l_pi) {
-        // erf.if_implicit_projection is refused with a pseudo-incompressible level when the
-        // inputs are read (SolverChoice)
+        // With erf.if_implicit_projection the momenta, the area factors and the correction
+        // carry sigma as well as beta (below): m = sigma (m* - beta grad phi) and
+        // div(sigma beta grad phi) = div(sigma m*) - S, phi the pressure correction times dt;
+        // S is not multiplied by sigma (erf-model/ERF#4887)
         if (lev > 0 && solverChoice.mesh_type == MeshType::VariableDz &&
             !cf_zface_layout(lev).slab_box.empty()) {
             amrex::Abort("erf.compressibility_type = PseudoIncompressible: a refined level that stops "
@@ -645,14 +647,10 @@ void ERF::project_momenta (int lev, double l_time, double l_dt_d, Vector<MultiFa
                                     (solverChoice.if_drag_in_projection(lev) &&
                                      solverChoice.mesh_type == MeshType::StretchedDz);
     const bool flat_terrain_solve = use_terrain_solver && (solverChoice.mesh_type != MeshType::VariableDz);
-    // The area factors are scaled before the solve (beta, sigma), so they are copies
+    // The area factors are scaled before the solve (beta, sigma), so they are copies.
+    // A refined level of a flat mesh with map factors other than one (projected since
+    // erf-model/ERF#5328) takes sigma the same way as level 0.
     const bool scaled_areas = l_pi || (l_if_implicit && use_terrain_solver);
-    // Refined levels of a flat mesh with map factors other than one are projected since
-    // erf-model/ERF#5328. With the drag in the projection that combination has no test yet.
-    if (l_if_implicit && flat_terrain_solve && lev > 0 && has_nonunit_mapfac(lev)) {
-        amrex::Abort("erf.if_implicit_projection on a refined level of a mesh without terrain-fitted "
-                     "coordinates and with map factors other than one is not supported");
-    }
 
     // The regions the level is solved on: its subdomains, with those that meet across a periodic
     // boundary joined into one.  A joined region "wraps": it is solved with multigrid on the

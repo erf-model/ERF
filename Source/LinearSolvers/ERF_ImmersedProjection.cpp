@@ -21,10 +21,20 @@
  *       GMRES with the constant-coefficient FFT solve as preconditioner (solve_with_if_gmres);
  *   constant dz, map factors of one, otherwise: multigrid with sigma as the face coefficient
  *       (solve_with_if_mlmg, amrex::MLABecLaplacian);
- *   stretched dz or map factors other than one: the terrain Poisson multigrid, with sigma in
- *       its face area factors (ERF::project_momenta); a region that is not a rectangle goes to
- *       solve_with_flat_mlmg with the same area factors (erf-model/ERF#5332).
- * A terrain-fitted mesh and a pseudo-incompressible level are not supported.
+ *   stretched dz, map factors other than one (on any level) or a pseudo-incompressible level:
+ *       the terrain Poisson multigrid, with sigma in its face area factors
+ *       (ERF::project_momenta); a region that is not a rectangle goes to solve_with_flat_mlmg
+ *       with the same area factors (erf-model/ERF#5332).
+ * On a pseudo-incompressible level the projected momentum is m = beta (rho u) with
+ * beta = rho0 theta0 / rho on the faces, and the two coefficients multiply:
+ *
+ *     m^{n+1} = sigma (m* - beta grad phi),
+ *     div(sigma beta grad phi) = div(sigma m*) - S,
+ *
+ * with phi the pressure correction times dt as above, and S the source term of the
+ * pseudo-incompressible constraint, which sigma does not multiply.
+ *
+ * A terrain-fitted mesh is not supported.
  *
  * For buildings (erf.buildings_type = ImmersedForcing, erf-model/ERF#4887) the rate is the linear
  * drag of ImmersedForcingBuildings_{X,Y,Z}mom (partial-wall and interior faces, from the masks of
