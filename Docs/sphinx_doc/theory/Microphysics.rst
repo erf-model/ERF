@@ -83,16 +83,18 @@ prognostic variables. See :ref:`sec:SpectralBinMicrophysics`.
 
 .. _anelastic-microphysics-thermodynamics:
 
-Anelastic microphysics thermodynamics
--------------------------------------
+Anelastic and pseudo-incompressible microphysics thermodynamics
+---------------------------------------------------------------
 
 ERF supplies the thermodynamic pressure used by supported Eulerian
 microphysics schemes and by ``SuperDroplets``. The pressure and temperature
 relationships below apply to both types of schemes. No additional pressure
 field or scheme-specific pressure-unit conversion is required in the input file.
 
-On each anelastic AMR level (``erf.compressibility_type`` not ``FullyCompressible``), pressure-dependent
-microphysics uses the hydrostatic base-state pressure at each cell. Let
+On each anelastic or pseudo-incompressible AMR level (``erf.compressibility_type`` not ``FullyCompressible``),
+pressure-dependent microphysics uses the hydrostatic base-state pressure at each cell.  Both equation sets get
+their pressure from a projection rather than from the equation of state, so the thermodynamic pressure is the
+base-state pressure even on a pseudo-incompressible level, where the density evolves. Let
 :math:`p_{\mathrm{base}}` denote this pressure and :math:`p_{\mathrm{ref}}`
 denote ERF's fixed reference pressure used in the definition of potential
 temperature. ERF diagnoses
@@ -109,7 +111,7 @@ and
    T = \theta
        \left(\frac{p_{\mathrm{base}}}{p_{\mathrm{ref}}}\right)^{R_d/c_p}.
 
-The ratio :math:`R_d/c_p` uses ``erf.c_p`` for this anelastic
+The ratio :math:`R_d/c_p` uses ``erf.c_p`` for this base-state
 pressure--temperature conversion. Pressure-dependent thermodynamic
 calculations use the same hydrostatic base-state pressure consistently through
 the microphysics source step. Schemes that convert between temperature and
@@ -124,7 +126,7 @@ The reference-pressure treatment applies to the Kessler family
 (``Kessler`` and ``Kessler_NoRain``), the SAM family (``SAM``, ``SAM_NoIce``,
 and ``SAM_NoPrecip_NoIce``), the Morrison family (``Morrison`` and
 ``Morrison_NoIce``), ``WSM6``, and ``WDM6``. ``SatAdj`` also uses the
-anelastic base-state pressure. ``MoistNoCondensation`` does not have a
+base-state pressure. ``MoistNoCondensation`` does not have a
 pressure-dependent condensation source that requires this treatment.
 
 ERF performs scheme-specific pressure-unit conversion internally: Kessler and
@@ -137,7 +139,7 @@ specify only the usual model and dynamics options. For example:
    erf.moisture_model = WSM6
 
 ``erf.compressibility_type`` may also be specified per AMR level. ``SuperDroplets`` uses
-pressure in Pa and diagnoses anelastic temperature from the same base-state
+pressure in Pa and on these levels diagnoses the temperature from the same base-state
 pressure; see :ref:`superdroplets-anelastic-compatibility` for its thermodynamic
 and particle-process coupling, including the fixed inverse Exner factor for
 latent heating.

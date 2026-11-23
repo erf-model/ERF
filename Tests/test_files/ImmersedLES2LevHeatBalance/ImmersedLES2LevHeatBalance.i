@@ -18,6 +18,11 @@
 # warning. The implicit projection uses FFT-preconditioned
 # GMRES in a build with FFT and multigrid in a build without.
 #
+# Further legs override the deck: _MapFactor (erf.test_mapfactor_amp, mean theta as above) and
+# _PseudoIncompressible (erf.compressibility_type; these read the PI DRIFT the run prints,
+# max |rho theta - rho0 theta0| / (rho0 theta0)), also with an L-shaped region and with two
+# regions that meet across the periodic boundary in x.
+#
 erf.prob_name = "ABL"
 
 max_step = 20

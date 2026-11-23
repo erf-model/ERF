@@ -188,7 +188,7 @@ fill_sampled_level_component (MultiFab& dst,
     const Real missing_value = descriptor.missing_value;
     const bool is_wind_field = sampled_field_is_wind(field_id);
     const bool have_rotation = (wind_sources.cos_alpha != nullptr) || (wind_sources.sin_alpha != nullptr);
-    // The caller passes the base state pressure only for an anelastic run, in which case
+    // The caller passes the base state pressure only for an anelastic or pseudo-incompressible run, in which case
     //    that -- not the compressible EOS -- is the pressure of the system
     const bool use_hse_pressure = (p_hse != nullptr);
 

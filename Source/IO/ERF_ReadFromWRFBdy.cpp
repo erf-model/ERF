@@ -1224,7 +1224,7 @@ read_and_convert_from_wrfbdy (const int itime, const std::string& nc_bdy_file,
                                         bdy_data_xlo[itime][WRFBdyVars::U], bdy_data_xhi[itime][WRFBdyVars::U],
                                         bdy_data_ylo[itime][WRFBdyVars::V], bdy_data_yhi[itime][WRFBdyVars::V],
                                         area_vec, geom, domain_bcs_type_h);
-        } // anelastic
+        } // anelastic or pseudo-incompressible
     } // do_conversion
 }
 #endif // ERF_USE_NETCDF

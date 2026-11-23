@@ -71,7 +71,8 @@ amrex::Real limited_length (amrex::Real length, amrex::Real f_drag, amrex::Real 
  *   (rho k)^n exp(-x) + rho (P / c) (1 - exp(-x)),
  * so the canopy terms balance at rho P / c at any dt, and the canopy sink never
  * removes more than (rho k)^n. The RK3 stages (dt/3, dt/2, dt from the start of
- * the step) and the trapezoidal anelastic RK2 (both stages over dt) both update
+ * the step) and the trapezoidal RK2 of anelastic and pseudo-incompressible levels
+ * (both stages over dt) both update
  * from (rho k)^n.
  * The closure's own dissipation is a separate term: the explicit form adds
  * -dt rho Cmu0^3 k^1.5 / L to that update, and the implicit form divides the

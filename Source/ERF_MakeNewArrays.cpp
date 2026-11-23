@@ -278,7 +278,7 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
         lagged_delta_rt[lev].setVal(zero);
     }
 
-    // We use these for advecting the slow variables, whether anelastic or compressible
+    // We use these for advecting the slow variables, whether anelastic, pseudo-incompressible or compressible
     avg_xmom[lev].define(convert(ba, IntVect(1,0,0)), dm, 1, 1);
     avg_ymom[lev].define(convert(ba, IntVect(0,1,0)), dm, 1, 1);
     avg_zmom[lev].define(convert(ba, IntVect(0,0,1)), dm, 1, 1);
