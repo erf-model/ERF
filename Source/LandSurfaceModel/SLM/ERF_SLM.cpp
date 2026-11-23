@@ -600,6 +600,11 @@ void SLM::init_from_inputs ()
                      "so that land categories above 16 get their parameters from the Noah-MP table");
     }
 
+    if (use_wrfinput && amrex::toLower(veg_dataset) == "usgs") {
+        amrex::Abort("SLM: slm.veg_dataset = usgs is not supported when initializing from WRFInput or Metgrid; "
+                     "land-category handling assumes MODIS numbering (water = 17, lake = 21)");
+    }
+
     if (use_param_file) {
         AMREX_ALWAYS_ASSERT_WITH_MESSAGE(use_wrf_lai != use_param_file, "Cannot use parameter file and parameter table, must choose one method");
         AMREX_ALWAYS_ASSERT_WITH_MESSAGE(parameter_file != "", "Using parameter file, but file path is empty!");
