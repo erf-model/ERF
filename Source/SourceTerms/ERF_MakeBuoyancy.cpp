@@ -16,7 +16,8 @@ using namespace amrex;
  * used by the dry-momentum equation. Compressible selector values 1--4
  * select density, temperature (2 and 3 are identical), or potential-
  * temperature formulations. Anelastic flow dispatches to its active dry
- * or moist kernel independently of the stored selector.
+ * or moist kernel independently of the stored selector. Pseudo-incompressible
+ * flow evolves the density and always uses selector 1, the density departure.
  *
  * @param[in]  lev           level
  * @param[in]  S_data        current solution

@@ -146,7 +146,7 @@ AMREX_ENUM(MeshType,
 );
 
 /**
- * @brief Linear solver for the anelastic projection on a terrain-fitted mesh.
+ * @brief Linear solver for the anelastic or pseudo-incompressible projection on a terrain-fitted mesh.
  *
  * gmres_fft is GMRES with ERF's TerrainPoisson operator and an FFT preconditioner (needs the
  * FFT build).  mlmg and gmres_mlmg use amrex::MLTerrainPoisson (AMReX-Codes/amrex#6030), the
@@ -1284,9 +1284,11 @@ struct SolverChoice {
             }
         }
 
-        // Want to have different immersed forcing defaults depending on anelastic or fully compressible.
+        // Want to have different immersed forcing defaults depending on anelastic / pseudo-incompressible
+        // (any_anelastic is true for either) or fully compressible.
         // We should have different starting values because the stability of the method is dependent on dt.
-        // dt is coarser for anelastic --> need to loosen stiffness of immersed forcing.
+        // dt is coarser when the pressure comes from the projection (no acoustic substeps)
+        // --> need to loosen stiffness of immersed forcing.
         if (any_anelastic) {
             immersed_forcing_substep  = false;
             if_Cd_momentum            = amrex::Real(50.0);
@@ -1573,8 +1575,8 @@ struct SolverChoice {
                 amrex::Abort("erf.if_wall_form = fraction_stress runs with the anelastic model (erf.compressibility_type not FullyCompressible on "
                              "every level); it does not support erf.immersed_forcing_substep = true");
             }
-            // ... and the solid cells are held (rho, theta, the moisture species) by the anelastic
-            // update only
+            // ... and the solid cells are held (rho, theta, the moisture species) by the update of an
+            // anelastic or pseudo-incompressible level only
             for (int lev = 0; lev <= max_level; ++lev) {
                 if (compressibility_type[lev] == CompressibilityType::FullyCompressible) {
                     amrex::Abort("erf.if_wall_form = fraction_stress needs erf.compressibility_type not FullyCompressible on every level (level " +
@@ -1727,7 +1729,7 @@ struct SolverChoice {
             }
         }
 
-        // Implicit drag of the immersed forcing inside the anelastic projection (erf-model/ERF#4919
+        // Implicit drag of the immersed forcing inside the projection (erf-model/ERF#4919
         // for terrain, #4887 for buildings): each face momentum becomes (m* - grad phi) / (1 + dt rate),
         // with rate the drag rate of the source term on that face, and the solid is not frozen
         // afterwards, so the projected field stays divergence free in the solid too
@@ -1749,10 +1751,6 @@ struct SolverChoice {
             for (int lev = 0; lev <= max_level; ++lev) {
                 if (compressibility_type[lev] != CompressibilityType::FullyCompressible) {
                     any_projecting_level = true;
-                }
-                if (compressibility_type[lev] == CompressibilityType::PseudoIncompressible) {
-                    amrex::Abort("erf.if_implicit_projection is not yet supported with "
-                                 "erf.compressibility_type = PseudoIncompressible");
                 }
             }
             if (!any_projecting_level) {
@@ -1935,6 +1933,18 @@ struct SolverChoice {
             }
         }
         ebChoice.init_params(pp_prefix, any_projection);
+
+        // SlowImplicit damps w implicitly in the update of a level without acoustic substeps; a
+        // level with substeps has FastImplicit for that
+        if (dampingChoice.rayleigh_damping_type == RayleighDampingType::SlowImplicit) {
+            for (int lev = 0; lev <= max_level; ++lev) {
+                if (level_substeps(lev)) {
+                    amrex::Abort("erf.rayleigh_damping_type = SlowImplicit needs a level without acoustic"
+                                 " substeps (anelastic, pseudo-incompressible or RK3_NoSubstepping); level " +
+                                 std::to_string(lev) + " takes them: use FastImplicit");
+                }
+            }
+        }
 
         // A level that takes no acoustic substeps applies these terms on the slow step instead
         // (level_substeps); say so when they were asked for
@@ -2210,7 +2220,8 @@ struct SolverChoice {
             }
         }
 
-        // The implicit vertical diffusion is only second order in an anelastic run when
+        // The implicit vertical diffusion is only second order at an anelastic or
+        // pseudo-incompressible level (the RK2 / MidPoint integrators) when
         // the two stages are the midpoint method and the solve is done in the first stage
         // alone: S^* = S^n + (dt/2) F(S^*) and S^{n+1} = S^n + dt F(S^*) give
         // S^* = (S^n + S^{n+1})/2, i.e. the implicit midpoint rule.  Solving again in the
@@ -2234,7 +2245,7 @@ struct SolverChoice {
                                        << " because anelastic with MidPoint solves in the first stage only."
                                        << std::endl;
                     }
-                    // The anelastic integrator only takes two stages, so [2] is never used
+                    // The anelastic / pseudo-incompressible integrator only takes two stages, so [2] is never used
                     vert_implicit_fac[lev][1] = zero;
                     vert_implicit_fac[lev][2] = zero;
                 }
@@ -2281,7 +2292,8 @@ struct SolverChoice {
         coupling_type = CouplingType::TwoWay; // Default
         pp.query_enum_case_insensitive("coupling_type",coupling_type);
 
-        // Test for hybrid (compressible + anelastic) -- in this case we must use one-way coupling
+        // Test for hybrid (compressible + anelastic or pseudo-incompressible) -- in this case we must
+        // use one-way coupling
         if (any_anelastic && any_compress) {
             coupling_type = CouplingType::OneWay;
         }
@@ -3074,7 +3086,7 @@ struct SolverChoice {
     // Use a point-implicit (linearly-implicit) formulation of the immersed-forcing
     // drag. Defaults to false (explicit forward-Euler source).
     bool        if_implicit_drag      = false;
-    bool        if_implicit_projection = false;  // erf.if_implicit_projection: solid drag (terrain or buildings) inside the anelastic projection
+    bool        if_implicit_projection = false;  // erf.if_implicit_projection: solid drag (terrain or buildings) inside the projection of an Anelastic or PseudoIncompressible level
     // immersed forcing MOST parameters.
     amrex::Real if_z0                    = amrex::Real(0.1);   // [m]
     amrex::Real if_surf_temp_flux        = amrex::Real(1e-8);  // [K m/s]
@@ -3182,7 +3194,7 @@ struct SolverChoice {
     amrex::Real mean_vars_reset_time = -one;
 
     /**
-     * True when the drag of the immersed solid is applied inside the anelastic projection on this
+     * True when the drag of the immersed solid is applied inside the projection on this
      * level (erf.if_implicit_projection on a level that is not FullyCompressible). A
      * FullyCompressible level has no projection, so it keeps the drag in the momentum source.
      */
@@ -3231,6 +3243,19 @@ struct SolverChoice {
     {
         return level_substeps(lev) && dampingChoice.rayleigh_damp_W &&
                dampingChoice.rayleigh_damping_type == RayleighDampingType::FastImplicit;
+    }
+
+    // Implicit Rayleigh damping of w on the slow step (with erf.rayleigh_damp_W), on a level without
+    // acoustic substeps: with SlowImplicit, and by default (erf.rayleigh_damping_type not given) on
+    // an anelastic or pseudo-incompressible level, whose dt is not limited by the sound speed.  It
+    // replaces the explicit w damping of SlowExplicit, which is unstable once
+    // rayleigh_dampcoef * dt reaches 2 (RK2) or 2.5 (RK3).
+    [[nodiscard]] bool rayleigh_slow_implicit_w (int lev) const noexcept
+    {
+        if (level_substeps(lev) || !dampingChoice.rayleigh_damp_W) { return false; }
+        if (dampingChoice.rayleigh_damping_type == RayleighDampingType::SlowImplicit) { return true; }
+        return !dampingChoice.rayleigh_damping_type_given &&
+               compressibility_type[lev] != CompressibilityType::FullyCompressible;
     }
 
     // Canopy drag in the substeps (erf.forest_substep)

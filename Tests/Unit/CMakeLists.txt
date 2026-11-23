@@ -535,6 +535,15 @@ if(ERF_ENABLE_NOAHMP)
     ${CMAKE_CURRENT_SOURCE_DIR}/LandSurfaceModel/Noah-MP/ERF_GTestNoahMPCheckpointLayout.cpp
   )
 endif()
+if(ERF_ENABLE_FIRE)
+  # Motivation: with a roughness field per atmospheric column, the fire wind sampler must use
+  # each column's own roughness in the log profile below the first cell center and in the
+  # resampling from a higher sampling height (an engine input), give the scalar answer
+  # without the field, and refuse a roughness the log profiles cannot take.
+  target_sources(${erf_exe_name} PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/FireCoupling/ERF_GTestFireWindColumnZ0.cpp
+  )
+endif()
 if(ERF_ENABLE_MOVING_BODIES)
   # Motivation: the actuator velocity sampler must reproduce a field linear in x, y and the
   # physical height exactly, from each component's own staggered grid, on uniform, stretched

@@ -17,7 +17,8 @@
  * used by the dry-momentum equation. Compressible selector values 1--4
  * select density, temperature (2 and 3 are identical), or potential-
  * temperature formulations. Anelastic flow dispatches to its active dry
- * or moist kernel independently of the stored selector.
+ * or moist kernel independently of the stored selector. Pseudo-incompressible
+ * flow evolves the density and always uses selector 1, the density departure.
  */
 void make_buoyancy (int level,
                     const amrex::Vector<amrex::MultiFab>& S_data,

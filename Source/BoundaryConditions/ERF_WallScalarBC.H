@@ -131,7 +131,7 @@ wall_scalar_value_gradient_error (const std::string& face,
 }
 
 /**
- * Build the anelastic-mode density error message for a wall face.
+ * Build the anelastic / pseudo-incompressible density error message for a wall face.
  *
  * @param[in] face face name used in the input keys
  * @param[in] density_specified whether density was specified
@@ -178,7 +178,7 @@ no_slip_density_gradient_error (const std::string& face)
  * @param[in] pp ParmParse object scoped to the wall face
  * @param[in] face face name used in errors
  * @param[in] wall_kind no-slip or slip wall type
- * @param[in] anelastic whether anelastic mode is active
+ * @param[in] anelastic whether any level is not FullyCompressible (anelastic or pseudo-incompressible)
  */
 inline WallFaceParseResult
 parse_wall_face_scalars (amrex::ParmParse& pp,

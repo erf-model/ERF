@@ -106,7 +106,8 @@ void ImmersedForcingTerrain_Xmom (const Box& tbx,
     const Real tiny = std::numeric_limits<amrex::Real>::epsilon();
     const Real U_s = one; // unit velocity scale
     const bool l_implicit_drag = solverChoice.if_implicit_drag;
-    // erf.if_implicit_projection: the drag of the solid is applied inside the anelastic projection
+    // erf.if_implicit_projection: the drag of the solid is applied inside the projection
+    // (anelastic and pseudo-incompressible levels)
     const bool l_drag = !l_drag_in_projection;
 
     // MOST parameters (the similarity functions from erf.most.stable_functions)
@@ -231,7 +232,8 @@ void ImmersedForcingTerrain_Ymom (const Box& tby,
     const Real tiny = std::numeric_limits<amrex::Real>::epsilon();
     const Real U_s = one; // unit velocity scale
     const bool l_implicit_drag = solverChoice.if_implicit_drag;
-    // erf.if_implicit_projection: the drag of the solid is applied inside the anelastic projection
+    // erf.if_implicit_projection: the drag of the solid is applied inside the projection
+    // (anelastic and pseudo-incompressible levels)
     const bool l_drag = !l_drag_in_projection;
 
     // MOST parameters (the similarity functions from erf.most.stable_functions)
@@ -440,7 +442,8 @@ void ImmersedForcingTerrain_HorizMom_FractionStress (const Box& tb,
     const Real alpha_m = solverChoice.if_Cd_momentum;
     const Real z0      = solverChoice.if_z0;
     const bool l_implicit_drag = solverChoice.if_implicit_drag;
-    // erf.if_implicit_projection: the drag of the solid is applied inside the anelastic projection
+    // erf.if_implicit_projection: the drag of the solid is applied inside the projection
+    // (anelastic and pseudo-incompressible levels)
     const bool l_drag = !l_drag_in_projection;
     const Real tiny  = std::numeric_limits<Real>::epsilon();
     const Real small = solverChoice.if_small_volfrac;
@@ -656,7 +659,8 @@ void ImmersedForcingTerrain_Zmom (const Box& tbz,
     const Real alpha_m = solverChoice.if_Cd_momentum;
     const Real tiny = std::numeric_limits<amrex::Real>::epsilon();
     const bool l_implicit_drag = solverChoice.if_implicit_drag;
-    // erf.if_implicit_projection: the drag of the solid is applied inside the anelastic projection
+    // erf.if_implicit_projection: the drag of the solid is applied inside the projection
+    // (anelastic and pseudo-incompressible levels)
     const bool l_drag = !l_drag_in_projection;
 
     const Real small_volfrac = solverChoice.if_small_volfrac;
@@ -732,13 +736,15 @@ void ImmersedForcingBuildings_Xmom (const Box& tbx,
     const bool l_stability_correction  = solverChoice.if_stability_correction;
     const similarity_funs sfuns = solverChoice.most_sfuns; // erf.most.stable_functions
 
-    // To limit stiffness of drag when using anelastic
+    // To limit stiffness of drag when it is applied in the slow step (the anelastic and
+    // pseudo-incompressible default)
     const Real ws_floor           = solverChoice.if_ws_floor;
     const Real damp_alpha         = solverChoice.if_damp_alpha;
-    // Point-implicit alternative to the clamp above; stabilizes both compressible and anelastic
+    // Point-implicit alternative to the clamp above; stabilizes both compressible and
+    // anelastic or pseudo-incompressible runs
     const bool l_implicit_drag    = solverChoice.if_implicit_drag;
-    // erf.if_implicit_projection: the linear drag of the solid is applied inside the anelastic
-    // projection (ERF::make_if_projection_sigma), not here
+    // erf.if_implicit_projection: the linear drag of the solid is applied inside the projection of
+    // an anelastic or pseudo-incompressible level (ERF::make_if_projection_sigma), not here
     const bool l_ip               = l_drag_in_projection;
 
     const Real small_volfrac = solverChoice.if_small_volfrac;
@@ -874,7 +880,8 @@ void ImmersedForcingBuildings_Xmom (const Box& tbx,
                                        + interior_mask * windspeed );
             xmom_src_arr(i,j,k) -= drag / (one + lambda*dt);
         } else if (is_slow_step) {
-            // limit drag term for anelastic for numerical stability
+            // limit drag term in the slow step (the anelastic and pseudo-incompressible default)
+            // for numerical stability
             Real d_drag = dt * -drag; // time step * acceleration like tendency
             Real wsmax_change = damp_alpha * amrex::max(amrex::Math::abs(ux), ws_floor); // aims to prevent oscillations around 0.
             if (amrex::Math::abs(ux) < 0.1){ // no damping for smaller velocities
@@ -932,13 +939,15 @@ void ImmersedForcingBuildings_Ymom (const Box& tby,
     const bool l_stability_correction  = solverChoice.if_stability_correction;
     const similarity_funs sfuns = solverChoice.most_sfuns; // erf.most.stable_functions
 
-    // To limit stiffness of drag when using anelastic
+    // To limit stiffness of drag when it is applied in the slow step (the anelastic and
+    // pseudo-incompressible default)
     const Real ws_floor           = solverChoice.if_ws_floor;
     const Real damp_alpha         = solverChoice.if_damp_alpha;
-    // Point-implicit alternative to the clamp above; stabilizes both compressible and anelastic
+    // Point-implicit alternative to the clamp above; stabilizes both compressible and
+    // anelastic or pseudo-incompressible runs
     const bool l_implicit_drag    = solverChoice.if_implicit_drag;
-    // erf.if_implicit_projection: the linear drag of the solid is applied inside the anelastic
-    // projection (ERF::make_if_projection_sigma), not here
+    // erf.if_implicit_projection: the linear drag of the solid is applied inside the projection of
+    // an anelastic or pseudo-incompressible level (ERF::make_if_projection_sigma), not here
     const bool l_ip               = l_drag_in_projection;
 
     const Real small_volfrac = solverChoice.if_small_volfrac;
@@ -1072,7 +1081,8 @@ void ImmersedForcingBuildings_Ymom (const Box& tby,
                                        + interior_mask * windspeed );
             ymom_src_arr(i,j,k) -= drag / (one + lambda*dt);
         } else if (is_slow_step) {
-            // limit drag term for anelastic for numerical stability
+            // limit drag term in the slow step (the anelastic and pseudo-incompressible default)
+            // for numerical stability
             Real d_drag = dt * -drag; // time step * acceleration like tendency
             Real wsmax_change = damp_alpha * amrex::max(amrex::Math::abs(uy), ws_floor); // aims to prevent oscillations around 0.
             if (amrex::Math::abs(uy) < 0.1){ // no damping for smaller velocities
@@ -1131,13 +1141,15 @@ void ImmersedForcingBuildings_Zmom (const Box& tbz,
     const bool l_stability_correction  = solverChoice.if_stability_correction;
     const similarity_funs sfuns = solverChoice.most_sfuns; // erf.most.stable_functions
 
-    // To limit stiffness of drag when using anelastic
+    // To limit stiffness of drag when it is applied in the slow step (the anelastic and
+    // pseudo-incompressible default)
     const Real ws_floor           = solverChoice.if_ws_floor;
     const Real damp_alpha         = solverChoice.if_damp_alpha;
-    // Point-implicit alternative to the clamp above; stabilizes both compressible and anelastic
+    // Point-implicit alternative to the clamp above; stabilizes both compressible and
+    // anelastic or pseudo-incompressible runs
     const bool l_implicit_drag    = solverChoice.if_implicit_drag;
-    // erf.if_implicit_projection: the linear drag of the solid is applied inside the anelastic
-    // projection (ERF::make_if_projection_sigma), not here
+    // erf.if_implicit_projection: the linear drag of the solid is applied inside the projection of
+    // an anelastic or pseudo-incompressible level (ERF::make_if_projection_sigma), not here
     const bool l_ip               = l_drag_in_projection;
 
     const Real small_volfrac = solverChoice.if_small_volfrac;
@@ -1283,7 +1295,8 @@ void ImmersedForcingBuildings_Zmom (const Box& tbz,
                                        + interior_mask * windspeed );
             zmom_src_arr(i,j,k) -= drag / (one + lambda*dt);
         } else if (is_slow_step) {
-            // limit drag term for anelastic for numerical stability
+            // limit drag term in the slow step (the anelastic and pseudo-incompressible default)
+            // for numerical stability
             Real d_drag = dt * -drag; // time step * acceleration like tendency
             Real wsmax_change = damp_alpha * amrex::max(amrex::Math::abs(uz), ws_floor); // aims to prevent oscillations around 0.
             if (amrex::Math::abs(uz) < 0.1){ // no damping for smaller velocities

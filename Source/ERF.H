@@ -468,7 +468,8 @@ public:
     //     and at a pseudo-incompressible level (variable-coefficient operator)
     bool projection_uses_terrain_solver (int lev) const;
 
-    // Project the velocities to be divergence-free -- this is only relevant if anelastic == 1
+    // Project the velocities to satisfy the level's divergence constraint -- this is only relevant
+    // at an anelastic or pseudo-incompressible level, or with erf.project_initial_velocity
     void project_initial_velocity (int lev, double time, double dt);
     void project_momenta (int lev, double l_time, double l_dt, amrex::Vector<amrex::MultiFab >& vars,
                           bool apply_if_drag);
@@ -495,7 +496,7 @@ public:
                                    const amrex::Vector<double>& times);
     void RegisterCoarseZMomentumCF (int levc, const amrex::MultiFab& wold, const amrex::MultiFab& wnew,
                                     const amrex::Vector<double>& times);
-    // Anelastic coarse/fine faces in time (ERF_CoarseFineFaces.cpp)
+    // Anelastic and pseudo-incompressible coarse/fine faces in time (ERF_CoarseFineFaces.cpp)
     bool cf_anelastic_flux_match (int lev) const;
     void cf_anelastic_record (int levc, int nrk);
     void cf_anelastic_stage_registration (int lev, int nrk);
@@ -1798,7 +1799,7 @@ private:
 #endif
     amrex::Vector<std::unique_ptr<MRISplitIntegrator<amrex::Vector<amrex::MultiFab> > > > mri_integrator_mem;
 
-    // Used for anelastic or when we impose an initial projection
+    // Used for anelastic or pseudo-incompressible levels, or when we impose an initial projection
     amrex::Vector<amrex::MultiFab> pp_inc;
 
     // Pseudo-incompressible (non-EB) levels: the upwind direction on each face (+1, -1, or 0 for
@@ -2147,7 +2148,7 @@ private:
     // Per face: whether its Dirichlet theta comes from a dirichlet_file, and in which form
     // (0: not from a file, 1: the file holds rho*theta, 2: the file holds theta)
     amrex::Array<int, AMREX_SPACEDIM*2> m_th_file_face = {{0}};
-    // Per conserved BC component and face: 1 where an anelastic inflow or inflow_outflow face
+    // Per conserved BC component and face: 1 where an anelastic or pseudo-incompressible inflow or inflow_outflow face
     // was given a primitive value (<face>.theta, scalar, qv, qc, KE).  m_bc_extdir_vals then
     // holds that primitive value, made conserved with the interior density
     amrex::Array<amrex::Array<int, AMREX_SPACEDIM*2>, NBCVAR_max> m_bc_prim_given{};

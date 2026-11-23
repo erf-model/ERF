@@ -17,6 +17,9 @@ associated data structures and routines, which are implemented in C++
 and Fortran, and provides details on initialization and management of
 data structures necessary for these processes.
 
+:ref:`sec:ForceRestoreVsSLMNoahMP` compares Noah-MP with SLM and the force-restore surface
+energy balance of the two-stream radiation model.
+
 Building and Running with Noah-MP
 ---------------------------------
 To build ERF with Noah-MP support, the ``NetCDF``, ``NetCDF Fortran``, and ``HDF5`` libraries are

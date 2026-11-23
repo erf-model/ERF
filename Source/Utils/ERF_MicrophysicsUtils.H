@@ -27,8 +27,9 @@ struct MicrophysicsThermoState {
 /**
  * Diagnose the state used by one microphysics cell.
  *
- * In anelastic mode, the conserved state supplies theta while the hydrostatic
- * reference pressure supplied by BaseState supplies the thermodynamic pressure.
+ * In anelastic and pseudo-incompressible mode, which get their pressure from a
+ * projection rather than from the EOS, the conserved state supplies theta while the
+ * hydrostatic reference pressure supplied by BaseState supplies the thermodynamic pressure.
  * In compressible mode, retain ERF's existing local-EOS diagnosis.
  */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE

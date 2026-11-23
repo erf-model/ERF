@@ -2,12 +2,12 @@
  * \file ERF_CoarseFineFaces.cpp
  *
  * A refined level that stops inside the domain in z (a level refined over part of the depth)
- * has coarse/fine faces at its top and bottom.  On a terrain-fitted mesh the anelastic
- * projection works with the contravariant flux through each z-face,
+ * has coarse/fine faces at its top and bottom.  On a terrain-fitted mesh the anelastic or
+ * pseudo-incompressible projection works with the contravariant flux through each z-face,
  *
- *     Omega = rho0 w - rho0 u dz/dx - rho0 v dz/dy,
+ *     Omega = rho0 w - rho0 u dz/dx - rho0 v dz/dy
  *
- * which needs the horizontal momenta one face below and above the level and, for the solve to
+ * (formed from (rho u), then multiplied by beta, on a pseudo-incompressible level), which needs the horizontal momenta one face below and above the level and, for the solve to
  * have a solution, fluxes through the level's boundary that add up to the coarse level's.
  *
  * cf_zface_coarse_data builds both from the coarse level, on thin planes around the level's top
@@ -491,7 +491,7 @@ void ERF::set_cf_zghost_projection (int lev, double time_d, MultiFab& xmom, Mult
 
 /**
  * In the projection, after Omega is formed: set Omega on the level's coarse/fine faces in z from
- * the coarse Omega (anelastic levels, whose fills do the same).  The coarse projection leaves no
+ * the coarse Omega (anelastic and pseudo-incompressible levels, whose fills do the same).  The coarse projection leaves no
  * net inflow into the coarse cells under the level, so the level's fluxes then add up to zero over
  * its boundary, and its solve, which applies no correction through these faces, converges to a
  * divergence-free field.
@@ -878,7 +878,7 @@ void ERF::average_down_mass_flux (int crse_lev)
 }
 
 //
-// Anelastic coarse/fine faces in time.
+// Anelastic and pseudo-incompressible coarse/fine faces in time.
 //
 // Over a coarse step the coarse level advects with the mass flux R its stages apply:
 // (F_1 + F_2)/2 with the RK2 (Heun) integrator, F_2 with MidPoint, where F_s is the flux of
@@ -906,7 +906,8 @@ void ERF::average_down_mass_flux (int crse_lev)
 
 /**
  * Whether the coarse/fine faces of level lev apply, over a coarse step, the mass flux the coarse
- * level's stages applied: both levels anelastic, on a terrain-fitted mesh (cf_interp_mass_flux)
+ * level's stages applied: both levels anelastic or pseudo-incompressible (not FullyCompressible),
+ * on a terrain-fitted mesh (cf_interp_mass_flux)
  *
  * @param lev Fine level index
  */
@@ -1171,7 +1172,7 @@ void ERF::FillSetZMomentumCF (int lev, double time_d, MultiFab& zmom)
 
 /**
  * Set a refined level's momenta on its coarse/fine faces from the coarse level (FillSet), and on
- * an anelastic level over terrain give its faces in z the (rho w) whose Omega is the coarse
+ * an anelastic or pseudo-incompressible level over terrain give its faces in z the (rho w) whose Omega is the coarse
  * Omega,  rho w = WFromOmega(Omega_coarse, rho u, rho v),  with the layer of (rho u), (rho v)
  * outside the level taken from the coarse level too.  Every fine-level fill of the momenta goes
  * through here, before any ghost fill or FillBoundary, so every copy of these faces (the box's own

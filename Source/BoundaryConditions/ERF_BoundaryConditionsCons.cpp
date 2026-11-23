@@ -161,7 +161,7 @@ void ERFPhysBCFunct_cons::impose_lateral_cons_bcs (const Array4<Real>& dest_arr,
                                           : Real(1.0);
                         dest_arr(i,j,k,dest_comp) = rho_th * th_bc_ptr[k_profile];
                     } else {
-                        // an ext_dir_upwind face whose density is not prescribed (anelastic)
+                        // an ext_dir_upwind face whose density is not prescribed (anelastic or pseudo-incompressible)
                         // holds primitive values: make them conserved with the interior density
                         const Real rho_v = (l_bc_type == ERFBCType::ext_dir_upwind && !rho_is_extdir[0])
                                          ? rho_ghost : Real(1.0);
@@ -209,7 +209,7 @@ void ERFPhysBCFunct_cons::impose_lateral_cons_bcs (const Array4<Real>& dest_arr,
                                           : Real(1.0);
                         dest_arr(i,j,k,dest_comp) = rho_th * th_bc_ptr[k_profile];
                     } else {
-                        // an ext_dir_upwind face whose density is not prescribed (anelastic)
+                        // an ext_dir_upwind face whose density is not prescribed (anelastic or pseudo-incompressible)
                         // holds primitive values: make them conserved with the interior density
                         const Real rho_v = (h_bc_type == ERFBCType::ext_dir_upwind && !rho_is_extdir[3])
                                          ? rho_ghost : Real(1.0);
@@ -272,7 +272,7 @@ void ERFPhysBCFunct_cons::impose_lateral_cons_bcs (const Array4<Real>& dest_arr,
                                           : Real(1.0);
                         dest_arr(i,j,k,dest_comp) = rho_th * th_bc_ptr[k_profile];
                     } else {
-                        // an ext_dir_upwind face whose density is not prescribed (anelastic)
+                        // an ext_dir_upwind face whose density is not prescribed (anelastic or pseudo-incompressible)
                         // holds primitive values: make them conserved with the interior density
                         const Real rho_v = (l_bc_type == ERFBCType::ext_dir_upwind && !rho_is_extdir[1])
                                          ? rho_ghost : Real(1.0);
@@ -319,7 +319,7 @@ void ERFPhysBCFunct_cons::impose_lateral_cons_bcs (const Array4<Real>& dest_arr,
                                           : Real(1.0);
                         dest_arr(i,j,k,dest_comp) = rho_th * th_bc_ptr[k_profile];
                     } else {
-                        // an ext_dir_upwind face whose density is not prescribed (anelastic)
+                        // an ext_dir_upwind face whose density is not prescribed (anelastic or pseudo-incompressible)
                         // holds primitive values: make them conserved with the interior density
                         const Real rho_v = (h_bc_type == ERFBCType::ext_dir_upwind && !rho_is_extdir[4])
                                          ? rho_ghost : Real(1.0);

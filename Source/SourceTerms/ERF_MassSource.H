@@ -27,7 +27,8 @@
  * and less than erf.mass_source.height above the local ground.  The same source is
  * added to
  *   - rho, so the mass enters the continuity equation (FullyCompressible only: the
- *     anelastic projection would remove it),
+ *     anelastic projection would remove it, and pseudo-incompressible levels do not
+ *     support it either),
  *   - rho*theta, at erf.mass_source.theta if given and otherwise at the cell's own theta,
  *     so the injection by itself does not change the potential temperature, and
  *   - the first passive scalar (rho*s, plotted as rhoadv_0) when erf.mass_source.tracer

@@ -90,8 +90,9 @@
         }
     }
     // Under a fixed-in-time density (anelastic) only rho*theta is perturbed, so the bubble
-    // is a theta excess at that density. Otherwise it is made at constant pressure, as WRF
-    // makes it (theta raised, density recomputed from the unchanged pressure).
+    // is a theta excess at that density. Otherwise (compressible or pseudo-incompressible, which
+    // evolve the density) it is made at constant pressure, as WRF makes it (theta raised,
+    // density recomputed from the unchanged pressure).
     const bool bubble_fixed_density = (sc.fixed_density[lev] != 0);
     Real pert_periods_T = amrex::Real(5.0); pp_prob.query("pert_periods_T", pert_periods_T);
 

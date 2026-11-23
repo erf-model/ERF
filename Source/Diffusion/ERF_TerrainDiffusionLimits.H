@@ -370,14 +370,14 @@ SlopeReportPrint (bool force, amrex::Real alpha_max, amrex::Real alpha_last)
  *    S_2 = 1 / (1 + y/2); and S_3 = (1 + (f_3 - 1/2) y) / ((1 + y/2)(1 + f_3 y)), whose
  *    numerator is at most 1 + y/2 in size.  The default 1 1 0 is Crank-Nicolson, 1 1 1
  *    backward Euler.
- *  - two stages (c = 1/2, 1; anelastic MidPoint): bounded for f_1 = 1 and any f_2 in [0,1]
+ *  - two stages (c = 1/2, 1; MidPoint, at anelastic and pseudo-incompressible levels): bounded for f_1 = 1 and any f_2 in [0,1]
  *    (the same S_3 form); with f_1 < 1 and f_2 = 0, as MidPoint forces, the second stage
  *    grows without bound.
  *
  * Every other pattern returns 1: some are not bounded (0 0 1, 1 0 0, and 0.995 0.1 0.0666,
  * whose last stage reaches 1.0008 near y = 23.5), and the rest are not shown to be.
  *
- * @param[in] nstages  3 for the compressible scheme, 2 for anelastic MidPoint
+ * @param[in] nstages  3 for the compressible scheme, 2 for MidPoint (anelastic and pseudo-incompressible)
  * @param[in] fac      implicit factor f_k of each stage (erf.vert_implicit_fac)
  * @param[in] implicit whether the implicit solve treats this component at all
  */
