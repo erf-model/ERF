@@ -819,8 +819,16 @@ endfunction(add_test_conservation)
 # "PI DRIFT" it prints, max |rho theta - rho0 theta0| / (rho0 theta0), to be below 10^MAX_EXP
 function(add_test_pi_drift TEST_NAME TEST_FILES_DIR MAX_EXP)
     # EXPECT_ABOVE: the drift must not be below 10^MAX_EXP; LABELS: CTest labels added to regression
-    set(oneValueArgs "OPTIONS;LABELS")
-    cmake_parse_arguments(ADD_TEST_PID "EXPECT_ABOVE" "${oneValueArgs}" "" ${ARGN})
+    # LABELS is a list ("immersed;multilevel"), so it is a multi-value argument; as a one-value
+    # argument only its first label would be kept
+    set(oneValueArgs "OPTIONS")
+    set(multiValueArgs "LABELS")
+    cmake_parse_arguments(ADD_TEST_PID "EXPECT_ABOVE" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
+    if(ADD_TEST_PID_UNPARSED_ARGUMENTS)
+        message(FATAL_ERROR "add_test_pi_drift(${TEST_NAME}): unknown argument: ${ADD_TEST_PID_UNPARSED_ARGUMENTS}")
+    endif()
+    set(_pid_labels "regression")
+    list(APPEND _pid_labels ${ADD_TEST_PID_LABELS})
     setup_test()
     resolve_test_exe("" "erf_exec" TEST_EXE)
 
@@ -842,7 +850,7 @@ function(add_test_pi_drift TEST_NAME TEST_FILES_DIR MAX_EXP)
         TIMEOUT 600
         PROCESSORS ${NP}
         WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
-        LABELS "regression;${ADD_TEST_PID_LABELS}"
+        LABELS "${_pid_labels}"
         ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/simulation.log")
 endfunction(add_test_pi_drift)
 
