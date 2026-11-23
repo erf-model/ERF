@@ -351,18 +351,11 @@ void ERF::project_momenta (int lev, double l_time, double l_dt_d, Vector<MultiFa
     // ****************************************************************************
     const bool l_pi = (solverChoice.compressibility_type[lev] == CompressibilityType::PseudoIncompressible);
     Array<MultiFab,AMREX_SPACEDIM> pi_beta;
-    if (l_pi) {
-        // erf.if_implicit_projection is refused with a pseudo-incompressible level when the
-        // inputs are read (SolverChoice)
-        if (lev > 0 && solverChoice.mesh_type == MeshType::VariableDz &&
-            !cf_zface_layout(lev).slab_box.empty()) {
-            amrex::Abort("erf.compressibility_type = PseudoIncompressible: a refined level that stops "
-                         "inside the domain in z is not yet supported on a terrain-fitted mesh");
-        }
-    }
+    // (erf.if_implicit_projection is refused with a pseudo-incompressible level when the inputs
+    // are read, in SolverChoice)
     // If !fixed_density, we must convert (rho u) which came in
     // to (rho0 u) which is what we will project
-    else if (!solverChoice.fixed_density[lev]) {
+    if (!l_pi && !solverChoice.fixed_density[lev]) {
         ConvertForProjection(mom_mf[Vars::cons], r_hse,
                              mom_mf[IntVars::xmom],
                              mom_mf[IntVars::ymom],
