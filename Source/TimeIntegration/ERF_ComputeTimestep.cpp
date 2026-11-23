@@ -1152,7 +1152,8 @@ ERF::ComputeSubstepRatio (int level, double estdt_comp_T, long& dt_fast_ratio) c
 
 /**
  * CFL limit of a fixed dt.  On each level from lev_min to finest_level with a new set of grids
- * (at initialisation, on restart unless the checkpoint holds the fixed dt, and after a regrid),
+ * (at initialisation, on restart unless the checkpoint holds the fixed dt, and after a regrid
+ * that changes the cells the level covers; a new box layout over the same cells is not new),
  * a fixed dt above the Courant number min(erf.cfl, 0.8) is lowered, on all levels, to that Courant
  * number on the most constrained level; erf.fixed_fast_dt is scaled with it.  The dt then stays
  * fixed as the flow evolves; a level whose fixed dt is more than 10 % above that limit on
@@ -1177,7 +1178,7 @@ ERF::CheckFixedDtCFLLimit (const Vector<double>& cfl_rate, int lev_min, bool aft
     double scale = 1.0;
     int lev_lim = lev_min;
     for (int lev = lev_min; lev <= finest_level; ++lev) {
-        if (fixed_dt_check_grids[lev] == grids[lev]) { continue; }
+        if (FixedDtSameCells(fixed_dt_check_grids[lev], grids[lev])) { continue; }
         fixed_dt_check_grids[lev] = grids[lev];
         fixed_dt_cfl_warned[lev] = 0;
         if (!fixed_dt_cfl_limit) { continue; }
@@ -1240,7 +1241,7 @@ ERF::CheckFixedDtCFLLimitAfterRegrid (int lev)
     fixed_dt_check_grids.resize(finest_level+1);
     Vector<double> cfl_rate(finest_level+1, 0.0);
     for (int k = lev+1; k <= finest_level; ++k) {
-        if (fixed_dt_check_grids[k] == grids[k]) { continue; }
+        if (FixedDtSameCells(fixed_dt_check_grids[k], grids[k])) { continue; }
         long dt_fast_ratio = 0;
         DtEstimateInfo info;
         estTimeStep(k, dt_fast_ratio, info, true);

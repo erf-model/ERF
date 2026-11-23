@@ -34,3 +34,26 @@ TEST(FixedDtCFLLimit, LoweredToCappedCFL)
     const double dt = 0.5 * FixedDtCFLScale(0.5, 2.0, 0.5);
     EXPECT_DOUBLE_EQ(FixedDtCFLScale(dt, 2.0, 0.5), 1.0);
 }
+
+TEST(FixedDtCFLLimit, SameCellsWhateverTheLayout)
+{
+    // A level re-chopped over the same cells is not a new set of grids for the check (a restart
+    // with a smaller amr.max_grid_size); one that covers other cells is
+    const amrex::Box domain(amrex::IntVect(0), amrex::IntVect(15));
+    amrex::BoxArray two(domain);
+    two.maxSize(amrex::IntVect(AMREX_D_DECL(8,16,16)));
+    amrex::BoxArray eight(domain);
+    eight.maxSize(8);
+    EXPECT_FALSE(two == eight);
+    EXPECT_TRUE(FixedDtSameCells(two, eight));
+    EXPECT_TRUE(FixedDtSameCells(eight, two));
+
+    // half the cells, then the other half with as many cells
+    amrex::BoxArray lo(amrex::Box(amrex::IntVect(0), amrex::IntVect(AMREX_D_DECL(7,15,15))));
+    amrex::BoxArray hi(amrex::Box(amrex::IntVect(AMREX_D_DECL(8,0,0)), amrex::IntVect(15)));
+    EXPECT_FALSE(FixedDtSameCells(two, lo));
+    EXPECT_FALSE(FixedDtSameCells(lo, hi));
+
+    // a level not checked yet
+    EXPECT_FALSE(FixedDtSameCells(amrex::BoxArray(), two));
+}

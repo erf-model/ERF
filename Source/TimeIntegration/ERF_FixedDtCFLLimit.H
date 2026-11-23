@@ -2,6 +2,7 @@
 #define ERF_FIXED_DT_CFL_LIMIT_H_
 
 #include <AMReX_Algorithm.H>
+#include <AMReX_BoxArray.H>
 #include <AMReX_REAL.H>
 
 /**
@@ -39,6 +40,23 @@ FixedDtCFLScale (double fixed_dt, double cfl_rate, double cfl)
     // Relative tolerance, so a step already set to the limit is not scaled again by round-off
     if (courant <= limit * (1.0 + 1.e-10)) { return 1.0; }
     return limit / courant;
+}
+
+/**
+ * Whether two sets of grids cover the same cells, whatever their box layout.  A level whose
+ * grids only change layout (re-chopped by a new amr.max_grid_size or rank count, as a restart
+ * may do) keeps the CFL check of a fixed dt it had, so the dt does not depend on the layout and
+ * a restart takes the steps the uninterrupted run takes (erf-model/ERF#5238, #5228).
+ *
+ * @param[in] a  grids the CFL limit was last checked on
+ * @param[in] b  current grids
+ */
+inline bool
+FixedDtSameCells (const amrex::BoxArray& a, const amrex::BoxArray& b)
+{
+    if (a == b) { return true; }
+    // ERF grids are disjoint, so the same number of cells and one covering the other is equality
+    return a.numPts() == b.numPts() && (a.empty() || a.contains(b, true));
 }
 
 #endif
