@@ -221,9 +221,8 @@ void ERFFillPatcher::BuildMask (BoxArray const& fba,
             for (int jj(0); jj < nshift[1]; ++jj) {
             for (int ii(0); ii < nshift[0]; ++ii) {
                 if (ii == 0 && jj == 0 && kk == 0) { continue; }  // already in bl_mf
-                Box bb(bcc);
+                Box bb(b);
                 bb.shift(IntVect(shift[0][ii],shift[1][jj],shift[2][kk]));
-                bb.setType(b.ixType());
                 bb &= fba_bnd;
                 if (bb.ok()) { bl_mf_new.push_back(bb); }
             }}} // shift combinations
@@ -496,7 +495,7 @@ void ERFFillPatcher::InterpFace (MultiFab& fine,
             Box colbx = fbx; colbx.setRange(2, klo);
             ParallelFor(colbx, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept
             {
-                // the surface height of the face (the mean of its two columns; the neighbour
+                // the surface height of the face (the mean of its two columns; the neighbor
                 // column across the coarse/fine boundary is a ghost cell of the fine blanking,
                 // which holds the geometry there), and the wall cell: the first cell up the
                 // column whose face is not next to a fully solid cell, found in integer

@@ -202,7 +202,7 @@ TEST(ImmersedWallStability, CalmTerrainMomentumTargetIsFinite)
         ImmersedForcingTerrain_Xmom(xbx, col.u.const_array(), col.v.const_array(), col.w.const_array(),
                                     col.cell.const_array(), col.blank.const_array(),
                                     amrex::Array4<const Real>{}, amrex::Array4<const Real>{},
-                                    col.src.array(), col.geom, sc, Real(1.0));
+                                    col.src.array(), col.geom, sc, Real(1.0), false);
         // every face the kernel writes, the last plane i = 4 included
         EXPECT_TRUE(col.all_finite(xbx, 1)) << "x-momentum, tflux = " << tflux;
 
@@ -211,7 +211,7 @@ TEST(ImmersedWallStability, CalmTerrainMomentumTargetIsFinite)
         ImmersedForcingTerrain_Ymom(ybx, col.u.const_array(), col.v.const_array(), col.w.const_array(),
                                     col.cell.const_array(), col.blank.const_array(),
                                     amrex::Array4<const Real>{}, amrex::Array4<const Real>{},
-                                    col.src.array(), col.geom, sc, Real(1.0));
+                                    col.src.array(), col.geom, sc, Real(1.0), false);
         EXPECT_TRUE(col.all_finite(ybx, 1)) << "y-momentum, tflux = " << tflux;
     }
 }
@@ -289,7 +289,7 @@ TEST(ImmersedWallStability, PsiMCapKeepsAVelocityTargetInUnstableAir)
         ImmersedForcingTerrain_Xmom(xbx, col.u.const_array(), col.v.const_array(), col.w.const_array(),
                                     col.cell.const_array(), col.blank.const_array(),
                                     amrex::Array4<const Real>{}, amrex::Array4<const Real>{},
-                                    col.src.array(), col.geom, sc, Real(1.0));
+                                    col.src.array(), col.geom, sc, Real(1.0), false);
         ASSERT_TRUE(col.all_finite(xbx, 1));
         src[n] = col.src.const_array()(1, 1, 1, 0);
     }
@@ -319,7 +319,7 @@ TEST(ImmersedWallStability, PsiMCapBeforeUstarKeepsTheWallLawInStrongInstability
             ImmersedForcingTerrain_Xmom(xbx, col.u.const_array(), col.v.const_array(), col.w.const_array(),
                                         col.cell.const_array(), col.blank.const_array(),
                                         amrex::Array4<const Real>{}, amrex::Array4<const Real>{},
-                                        col.src.array(), col.geom, sc, Real(1.0));
+                                        col.src.array(), col.geom, sc, Real(1.0), false);
             ASSERT_TRUE(col.all_finite(xbx, 1));
             xsrc[n] = col.src.const_array()(1, 1, 1, 0);
         }

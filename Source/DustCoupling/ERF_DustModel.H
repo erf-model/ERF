@@ -96,8 +96,8 @@ struct DustStep
     const amrex::MultiFab& xvel;             ///< x-velocity on x-faces [m/s], end of the step
     const amrex::MultiFab& yvel;             ///< y-velocity on y-faces [m/s], end of the step
     const amrex::MultiFab& zvel;             ///< z-velocity on z-faces [m/s], end of the step
-    const amrex::MultiFab* z_phys_cc;        ///< Cell-centre height [m]; nullptr when ERF holds none
-    const amrex::MultiFab* surface_q1_flux;  ///< Surface vapour flux of level 0 (the turbulence scheme's z flux of q1); nullptr when there is none
+    const amrex::MultiFab* z_phys_cc;        ///< Cell-center height [m]; nullptr when ERF holds none
+    const amrex::MultiFab* surface_q1_flux;  ///< Surface vapor flux of level 0 (the turbulence scheme's z flux of q1); nullptr when there is none
     SurfaceLayer*          surface_layer;    ///< The bottom surface layer, or nullptr
 #ifdef ERF_USE_FIRE
     const DustFire*        fire;             ///< The fire, when the run has one; nullptr otherwise

@@ -122,5 +122,5 @@ See [LICENSE.md](../../LICENSE.md) for ERF's license.
 
 ## Citation
 
-See the [main README](../../README.rst#citation) for publications to cite
+See the [main README](../../README.md#citation) for publications to cite
 when using ERF.

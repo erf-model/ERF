@@ -8,35 +8,61 @@ using namespace amrex;
 
 namespace {
 /**
- * Stop a solve on one region of a level when another region of the level meets it across a
- * periodic boundary.  A solver that works on the region alone gives the region a Neumann face
- * where it reaches only one end of a periodic direction (get_fft_bc), so the correction could
- * not cross that boundary.  The regions meet when a box of the other region shares a face with
- * this one across the boundary: the face layer just outside this region, shifted by one period,
- * intersects that box.  The boxes are tested, not the other region's bounding box, which can
- * reach the layer when none of its boxes do.
+ * Group the regions of a level that meet across a periodic boundary.  make_subdomains bins the
+ * boxes of a level by adjacency inside the domain, so a refined patch that a periodic boundary
+ * cuts in two (a feature carried across it, say) becomes two regions, each of which a solver
+ * working on it alone would close with a zero-flux face at the boundary.  Two regions meet when
+ * a box of one, grown by a cell and shifted by a period, intersects a box of the other, the
+ * adjacency test of make_subdomains carried across the boundary.
+ *
+ * @param lev_geom Geometry of the level
+ * @param regions  The level's regions (subdomains)
+ * @return The groups of region indices, in order of their smallest index; a region that meets
+ *         no other is a group of its own
  */
-void
-abort_if_regions_meet_across_periodic (const Geometry& lev_geom, const Vector<BoxArray>& regions,
-                                       int lev, int isub, const Box& my_region, const char* solver_name)
+Vector<Vector<int>>
+group_regions_across_periodic (const Geometry& lev_geom, const Vector<BoxArray>& regions)
 {
-    const Box& domain = lev_geom.Domain();
-    for (int dir = 0; dir < 2; ++dir) {
-        if (!lev_geom.isPeriodic(dir)) { continue; }
-        const bool at_lo = (my_region.smallEnd(dir) == domain.smallEnd(dir));
-        const bool at_hi = (my_region.bigEnd(dir)   == domain.bigEnd(dir));
-        if (at_lo == at_hi) { continue; }
-        const int period = domain.length(dir);
-        const Box probe = amrex::shift(amrex::grow(my_region, dir, 1), dir, at_lo ? period : -period);
-        for (int jsub = 0; jsub < regions.size(); ++jsub) {
-            if (jsub == isub) { continue; }
-            if (regions[jsub].intersects(probe)) {
-                amrex::Abort(std::string(solver_name) + ": two refined regions of level " + std::to_string(lev) +
-                             " meet across the periodic boundary in direction " + std::to_string(dir) +
-                             "; keep the refinement on one side of it");
+    const int nreg = static_cast<int>(regions.size());
+    Vector<int> parent(nreg);
+    for (int i = 0; i < nreg; ++i) { parent[i] = i; }
+    auto find = [&parent] (int i) {
+        while (parent[i] != i) { i = parent[i] = parent[parent[i]]; }
+        return i;
+    };
+
+    if (lev_geom.isAnyPeriodic()) {
+        const Box& domain = lev_geom.Domain();
+        Vector<IntVect> pshifts;
+        for (int i = 0; i < nreg; ++i) {
+            for (int ib = 0; ib < static_cast<int>(regions[i].size()); ++ib) {
+                const Box gbx = amrex::grow(regions[i][ib], 1);
+                lev_geom.periodicShift(domain, gbx, pshifts);
+                for (const auto& iv : pshifts) {
+                    const Box sbx = amrex::shift(gbx, iv);
+                    for (int j = 0; j < nreg; ++j) {
+                        if (find(j) != find(i) && regions[j].intersects(sbx)) {
+                            parent[find(j)] = find(i);
+                        }
+                    }
+                }
             }
         }
     }
+
+    Vector<Vector<int>> groups;
+    std::map<int,int> group_of_root;
+    for (int i = 0; i < nreg; ++i) {
+        const int root = find(i);
+        auto it = group_of_root.find(root);
+        if (it == group_of_root.end()) {
+            group_of_root[root] = static_cast<int>(groups.size());
+            groups.push_back({i});
+        } else {
+            groups[it->second].push_back(i);
+        }
+    }
+    return groups;
 }
 } // namespace
 
@@ -104,11 +130,16 @@ solve_with_EB_mlmg (int lev,
  */
 bool ERF::has_nonunit_mapfac (int lev) const
 {
-    for (int i = 0; i < MapFacType::num; ++i) {
+    // Local extrema and one reduction: the coarse/fine fills ask this on every fill
+    int nonunit = 0;
+    for (int i = 0; i < MapFacType::num && nonunit == 0; ++i) {
         const MultiFab& mf = *mapfac[lev][i];
-        if (mf.min(0) != one || mf.max(0) != one) { return true; }
+        if (mf.local_size() > 0 && (mf.min(0, 0, true) != one || mf.max(0, 0, true) != one)) {
+            nonunit = 1;
+        }
     }
-    return false;
+    ParallelAllReduce::Max(nonunit, ParallelContext::CommunicatorSub());
+    return nonunit != 0;
 }
 
 /**
@@ -185,7 +216,7 @@ void ERF::project_initial_velocity (int lev, double time, double l_dt)
         RegisterCoarseMomentumCF(levc, rU_new[levc], rU_new[levc], rV_new[levc], rV_new[levc], {time, time+l_dt});
 
         rW_new[levc].FillBoundary(geom[levc].periodicity());
-        FPr_w[levc].RegisterCoarseData({&rW_new[levc], &rW_new[levc]}, {time, time+l_dt});
+        RegisterCoarseZMomentumCF(levc, rW_new[levc], rW_new[levc], {time, time+l_dt});
     }
 
     // Use the same time that was registered in the FillPatcher above so that the
@@ -274,10 +305,9 @@ void ERF::project_momenta (int lev, double l_time, double l_dt_d, Vector<MultiFa
     // If at lev > 0 we must first fill the momenta at the c/f interface with interpolated coarse values
     //
     if (lev > 0) {
-        PhysBCFunctNoOp null_bc;
         set_cf_fill_options(lev, true);
         FillSetHorizontalMomentaCF(lev, l_time, mom_mf[IntVars::xmom], mom_mf[IntVars::ymom]);
-        FPr_w[lev-1].FillSet(mom_mf[IntVars::zmom], l_time, null_bc, domain_bcs_type);
+        FillSetZMomentumCF(lev, l_time, mom_mf[IntVars::zmom]);
         set_cf_fill_options(lev, false);
     }
 
@@ -321,20 +351,11 @@ void ERF::project_momenta (int lev, double l_time, double l_dt_d, Vector<MultiFa
     // ****************************************************************************
     const bool l_pi = (solverChoice.compressibility_type[lev] == CompressibilityType::PseudoIncompressible);
     Array<MultiFab,AMREX_SPACEDIM> pi_beta;
-    if (l_pi) {
-        if (solverChoice.if_implicit_projection && apply_if_drag) {
-            amrex::Abort("erf.if_implicit_projection is not yet supported with "
-                         "erf.compressibility_type = PseudoIncompressible");
-        }
-        if (lev > 0 && solverChoice.mesh_type == MeshType::VariableDz &&
-            !cf_zface_layout(lev).slab_box.empty()) {
-            amrex::Abort("erf.compressibility_type = PseudoIncompressible: a refined level that stops "
-                         "inside the domain in z is not yet supported on a terrain-fitted mesh");
-        }
-    }
+    // (erf.if_implicit_projection is refused with a pseudo-incompressible level when the inputs
+    // are read, in SolverChoice)
     // If !fixed_density, we must convert (rho u) which came in
     // to (rho0 u) which is what we will project
-    else if (!solverChoice.fixed_density[lev]) {
+    if (!l_pi && !solverChoice.fixed_density[lev]) {
         ConvertForProjection(mom_mf[Vars::cons], r_hse,
                              mom_mf[IntVars::xmom],
                              mom_mf[IntVars::ymom],
@@ -353,7 +374,7 @@ void ERF::project_momenta (int lev, double l_time, double l_dt_d, Vector<MultiFa
         // OmegaFromW below averages (rho0 u) and (rho0 v) over the faces below and above
         // each w-face, so at the lowest and highest w-face of a box it reads one face in the
         // z-ghost layer. Where a box face lies inside the domain (a BoxArray split in z) that
-        // ghost face must hold the neighbouring box's momentum, in the same rho0 scaling as
+        // ghost face must hold the neighboring box's momentum, in the same rho0 scaling as
         // the valid faces; VelocityToMomentum and ConvertForProjection both write the valid
         // faces only. Fill the z-ghost layer here, after the conversion, so no caller has to.
         // At the domain bottom the w-face k = 0 is set to zero and nothing below it is read;
@@ -363,7 +384,7 @@ void ERF::project_momenta (int lev, double l_time, double l_dt_d, Vector<MultiFa
                             mom_mf[IntVars::ymom].nGrowVect()[2] >= 1);
         // Where the level stops inside the domain in z there is no fine box to copy from: take
         // those faces from the coarse level first, in the projected scaling, built from coarse
-        // data only.  FillBoundary below then overwrites the faces that a neighbouring fine box
+        // data only.  FillBoundary below then overwrites the faces that a neighboring fine box
         // does cover.  The same call returns the coarse Omega for the level's top and bottom.
         MultiFab cf_omega_t;
         Vector<int> cf_slab_box;
@@ -608,14 +629,39 @@ void ERF::project_momenta (int lev, double l_time, double l_dt_d, Vector<MultiFa
 
     // A flat mesh whose map factors are not all one, or a pseudo-incompressible level, is
     // projected with the terrain Poisson solver
-    const bool use_terrain_solver = projection_uses_terrain_solver(lev);
+    // With the implicit immersed drag a stretched mesh is projected with it too: the hybrid FFT
+    // solve has no variable coefficient, and the terrain solver takes sigma through its face
+    // area factors, as it takes beta on a pseudo-incompressible level (erf-model/ERF#4887).
+    // The projections of that level without the drag (the initial one, and after a regrid) use
+    // the same solver, so the option needs no FFT on a stretched mesh.
+    const bool use_terrain_solver = projection_uses_terrain_solver(lev) ||
+                                    (solverChoice.if_drag_in_projection(lev) &&
+                                     solverChoice.mesh_type == MeshType::StretchedDz);
     const bool flat_terrain_solve = use_terrain_solver && (solverChoice.mesh_type != MeshType::VariableDz);
-    if (l_if_implicit && use_terrain_solver) {
-        amrex::Abort("erf.if_implicit_projection needs map factors of one (it does not use the terrain Poisson solver)");
+    // The area factors are scaled before the solve (beta, sigma), so they are copies
+    const bool scaled_areas = l_pi || (l_if_implicit && use_terrain_solver);
+    // Refined levels of a flat mesh with map factors other than one are projected since
+    // erf-model/ERF#5328. With the drag in the projection that combination has no test yet.
+    if (l_if_implicit && flat_terrain_solve && lev > 0 && has_nonunit_mapfac(lev)) {
+        amrex::Abort("erf.if_implicit_projection on a refined level of a mesh without terrain-fitted "
+                     "coordinates and with map factors other than one is not supported");
     }
-    if (flat_terrain_solve && lev > 0 && has_nonunit_mapfac(lev)) {
-        amrex::Abort("The projection on a refined level of a mesh without terrain (or with only "
-                     "grid stretching) and map factors other than one is not supported");
+
+    // The regions the level is solved on: its subdomains, with those that meet across a periodic
+    // boundary joined into one.  A joined region "wraps": it is solved with multigrid on the
+    // level's periodic Geometry, which carries the correction across the boundary; the FFT
+    // solvers, built for single subdomains, and the terrain solvers, which need a rectangle,
+    // cannot solve it.  first_sub is a region's first subdomain, whose FFT solver an unjoined
+    // region uses.
+    Vector<BoxArray> regions;
+    Vector<int> first_sub;
+    Vector<int> region_wraps;
+    for (const auto& group : group_regions_across_periodic(geom[lev], subdomains[lev])) {
+        BoxList bl_region;
+        for (int jsub : group) { bl_region.join(subdomains[lev][jsub].boxList()); }
+        regions.push_back(BoxArray(std::move(bl_region)));
+        first_sub.push_back(group[0]);
+        region_wraps.push_back(group.size() > 1 ? 1 : 0);
     }
 
     // If we are going to solve with MLMG then we do not need to break this into subdomains
@@ -625,13 +671,13 @@ void ERF::project_momenta (int lev, double l_time, double l_dt_d, Vector<MultiFa
 #ifdef ERF_USE_FFT
         if (use_fft) {
             bool all_boxes_ok = true;
-            for (int isub = 0; isub < subdomains[lev].size(); ++isub) {
-                Box my_region(subdomains[lev][isub].minimalBox());
-                bool boxes_make_rectangle = (my_region.numPts() == subdomains[lev][isub].numPts());
+            for (int ireg = 0; ireg < regions.size(); ++ireg) {
+                Box my_region(regions[ireg].minimalBox());
+                bool boxes_make_rectangle = (my_region.numPts() == regions[ireg].numPts());
                 if (!boxes_make_rectangle) {
                     all_boxes_ok = false;
                 }
-            } // isub
+            } // ireg
             if (all_boxes_ok) {
                 will_solve_with_mlmg = false;
             }
@@ -643,14 +689,37 @@ void ERF::project_momenta (int lev, double l_time, double l_dt_d, Vector<MultiFa
 #endif
     } // No terrain or grid stretching
 
-    for (int isub = 0; isub < subdomains[lev].size(); ++isub)
+    // The implicit immersed drag on a constant-dz mesh with map factors of one: GMRES with the
+    // FFT preconditioner where every region of the level is a rectangle, otherwise (or in a
+    // build without FFT) multigrid with sigma as its face coefficient (erf-model/ERF#4887).
+    // A region that wraps is solved with multigrid whatever the others are.
+    bool if_solve_with_mlmg = false;
+    if (l_if_implicit && solverChoice.mesh_type == MeshType::ConstantDz && !use_terrain_solver) {
+#ifdef ERF_USE_FFT
+        for (int ireg = 0; ireg < regions.size(); ++ireg) {
+            if (!region_wraps[ireg] && regions[ireg].minimalBox().numPts() != regions[ireg].numPts()) {
+                if_solve_with_mlmg = true;
+            }
+        }
+#else
+        if_solve_with_mlmg = true;
+#endif
+    }
+
+    for (int ireg = 0; ireg < regions.size(); ++ireg)
     {
+        const BoxArray& region = regions[ireg];
+        const bool wraps = (region_wraps[ireg] != 0);
+#ifdef ERF_USE_FFT
+        const int isub = first_sub[ireg];
+#endif
+
         BoxList bl_sub;
         Vector<int> dm_sub;
 
         for (int j = 0; j < ba.size(); j++)
         {
-            if (subdomains[lev][isub].intersects(ba[j]))
+            if (region.intersects(ba[j]))
             {
                 //
                 // Note that bl_sub.size() is effectively a counter which is
@@ -772,14 +841,15 @@ void ERF::project_momenta (int lev, double l_time, double l_dt_d, Vector<MultiFa
 
         if (solverChoice.mesh_type != MeshType::ConstantDz || use_terrain_solver) {
             // On a pseudo-incompressible level the area factors are scaled by beta before the
-            // solve, so they are copies rather than aliases of the level's: multiplying and then
-            // dividing the level's own by beta would not give them back bit for bit
+            // solve (and by sigma with the implicit immersed drag), so they are copies rather than
+            // aliases of the level's: multiplying and then dividing the level's own would not give
+            // them back bit for bit
             ax_sub.define(convert(ba_sub,IntVect(1,0,0)), DistributionMapping(dm_sub), 1,
-                          ax[lev]->nGrowVect(), MFInfo{}.SetAlloc(l_pi));
+                          ax[lev]->nGrowVect(), MFInfo{}.SetAlloc(scaled_areas));
             ay_sub.define(convert(ba_sub,IntVect(0,1,0)), DistributionMapping(dm_sub), 1,
-                          ay[lev]->nGrowVect(), MFInfo{}.SetAlloc(l_pi));
+                          ay[lev]->nGrowVect(), MFInfo{}.SetAlloc(scaled_areas));
             az_sub.define(convert(ba_sub,IntVect(0,0,1)), DistributionMapping(dm_sub), 1,
-                          az[lev]->nGrowVect(), MFInfo{}.SetAlloc(l_pi));
+                          az[lev]->nGrowVect(), MFInfo{}.SetAlloc(scaled_areas));
             znd_sub.define(convert(ba_sub,IntVect(1,1,1)), DistributionMapping(dm_sub), 1,
                            z_phys_nd[lev]->nGrowVect(), MFInfo{}.SetAlloc(false));
             // The map factors on u and v faces that only the terrain path uses.  Every array a
@@ -792,7 +862,7 @@ void ERF::project_momenta (int lev, double l_time, double l_dt_d, Vector<MultiFa
 
             for (MFIter mfi(rhs_sub[0]); mfi.isValid(); ++mfi) {
                 int orig_index = index_map[mfi.index()];
-                if (l_pi) {
+                if (scaled_areas) {
                     ax_sub[mfi].copy<RunOn::Device>((*ax[lev])[orig_index]);
                     ay_sub[mfi].copy<RunOn::Device>((*ay[lev])[orig_index]);
                     az_sub[mfi].copy<RunOn::Device>((*az[lev])[orig_index]);
@@ -831,7 +901,7 @@ void ERF::project_momenta (int lev, double l_time, double l_dt_d, Vector<MultiFa
         if (mg_verbose > 0) {
             bool local = false;
             Real sum = volWgtSumMF(lev,rhs_sub[0],0,dJ_sub,mfmx_sub,mfmy_sub,false,local);
-            Print() << "Max/L2 norm of divergence before solve in subdomain " << isub << " at level " << lev << " : " << rhsnorm << " " <<
+            Print() << "Max/L2 norm of divergence before solve in subdomain " << ireg << " at level " << lev << " : " << rhsnorm << " " <<
                         rhs_sub[0].norm2() << " and volume-weighted sum " << sum << std::endl;
         }
 
@@ -949,7 +1019,7 @@ void ERF::project_momenta (int lev, double l_time, double l_dt_d, Vector<MultiFa
         // get_fft_bc.  Level 0 reaches every face; a region of a refined level only some.
         bool is_singular = true;
         {
-            const Box my_region(subdomains[lev][isub].minimalBox());
+            const Box my_region(region.minimalBox());
             for (OrientationIter oit; oit; ++oit) {
                 const Orientation ori = oit();
                 const int dir = ori.coordDir();
@@ -998,10 +1068,10 @@ void ERF::project_momenta (int lev, double l_time, double l_dt_d, Vector<MultiFa
                 rhs_sub[0][mfi.index()].template minus<RunOn::Device>(sum);
             }
             if (mg_verbose > 0) {
-                amrex::Print() << " Subtracting " << sum << " from rhs in subdomain " << isub << std::endl;
+                amrex::Print() << " Subtracting " << sum << " from rhs in subdomain " << ireg << std::endl;
 
                 sum = volWgtSumMF(lev,rhs_sub[0],0,dJ_sub,mfmx_sub,mfmy_sub,false,local);
-                Print() << "Sum after subtraction " << sum << " in subdomain " << isub << std::endl;
+                Print() << "Sum after subtraction " << sum << " in subdomain " << ireg << std::endl;
             }
 
         } // if is_singular
@@ -1016,7 +1086,7 @@ void ERF::project_momenta (int lev, double l_time, double l_dt_d, Vector<MultiFa
         double start_step = ParallelDescriptor::second();
 
         if (mg_verbose > 0) {
-            amrex::Print() << " Solving in subdomain " << isub << " of " << subdomains[lev].size() << " bins at level " << lev << std::endl;
+            amrex::Print() << " Solving in subdomain " << ireg << " of " << regions.size() << " bins at level " << lev << std::endl;
         }
 
         if (use_terrain_solver) {
@@ -1046,6 +1116,13 @@ void ERF::project_momenta (int lev, double l_time, double l_dt_d, Vector<MultiFa
                 MultiFab::Multiply(ax_sub, beta_sub[0], 0, 0, 1, 0);
                 MultiFab::Multiply(ay_sub, beta_sub[1], 0, 0, 1, 0);
                 MultiFab::Multiply(az_sub, beta_sub[2], 0, 0, 1, 0);
+            }
+            // With the implicit immersed drag they carry sigma, the coefficient of
+            // div(sigma grad phi)
+            if (l_if_implicit) {
+                MultiFab::Multiply(ax_sub, sigma_sub[0], 0, 0, 1, 0);
+                MultiFab::Multiply(ay_sub, sigma_sub[1], 0, 0, 1, 0);
+                MultiFab::Multiply(az_sub, sigma_sub[2], 0, 0, 1, 0);
             }
             for (MFIter mfi(rhs_sub[0]); mfi.isValid(); ++mfi)
             {
@@ -1079,29 +1156,26 @@ void ERF::project_momenta (int lev, double l_time, double l_dt_d, Vector<MultiFa
 
         if (solverChoice.terrain_type != TerrainType::EB) {
 
-        Box my_region(subdomains[lev][isub].minimalBox());
+        Box my_region(region.minimalBox());
+        bool boxes_make_rectangle = (my_region.numPts() == region.numPts());
 
         // ****************************************************************************
         // No terrain or grid stretching
         // ****************************************************************************
         if (solverChoice.mesh_type == MeshType::ConstantDz && !use_terrain_solver) {
-            if (l_if_implicit) {
-#ifdef ERF_USE_FFT
-                if (my_region.numPts() != subdomains[lev][isub].numPts()) {
-                    amrex::Abort("erf.if_implicit_projection: the FFT preconditioner needs a rectangular union of boxes");
-                }
-                abort_if_regions_meet_across_periodic(geom[lev], subdomains[lev], lev, isub, my_region,
-                                                      "erf.if_implicit_projection");
-#endif
+            // A region that wraps is solved with multigrid on the level's periodic Geometry, as
+            // without the drag
+            if (l_if_implicit && (if_solve_with_mlmg || wraps)) {
+                solve_with_if_mlmg(lev, rhs_sub, phi_sub, fluxes_sub,
+                                   {&sigma_sub[0], &sigma_sub[1], &sigma_sub[2]});
+            } else if (l_if_implicit) {
                 solve_with_if_gmres(lev, my_region, rhs_sub[0], phi_sub[0], fluxes_sub[0],
                                     {&sigma_sub[0], &sigma_sub[1], &sigma_sub[2]});
-            } else if (will_solve_with_mlmg) {
+            } else if (will_solve_with_mlmg || wraps) {
                 solve_with_mlmg(lev, rhs_sub, phi_sub, fluxes_sub, geom[lev], ref_ratio, domain_bc_type,
                                 mg_verbose, solverChoice.poisson_reltol, solverChoice.poisson_abstol);
             } else {
 #ifdef ERF_USE_FFT
-                abort_if_regions_meet_across_periodic(geom[lev], subdomains[lev], lev, isub, my_region,
-                                                      "The FFT projection");
                 solve_with_fft(lev, isub, my_region, rhs_sub[0], phi_sub[0], fluxes_sub[0]);
 #endif
             }
@@ -1110,7 +1184,7 @@ void ERF::project_momenta (int lev, double l_time, double l_dt_d, Vector<MultiFa
         // Grid stretching (flat terrain)
         // ****************************************************************************
         else if (solverChoice.mesh_type == MeshType::StretchedDz && !use_terrain_solver) {
-            // Only the hybrid FFT solver handles a stretched mesh, and it is tridiagonal in z.
+            // The hybrid FFT solver handles a stretched mesh, and it is tridiagonal in z.
             // A subdomain whose RHS is already zero was skipped above, so this stops only a
             // projection that would have to do something (issue #4281).
             if (geom[lev].isPeriodic(2)) {
@@ -1118,38 +1192,42 @@ void ERF::project_momenta (int lev, double l_time, double l_dt_d, Vector<MultiFa
                              "stretched mesh (erf.grid_stretching_ratio, erf.initial_dz or "
                              "erf.terrain_z_levels) needs a non-periodic z direction");
             }
-#ifndef ERF_USE_FFT
-            amrex::Abort("Rebuild with USE_FFT = TRUE so you can use the FFT solver");
-#else
-            bool boxes_make_rectangle = (my_region.numPts() == subdomains[lev][isub].numPts());
-            if (!boxes_make_rectangle) {
-                amrex::Abort("FFT won't work unless the union of boxes is rectangular");
+            if (!boxes_make_rectangle || wraps) {
+                // The FFT needs a single rectangle; multigrid does not
+                solve_with_flat_mlmg(lev, my_region, rhs_sub[0], phi_sub[0], fluxes_sub[0],
+                                     ax_sub, ay_sub, az_sub, dJ_sub, znd_sub);
             } else {
+#ifndef ERF_USE_FFT
+                amrex::Abort("Rebuild with USE_FFT = TRUE so you can use the FFT solver");
+#else
                 if (!use_fft) {
                     amrex::Warning("Using FFT even though you didn't set use_fft to true; it's the best choice");
                 }
-                abort_if_regions_meet_across_periodic(geom[lev], subdomains[lev], lev, isub, my_region,
-                                                      "The hybrid FFT projection");
                 solve_with_fft(lev, isub, my_region, rhs_sub[0], phi_sub[0], fluxes_sub[0]);
-            }
 #endif
+            }
         } // grid stretching
 
         // ****************************************************************************
         // General terrain, or a flat mesh with map factors other than one
         // ****************************************************************************
         else if (use_terrain_solver) {
-            bool boxes_make_rectangle = (my_region.numPts() == subdomains[lev][isub].numPts());
             // erf.terrain_poisson_solver applies to terrain-fitted meshes only; a flat mesh
             // uses MLTerrainPoisson, which needs no FFT
-            if (flat_terrain_solve || solverChoice.terrain_poisson_solver != TerrainPoissonSolver::gmres_fft) {
+            if (flat_terrain_solve && (!boxes_make_rectangle || wraps)) {
+                // MLTerrainPoisson needs a rectangle; on a flat mesh MLABecLaplacian solves the
+                // same equation without one
+                solve_with_flat_mlmg(lev, my_region, rhs_sub[0], phi_sub[0], fluxes_sub[0],
+                                     ax_sub, ay_sub, az_sub, dJ_sub, znd_sub);
+            } else if (wraps) {
+                amrex::Abort("The projection on a terrain-fitted mesh: two refined regions of level " + std::to_string(lev) +
+                             " meet across the periodic boundary, which is not supported; keep the refinement on one side of it");
+            } else if (flat_terrain_solve || solverChoice.terrain_poisson_solver != TerrainPoissonSolver::gmres_fft) {
                 // amrex::MLTerrainPoisson, multigrid alone or under GMRES; no FFT needed
                 if (!boxes_make_rectangle) {
                     amrex::Abort("erf.terrain_poisson_solver = mlmg or gmres_mlmg needs the boxes of each "
                                  "region of a level to make a rectangle");
                 }
-                abort_if_regions_meet_across_periodic(geom[lev], subdomains[lev], lev, isub, my_region,
-                                                      "erf.terrain_poisson_solver = mlmg or gmres_mlmg");
                 solve_with_terrain_mlmg(lev, my_region, rhs_sub[0], phi_sub[0], fluxes_sub[0],
                                         ax_sub, ay_sub, az_sub, dJ_sub, znd_sub,
                                         !flat_terrain_solve &&
@@ -1159,8 +1237,6 @@ void ERF::project_momenta (int lev, double l_time, double l_dt_d, Vector<MultiFa
                 if (!boxes_make_rectangle) {
                     amrex::Abort("FFT preconditioner for GMRES won't work unless the union of boxes is rectangular");
                 } else {
-                    abort_if_regions_meet_across_periodic(geom[lev], subdomains[lev], lev, isub, my_region,
-                                                          "erf.terrain_poisson_solver = gmres_fft");
                     solve_with_gmres(lev, my_region, rhs_sub[0], phi_sub[0], fluxes_sub[0], ax_sub, ay_sub, az_sub, dJ_sub, znd_sub);
                 }
 #else
@@ -1192,10 +1268,10 @@ void ERF::project_momenta (int lev, double l_time, double l_dt_d, Vector<MultiFa
             } // mfi
 
             //
-            // Restore ax,ay,ax to their original definitions (on a pseudo-incompressible level
-            // they are copies, which are not used again)
+            // Restore ax,ay,ax to their original definitions (scaled by beta or sigma they are
+            // copies, which are not used again)
             //
-            for (MFIter mfi(rhs_sub[0]); !l_pi && mfi.isValid(); ++mfi)
+            for (MFIter mfi(rhs_sub[0]); !scaled_areas && mfi.isValid(); ++mfi)
             {
                 Box xbx = mfi.nodaltilebox(0);
                 Box ybx = mfi.nodaltilebox(1);
@@ -1235,7 +1311,7 @@ void ERF::project_momenta (int lev, double l_time, double l_dt_d, Vector<MultiFa
         }
 
         } // not EB
-    } // loop over subdomains (i)
+    } // loop over regions (ireg)
 
     // ****************************************************************************
     // When using multigrid we can solve for all of the level at once, even if there

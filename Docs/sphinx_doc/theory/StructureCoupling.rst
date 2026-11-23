@@ -183,7 +183,7 @@ The view holds:
      - Meaning
    * - ``geom``
      - Geometry of the fire grid [m], one cell in z. Fire cell
-       :math:`(i, j)` has its centre at the lower corner plus
+       :math:`(i, j)` has its center at the lower corner plus
        :math:`((i + \tfrac12)\,\Delta x,\ (j + \tfrac12)\,\Delta y)`, in the
        coordinates of the model's own points.
    * - ``lev``

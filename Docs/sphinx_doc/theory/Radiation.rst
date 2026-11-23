@@ -155,8 +155,10 @@ factor, :math:`\omega_0 = \sum_i \omega_i \tau_i / \tau` and :math:`g = \sum_i g
 (dry and vapor absorption with :math:`\omega = 0`, Rayleigh scattering with :math:`\omega = 1, g = 0`, cloud water
 with ``sw_cloud_omega`` and ``sw_cloud_g``; ``sw_kext_cloud`` :math:`\approx 3 / (2 \rho_w r_{\text{eff}})`,
 i.e. :math:`1500 / r_{\text{eff}}` m²/kg with :math:`r_{\text{eff}}` in µm, gives 150 m²/kg for 10 µm droplets). The prescribed cloud band, the moisture
-coefficients and the aerosol term are added on top as before. The column optical depth is then a property of
-the atmosphere, not of the grid, and the longwave band uses the mass path described below.
+coefficients and the aerosol term are added on top as before. The mass-path terms are then a property of
+the atmosphere, not of the grid; the prescribed cloud band, the moisture coefficients and a constant aerosol
+profile are still added per layer, so they keep a dependence on the vertical resolution (see
+:ref:`sec:TwoStreamVsRRTMGP`). The longwave band uses the mass path described below.
 The diffuse (scattered) shortwave field has upward and downward streams and is solved with the
 two-stream approximation. Each layer :math:`k` with optical depth :math:`\tau`, single-scattering albedo
 :math:`\omega_0` and asymmetry factor :math:`g`,
@@ -259,7 +261,8 @@ each layer,
 
    \tau_{\text{lw}}(k) = \rho \, \Delta z \left( k_{\text{dry}} + k_{\text{v}} q_v + k_{\text{c}} q_c \right),
 
-so the column optical depth is independent of the vertical resolution, water vapor and cloud water
+so this part of the column optical depth is independent of the vertical resolution (terms added per
+layer, listed in :ref:`sec:TwoStreamVsRRTMGP`, are not), water vapor and cloud water
 have a real greenhouse effect, and the cloud term reproduces the Stephens (1978) emissivity
 :math:`\epsilon_c = 1 - e^{-0.158 \, \text{LWP}}` (LWP in g/m²). The cloud-band, moisture-coefficient
 and aerosol additions of the previous equation still apply on top of this base.
@@ -455,9 +458,119 @@ Limitations
   before it enters the :math:`\sigma T_s^4` emission; with a
   surface layer present, ``erf.rad_t_sfc`` is the initial value of the prognostic surface
   temperature when the surface energy balance evolves one, and unused otherwise.
+- **First skin temperature from the initial file.** One value for every column is a poor first
+  guess over real terrain: the skin of a mountain and of a valley can differ by tens of kelvin,
+  and the restoring term alone brings the skin back over the time :math:`\tau/2\pi`, 3.8 hours
+  for a restoring period :math:`\tau` of one day. With
+  ``erf.radiation.seb_init_skin_from_file = true`` and the prognostic balance, a land column
+  :math:`(i,j)` of a level that read an initial file begins at that file's skin temperature,
+
+  .. math::
+
+     T_s(i,j,t_0) =
+     \begin{cases}
+       T_{\text{file}}(i,j), & \text{land (mask} \neq 0\text{)} \\
+       T_{\text{rad}},      & \text{water (mask} = 0\text{)}
+     \end{cases}
+
+  where :math:`T_{\text{file}}` is ``TSK`` of a wrfinput file or ``SKINTEMP`` of a metgrid file,
+  an absolute temperature in kelvin, and :math:`T_{\text{rad}}` is ``erf.rad_t_sfc`` at level 0
+  and, at a finer level, the value the fill from its parent gave the column. The balance
+  does not run on a water column, so its value there is not used, except by a fine land column
+  with no coarse land column next to it, which takes the held coarse value as described above.
+  A level without a file of its own is filled from its parent as described above, and so starts
+  from the parent's file values. So does a finer level that has a file when it takes its
+  radiation from its parent, or when ``erf.nc_low_file`` is set without ``erf.nc_low_file_<lev>``:
+  the level's surface temperature then follows its parent's, and a line in the log says so.
+  Only the first value changes: the balance, its restoring temperature ``seb_t_deep_default``
+  and the surface layer are as before. Unless ``seb_init_t_deep_from_file`` is set, the
+  restoring temperature :math:`T_{\text{deep}}` stays one
+  value for every column, so a column whose file value differs from it by :math:`\Delta T` feels
+  the restoring flux :math:`C_s (2\pi/\tau)\,\Delta T` from the first step, with :math:`C_s` the
+  skin heat capacity per area: 1.45 W m\ :sup:`-2` per kelvin for
+  :math:`C_s = 2\times10^{4}` J m\ :sup:`-2` K\ :sup:`-1` and :math:`\tau` of one day. A
+  column that starts at 270 K with the default :math:`T_{\text{deep}}` of 300 K is pulled back
+  by about 43 W m\ :sup:`-2`, over the time :math:`\tau/2\pi` of 3.8 hours, so a start far
+  from ``seb_t_deep_default`` relaxes toward it and the per-column start is partly lost. Set
+  ``seb_t_deep_default`` near the mean of the file's land values; the log line of each level
+  prints the largest difference, or set the deep temperature per column from the file as
+  described next. A real file can hold land values outside
+  the default range of 200 K to 340 K (a hot desert, a polar plateau); the two range inputs
+  widen it. Without
+  ``erf.radiation.seb_surface_layer_uses_skin`` the surface layer keeps using the file's skin
+  temperature on land for the whole run, while the balance's skin evolves from it. The run stops
+  when the file of level 0, or of a finer level that takes its own file's value, lacks the field,
+  when the radiation model is not the two-stream one, when a land-surface, urban or surface
+  model is on, and when a land
+  value is not finite or lies outside ``[seb_prognostic_t_min_k, seb_prognostic_t_max_k]``, the
+  range the balance holds :math:`T_s` in. A level made later in the run is filled from its
+  parent, whose skin has evolved by then, also when it has a file. A restart takes :math:`T_s`
+  from the checkpoint, or ``erf.rad_t_sfc`` when the checkpoint was written without the balance.
+- **Deep temperature from the initial file.** The restoring term of the balance,
+  :math:`-C_s (2\pi/\tau)(T_s - T_{\text{deep}})`, pulls the skin of every column toward the
+  deep temperature :math:`T_{\text{deep}}`, which is the one value ``seb_t_deep_default``
+  unless this input is set. Over real terrain one value cannot be near the skin of both a
+  mountain and a valley. A wrfinput file carries ``TMN``, the soil temperature at the lower
+  boundary of WRF's soil column [K], in every column. With ``erf.radiation.seb_init_t_deep_from_file = true`` and the prognostic
+  balance,
+
+  .. math::
+
+     T_{\text{deep}}(i,j,t_0) =
+     \begin{cases}
+       T_{\text{TMN}}(i,j), & \text{land (mask} \neq 0\text{)} \\
+       T_{\text{deep,0}},   & \text{water (mask} = 0\text{)}
+     \end{cases}
+
+  where :math:`T_{\text{TMN}}` is the file's ``TMN`` and :math:`T_{\text{deep,0}}` is
+  ``seb_t_deep_default`` at level 0 and, at a finer level, the value the fill from its parent
+  gave the column. The balance does not run on a water column, so the value there is not used,
+  except as described for the skin above.
+
+  **What changes in the balance.** Without the input ERF sets :math:`T_{\text{deep}}` to
+  ``seb_t_deep_default`` before every step. With it :math:`T_{\text{deep}}` is part of the
+  surface state, like :math:`T_s`: it is not reset, a new level takes it from its parent,
+  fine levels are averaged down onto the coarse level under two-way coupling, a regrid keeps
+  it, and the checkpoint holds it (see `Multiple Levels`_ for the three rules). Without
+  ``seb_deep_prognostic_enable`` it then keeps the file's value for the whole run, apart from
+  the averaging down under a finer level. With ``seb_deep_prognostic_enable`` the file's value
+  is the first value of the evolving :math:`T_{\text{deep}}` (`Force-Restore Hydrology`_), in
+  place of ``seb_t_deep_default``.
+
+  **Levels.** A finer level that read a wrfinput file of its own takes that file's ``TMN`` on
+  land. A level without a file is filled from its parent, and so holds the parent's ``TMN``,
+  interpolated. So is a level that takes its radiation from its parent, and a level made
+  later in the run, also when it has a file. Unlike the skin temperature, ``TMN`` does not
+  depend on ``erf.nc_low_file``: ERF reads it from the initial file only.
+
+  **When the run stops.** The reader keeps ``TMN`` only when every column of the level has a
+  value between 0 K and 1000 K, water columns included, and reports a field it does not keep.
+  The run stops when the file of level 0, or of a finer level that has a file, gave no ``TMN``
+  the reader kept (so also with ``erf.init_type`` other than ``WRFInput``), when the radiation
+  model is not the two-stream one, when the balance is not prognostic, when a land-surface,
+  urban or surface model is on, and when a land value is not finite or lies outside
+  ``[seb_prognostic_t_min_k, seb_prognostic_t_max_k]``. The last range is the one the balance
+  holds :math:`T_s` in: a skin cannot reach a deep temperature outside it.
+
+  **What the file's value stands for.** With :math:`\tau` of one day the term restores the
+  skin toward :math:`T_{\text{deep}}` over a few hours, so a :math:`T_{\text{deep}}` that
+  differs from the mean of the skin over the day by :math:`\Delta T` adds the steady flux
+  :math:`C_s (2\pi/\tau)\,\Delta T` to the balance, 1.45 W m\ :sup:`-2` per kelvin with the
+  defaults. ERF takes ``TMN`` as the file gives it and does not test how near it is to that
+  mean. Without ``seb_deep_prognostic_enable`` the difference acts for the whole run. With
+  it :math:`T_{\text{deep}}` relaxes toward the skin with the e-folding time :math:`\tau`,
+  so the file's value is mostly replaced after a few days.
+
+  **Restart.** The file is not read on a restart. :math:`T_{\text{deep}}` comes from
+  ``TwoStream_TDeep`` of the checkpoint, so a restarted run continues bit for bit. A checkpoint
+  written without the input has no such file: every column then holds ``seb_t_deep_default``,
+  which is what that run used, and a NOTE says so. A fine land column with no coarse land column next to it also holds
+  ``seb_t_deep_default``, as described for the skin. The input must stay set on the restart;
+  without it ERF again sets :math:`T_{\text{deep}}` to ``seb_t_deep_default`` before every
+  step, and a NOTE says that the checkpoint's field is not read.
 - **Call cadence.** The sweep runs once every slow step, from the old state, and there is no
-  call-frequency input: one gray sweep per column costs about a millisecond per ten thousand
-  cells, so unlike RRTMGP (``erf.rad_freq_in_steps``) it is not worth skipping steps.
+  call-frequency input: the two-stream model costs about 1.2 ms per step for seven thousand
+  cells (see :ref:`sec:TwoStreamVsRRTMGP`), so unlike RRTMGP (``erf.rad_freq_in_steps``) it is not worth skipping steps.
 - **Diagnostics file.** The diagnostics are off by default. Setting
   ``erf.radiation.diag_enable = true`` writes ``radiation_diag.dat``
   (``erf.radiation.diag_file``) in the run directory, with a ``pre_dycore`` and a
@@ -467,6 +580,128 @@ Limitations
   report -- so on a refined run the rows present are those of the sweeping levels, not one
   set per level in the hierarchy. The file is appended to rather than truncated, as ERF's other
   data logs are, so a rerun in the same directory extends the previous run's rows.
+
+.. _sec:TwoStreamVsRRTMGP:
+
+Comparison with RRTMGP
+--------------------------------------
+
+The two-stream model is a gray, broadband scheme. RRTMGP is a k-distribution model with gas
+optics from lookup tables. The table below lists what each one represents in ERF, and what the
+two-stream model leaves out. It describes the models; it is not a measurement of accuracy.
+No case in ERF yet compares the fluxes or heating rates of the two models. Two-stream keys are
+read under ``erf.radiation.``; RRTMGP keys are written in full.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 16 28 28 28
+
+   * - Aspect
+     - Two-stream
+     - RRTMGP
+     - Limitation of the two-stream model
+   * - Spectral resolution
+     - One gray shortwave band and one gray longwave band
+     - 224 shortwave and 256 longwave g-points
+     - No water-vapor window and no CO\ :sub:`2` band. Absorption does not depend on pressure
+       or temperature, and longwave scattering is not included. Longwave cooling-to-space and
+       heating-rate profiles are therefore approximate.
+   * - Gases
+     - Dry air and water vapor only, through user coefficients
+       (``tau_sw_coeff_qv`` and ``tau_lw_coeff_qv`` with ``per_layer``; ``sw_kabs_vapor`` and
+       ``lw_kabs_vapor`` with ``mass``; ``lw_kabs_vapor`` also with ``per_layer`` when
+       ``lw_mass_absorption_enable`` is true)
+     - H\ :sub:`2`\ O, CO\ :sub:`2`, O\ :sub:`3`, N\ :sub:`2`\ O, CO, CH\ :sub:`4`,
+       O\ :sub:`2`, N\ :sub:`2`
+     - No CO\ :sub:`2`, ozone or methane. With ``per_layer`` water vapor has no radiative
+       effect unless ``tau_sw_dynamic_enable`` / ``tau_lw_dynamic_enable`` are true and the
+       coefficients are set, or (longwave only) ``lw_mass_absorption_enable`` is true. All are
+       off or zero by default.
+   * - Optical depth
+     - ``tau_model = per_layer`` (default) or ``mass``
+     - Computed from the gas state
+     - With ``per_layer`` the column optical depth grows with the number of vertical cells
+       (42 cells with the default longwave value give a column optical depth of 42), so its
+       coefficients must be tuned again when the grid changes. ``mass`` removes this dependence
+       for the gas and ``qc`` terms (``lw_mass_absorption_enable`` does the same for the
+       longwave clear-sky term with ``per_layer``). Three terms are still added per layer in
+       both modes: the ``tau_*_coeff_*`` terms, the cloud band ``cloud_tau_per_layer``
+       (``tau_profile_type = cloud_layer``), and the constant aerosol profile
+       ``aerosol_tau_per_layer``. With any of these, the column optical depth still changes
+       when the grid is refined. The mass
+       coefficients are flux coefficients (no diffusivity factor), to be tuned rather than
+       taken from line data.
+   * - Cloud phase
+     - Liquid water (``qc``) only, and only through an option that reads it: ``tau_model =
+       mass``, ``lw_mass_absorption_enable`` (longwave), the ``tau_*_coeff_qc`` terms with
+       dynamic optical depth, or ``cloud_fraction_prog_enable`` (with ``tau_profile_type = cloud_layer`` and
+       ``cloud_fraction > 0``). With ``per_layer`` and none of
+       these on (the default), ``qc`` has no radiative effect, and clouds are only the
+       prescribed height band (``tau_profile_type = cloud_layer``).
+     - Liquid, and ice when the moisture model carries cloud ice
+     - Ice and mixed-phase clouds are not represented. By default, the model's clouds do not
+       follow the resolved cloud water.
+   * - Cloud fraction and overlap
+     - Clear and cloudy fluxes blended linearly by one domain-wide value, ``cloud_fraction``
+       (default 0, so only the clear column is computed; with ``mass`` that column already
+       includes the resolved ``qc``, and ``cloud_fraction`` blends in only the prescribed band). The fraction diagnosed from RH and
+       ``qc`` (``cloud_fraction_prog_enable``; see `Cloud Fraction Diagnosis`_) does not
+       change this blend; it only scales the cloud-band optical depth in the cloudy column.
+     - Cloud fraction 1 where :math:`q_c + q_i > 0`, else 0. McICA with maximum-random overlap
+       is coded, but with this fraction ``erf.rad_do_subcol_sampling`` has no effect (#5212).
+     - The overlap of cloud layers is not represented, and the blend weight does not vary in
+       space. With ``cloud_fraction = 0``, setting ``cloud_fraction_prog_enable = true`` gives
+       clear-sky fluxes only. Neither model represents overlap in ERF today; only the
+       two-stream model represents partial cloud cover.
+   * - Cloud optics
+     - Cloud band, both modes and both bands: ``cloud_tau_per_layer``, with
+       ``cloud_single_scattering_albedo`` and ``cloud_asymmetry_factor`` in the shortwave.
+       ``mass`` only: ``qc`` with ``sw_kext_cloud``, ``sw_cloud_omega`` and ``sw_cloud_g`` in the
+       shortwave, and ``lw_kabs_cloud`` in the longwave, which gives the Stephens (1978)
+       emissivity :math:`1 - e^{-0.158\,\text{LWP}}` (also with ``lw_mass_absorption_enable``)
+     - Cloud-optics lookup tables
+     - The result depends on the chosen cloud parameters and mode. The ``sw_*`` cloud keys have
+       no effect with ``per_layer``; the ``lw_kabs_*`` keys act with ``mass`` or with
+       ``lw_mass_absorption_enable``.
+   * - Aerosol
+     - Prescribed aerosol optical depth (``aerosol_enable``, default false)
+     - Not supported (``erf.rad_do_aerosol = true`` stops the run)
+     - --
+   * - Surface coupling
+     - Direct and diffuse broadband albedo, and emissivity
+     - Direct and diffuse albedo in the visible and near-infrared bands, and surface emissivity
+       (from the land-surface model or surface layer when present, else 0.98)
+     - No visible / near-infrared split. The two-stream model forces Noah-MP with broadband
+       fluxes but cannot force SLM (see `Radiative Forcing of a Land-Surface Model`_).
+   * - Top of the domain
+     - Taken as the top of the atmosphere: no downward longwave, full solar beam
+     - Same: no layer is added above the domain top
+     - Shared by both models. Nothing is emitted, absorbed or scattered above the top. With
+       ``mass`` and the default coefficients, a gray-column estimate gives a downward longwave
+       flux at the surface about 11% too small for a 2 km top (28% for 1 km), and a surface
+       direct beam about 9% too large for a 2 km top with the sun overhead. With
+       ``per_layer`` the column is usually opaque, so the longwave effect is small.
+   * - Solar geometry
+     - Instantaneous :math:`\cos\theta_z` at each step
+     - :math:`\cos\theta_z` averaged over ``erf.rad_freq_in_steps`` steps (one step by
+       default)
+     - Small difference that grows with ``erf.rad_freq_in_steps``; both use the same orbital
+       code.
+   * - Cost
+     - One column sweep per step (the ``post_dycore`` call reuses the ``pre_dycore`` sweep);
+       about 1.2 ms per step for 7,056 cells
+     - About 350 to 360 times the two-stream cost per step on one CPU core; called every
+       ``erf.rad_freq_in_steps`` steps
+     - --
+
+The cost row comes from ``Exec/CanonicalTests/Radiation/TwoStream_vs_RRTMGP_Timing``
+(one CPU core, the same grid, sounding and moisture model for both; measured in November 2026;
+cost scales linearly with cell count from 7,056 to 56,448 cells for both). RRTMGP is designed for GPUs, so the ratio on a GPU
+is expected to differ. The top-of-domain numbers come from a standalone gray-column calculation
+with a standard atmosphere, not from an ERF run. The two-stream checks in
+``Exec/CanonicalTests/Radiation/TwoStream_Benchmark_Suite`` compare against closed-form
+solutions (clear-sky shortwave, isothermal longwave) and qualitative checks (cloud layers,
+time stepping), not against RRTMGP.
 
 Surface Energy Balance
 --------------------------------------
@@ -589,7 +824,7 @@ day of the year counted from 0 at 00:00 on 1 January and shifted half a year whe
 
 with :math:`SW_\downarrow` the net shortwave the balance holds divided by
 :math:`1 - \alpha` (the sweep's with ``seb_use_radiation_fluxes``). :math:`r_c` is capped at
-:math:`10^6` s/m after the vapour-deficit factor. Noah-MP applies the same factors per sunlit
+:math:`10^6` s/m after the vapor-deficit factor. Noah-MP applies the same factors per sunlit
 and shaded leaf, with absorbed PAR, the canopy temperature and canopy-air humidity and a
 root-zone soil-water factor, so the two agree in form, not in every detail. The bare soil (the whole surface without a vegetation type)
 evaporates through Noah-MP's soil resistance (ground-evaporation option 1, Sakaguchi and Zeng),
@@ -1029,6 +1264,10 @@ where :math:`\epsilon = 0.622`, :math:`p` is the pressure and :math:`T_c = T - 2
 in Celsius (Magnus formula, WMO 2008 coefficients). :math:`q_{c,\text{scale}}`
 (``erf.radiation.cloud_fraction_qc_scale``, default :math:`1 \times 10^{-3}` kg/kg) is the cloud water at
 which the liquid-water term alone reaches 1.
+
+This :math:`C_f` scales the prescribed cloud-band optical depth (``tau_profile_type = cloud_layer``)
+level by level inside the cloudy column. It does not replace ``erf.radiation.cloud_fraction``,
+which sets the clear/cloudy blend; with ``cloud_fraction = 0`` the cloudy column is not computed.
 
 Solar Geometry and Diurnal Cycle
 --------------------------------

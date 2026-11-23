@@ -54,6 +54,7 @@ class Deck:
     """
 
     def __init__(self, path: str):
+        self.glued_keys = set()   # keys with a '#' inside an unquoted value word
         self.path = os.path.abspath(path)
         self.directory = os.path.dirname(self.path)
         self.entries: List[Entry] = []
@@ -244,9 +245,12 @@ def _strip_comment(line: str) -> str:
         if in_q:
             if ch == in_q:
                 in_q = None
-        elif ch in ("'", '"'):
+        elif ch == '"':            # AMReX gives single quotes no meaning
             in_q = ch
-        elif ch == "#":
+        elif ch == "#" and (i == 0 or line[i - 1].isspace() or line[i - 1] in "=\")}]"):
+            # ParmParse starts a comment only between tokens (eat_garbage in AMReX_ParmParse.cpp):
+            # after a blank, '=', a closing quote or a closing bracket. A '#' inside a word stays
+            # in the value
             return line[:i]
     return line
 
@@ -335,4 +339,8 @@ def parse_deck(path: str, _deck: Optional[Deck] = None, _depth: int = 0, gpu: bo
                 parse_deck(inc, deck, _depth + 1, gpu)
                 continue
             deck.add(Entry(key, values, os.path.abspath(path), lineno))
+            # words outside quotes that hold a '#': ParmParse keeps it, and what follows, in the value
+            bare = set(w for w in re.sub(r'"[^"]*"', " ", text).split() if "#" in w)
+            if any(v in bare for v in values):
+                deck.glued_keys.add(key)
     return deck

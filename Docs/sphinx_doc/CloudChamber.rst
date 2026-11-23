@@ -67,6 +67,11 @@ Choose the thermodynamic mode
    * - Noncondensing moisture transport
      - ``MoistNoCondensation``
      - An ERF moisture-transport shell with no condensation source.
+   * - Lagrangian superdroplets
+     - ``SuperDroplets``
+     - Requires a particle-enabled build; configured with the
+       ``super_droplets_moisture`` inputs described in
+       :ref:`sec:SuperDroplets`.
 
 For dry mode, omit ``erf.moisture_model`` rather than explicitly setting it
 to ``None``. An explicit ``None`` is rejected with a diagnostic naming this
@@ -369,7 +374,8 @@ initial velocity perturbation.
 Physical wall configuration
 ---------------------------
 
-In physical-temperature mode, a default (conductive) face is specified as:
+In physical-temperature mode, a conductive face with a constant wall
+temperature is specified as:
 
 .. code-block:: none
 
@@ -412,6 +418,53 @@ rejected: remove any previously ignored ``.thermal`` key and keep the legacy
 Chamber wall models.  Selecting an aerodynamic momentum model changes the
 Cloud Chamber tangential wall-stress closure; it does not change the required
 boundary type or create a moving wall.
+
+Sidewall temperature bands
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+In ``physical_temperature_rh``, the alternative to a single
+``<face>.temperature`` is a pair of arrays on the same sidewall. Each of
+``xlo``, ``xhi``, ``ylo``, and ``yhi`` can choose independently: supply both
+arrays or a constant, never both forms. Existing constant-temperature inputs
+are unchanged. The bottom and top plates (``zlo``, ``zhi``) do not accept
+bands and retain their existing temperature settings.
+
+``temperature_height_edges`` lists finite, strictly increasing heights in
+metres above the floor, starting at 0 and ending at the full chamber height
+:math:`H`. ``temperature_values`` gives one finite, positive temperature in
+kelvin between each pair of successive edges. For example, on one wet sidewall
+of a **9 m** chamber (not the 1 m runnable example below):
+
+.. code-block:: none
+
+   xlo.type = NoSlipWall
+   xlo.moisture = wet
+   xlo.temperature_height_edges = 0 3 6 9
+   xlo.temperature_values = 285 295 285
+
+The middle 3 m band is held at 295 K and the outer bands at 285 K. The bands
+are static boundary conditions on the existing uniform grid: there is no
+interpolation between temperatures and no change to the initial gas profile.
+If an edge cuts a grid face so that 25% of its area is at 285 K and 75% at
+295 K, evaluate each active scalar flux :math:`J(T)` against the same adjacent
+gas state and use :math:`0.25 J(285) + 0.75 J(295)` for that face. On a
+saturated wet wall, saturation vapor pressure is nonlinear in temperature:
+evaluating vapor flux at the mean temperature (292.5 K) is not equivalent.
+``wetness`` remains one constant RH per wet wall (default 1), not per band.
+
+Dry walls still have zero vapor flux and adiabatic walls still have zero
+sensible heat flux. A wet adiabatic sidewall uses the band temperatures only
+for vapor exchange; a dry adiabatic sidewall still needs no temperature input.
+
+Temperature bands do not set a drag coefficient or a wall-exchange timestep
+rate. On vertical walls the supported closures are resolved transfer, fixed
+bulk transfer (with or without the molecular term), and neutral roughness-log
+transfer. At a given air state their transfer rates do not depend on the wall
+temperature; the heat and wet-vapor fluxes still use each panel's temperature.
+``coefficient_source = most`` is rejected on all four sidewalls. A chamber can
+combine banded sidewalls with MOST on the floor or ceiling: each plate uses
+its own wall state for MOST drag and scalar exchange, never a sidewall band's
+temperature.
 
 Channel defaults
 ~~~~~~~~~~~~~~~~
@@ -603,7 +656,15 @@ The following table summarizes the physical-temperature wall keys.
    * - ``<face>.temperature``
      - none
      - finite, positive K
-     - required for conductive heat or wet moisture; optional on dry adiabatic walls
+     - required for conductive or wet walls unless sidewall bands are used; optional on dry adiabatic walls
+   * - ``<face>.temperature_height_edges``
+     - none
+     - strictly increasing heights in m, from 0 to :math:`H` inclusive
+     - sidewalls only; requires ``temperature_values`` and excludes ``temperature``
+   * - ``<face>.temperature_values``
+     - none
+     - one finite, positive temperature in K per band
+     - sidewalls only; requires ``temperature_height_edges`` and excludes ``temperature``
    * - ``<face>.moisture``
      - none
      - ``dry`` or ``wet``
@@ -785,8 +846,9 @@ A dry wall is therefore not a ``qv_wall = 0`` Dirichlet condition.
 The heat equations below apply to conductive faces; an adiabatic face has
 :math:`J_{\rho\theta,\mathrm{in}}=0` for every transfer model.
 
-All wet-wall vapor laws use the same prescribed wall mixing ratio. Wetness
-scales vapor pressure, not the mixing ratio or the transfer coefficient:
+All wet-wall vapor laws derive the wall mixing ratio from the local wall
+temperature. Wetness scales vapor pressure, not the mixing ratio or the
+transfer coefficient:
 
 .. math::
 

@@ -25,7 +25,7 @@
  * @brief Compute relative humidity from water vapor mixing ratio.
  *
  * Approximate RH from qv and temperature using saturation mixing ratio.
- * The saturation vapour pressure over liquid water is the Magnus formula
+ * The saturation vapor pressure over liquid water is the Magnus formula
  * with the WMO (2008) coefficients, applied to the temperature in Celsius.
  *
  * @param[in] qv Water vapor mixing ratio [kg/kg]
@@ -42,7 +42,7 @@ amrex::Real compute_relative_humidity (amrex::Real qv, amrex::Real T, amrex::Rea
         return 0.0;
     }
 
-    // Saturation vapour pressure over liquid water from the Magnus formula,
+    // Saturation vapor pressure over liquid water from the Magnus formula,
     // with the WMO (2008) coefficients for the temperature in Celsius:
     //   e_sat = e0 * exp(a * tc / (tc + b)),  tc = T - T0
     // and the saturation mixing ratio qsat = epsilon * e_sat / max(e_sat, P - e_sat).

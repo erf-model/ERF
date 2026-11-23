@@ -1047,6 +1047,16 @@ if(ERF_TEST_PYTHON)
       TIMEOUT 120
       PROCESSORS 1
       LABELS "unit")
+  # The inputs-file generator (Exec/Tools/erfcreateinput.py). Plain Python, no ERF run: it writes
+  # a matrix of cases and checks every key against Source/, each deck with the checker above,
+  # each dummy file against its reader's layout, and that refused combinations are refused.
+  add_test(NAME InputsCreator_SelfTest
+      COMMAND ${ERF_TEST_PYTHON} ${PROJECT_SOURCE_DIR}/Exec/Tools/erfcreateinput.py --self-test)
+  set_tests_properties(InputsCreator_SelfTest
+      PROPERTIES
+      TIMEOUT 120
+      PROCESSORS 1
+      LABELS "unit")
   # The schema generator's unit tests (Exec/Tools/erf_inputs_schema): a synthetic source tree, git-archive mode
   # (needs git on PATH), the checker's --schema path.
   add_test(NAME InputsSchema_UnitTests
@@ -1227,6 +1237,41 @@ function(add_test_cloud_chamber_budget TEST_NAME MODE SOURCE_NAME)
         LABELS "regression;cloud-chamber"
         ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/simulation.log;${CURRENT_TEST_BINARY_DIR}/checker.log;${CURRENT_TEST_BINARY_DIR}/cloud_chamber_budget.dat")
 endfunction(add_test_cloud_chamber_budget)
+
+# Compare sidewall panels against scalar-wall controls using the fluxes retained
+# by the solver. Each MPI rank owns a different slab of the same two wet walls.
+function(add_test_cloud_chamber_sidewall_bands TEST_NAME)
+    if(NOT ERF_ENABLE_MPI OR ERF_TEST_NRANKS LESS 2)
+        return() # This regression checks a vertical split across MPI ranks.
+    endif()
+    find_program(ERF_TEST_AWK NAMES awk gawk mawk)
+    if(NOT ERF_TEST_AWK)
+        message(STATUS "Skipping ${TEST_NAME}: no awk for the floating-point budget check")
+        return()
+    endif()
+    setup_test()
+    resolve_test_exe("" "erf_exec" TEST_EXE)
+    add_test(NAME ${TEST_NAME} COMMAND ${CMAKE_COMMAND}
+        "-DMPIEXEC=${MPIEXEC_EXECUTABLE}"
+        "-DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}"
+        "-DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}"
+        "-DNRANKS=${NP}"
+        "-DTEST_EXE=${TEST_EXE}"
+        "-DAWK=${ERF_TEST_AWK}"
+        "-DMPI_HELPER=${CMAKE_CURRENT_LIST_DIR}/MPILauncher.cmake"
+        -P "${CURRENT_TEST_BINARY_DIR}/RunSidewallBands.cmake")
+    set(logs "")
+    foreach(leg IN ITEMS cold hot one_band panels)
+        list(APPEND logs "${CURRENT_TEST_BINARY_DIR}/${leg}/simulation.log"
+                         "${CURRENT_TEST_BINARY_DIR}/${leg}/cloud_chamber_budget.dat")
+    endforeach()
+    list(APPEND logs "${CURRENT_TEST_BINARY_DIR}/most_zlo/simulation.log"
+                     "${CURRENT_TEST_BINARY_DIR}/most_xlo/simulation.log")
+    set_tests_properties(${TEST_NAME} PROPERTIES
+        TIMEOUT 600 PROCESSORS ${NP} WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}"
+        LABELS "regression;cloud-chamber;parallel" ENVIRONMENT "OMP_NUM_THREADS=1;LC_ALL=C"
+        ATTACHED_FILES_ON_FAIL "${logs}")
+endfunction()
 
 # At-rest test: a hydrostatic atmosphere over terrain must stay at rest with lateral
 # outflow boundaries, where the mesh is extrapolated past the domain and the base state in
@@ -1721,25 +1766,21 @@ add_test_cloud_chamber_bulk_legacy(CloudChamber_BulkSmoke_Legacy_Kessler_NoRain 
 # the Cloud Chamber typed allowlist. Direct parser failures have separate tests.
 add_test_cloud_chamber_bulk_reject(CloudChamber_GlobalReject_SBM SBM 0
     "SBM does not support molecular diffusion")
-# Motivation: Anelastic SDM is valid in ERF, but Cloud Chamber still rejects
-# particle models before time stepping or output. Without particle support,
-# the earlier global build-capability guard must reject the same input.
-if(ERF_ENABLE_PARTICLES)
-    set(_cloud_chamber_sdm_reject "Cloud Chamber: selected moisture model is unsupported")
-else()
-    set(_cloud_chamber_sdm_reject "Lagrangian microphysics can be used when compiled with ERF_USE_PARTICLES")
+# Motivation: Cloud Chamber accepts SDM, but without particle support the
+# global build-capability guard must still reject it before time stepping.
+if(NOT ERF_ENABLE_PARTICLES)
+    add_test_cloud_chamber_bulk_reject(CloudChamber_GlobalReject_SuperDroplets SuperDroplets 0
+        "Lagrangian microphysics can be used when compiled with ERF_USE_PARTICLES")
 endif()
-add_test_cloud_chamber_bulk_reject(CloudChamber_GlobalReject_SuperDroplets SuperDroplets 0
-    "${_cloud_chamber_sdm_reject}")
 add_test_cloud_chamber_bulk_reject(CloudChamber_GlobalReject_Budget Kessler 1
     "cloud_chamber_budget_interval supports only physical_temperature_rh")
 add_test_cloud_chamber_parser_reject(CloudChamber_ParserReject_SBM SBM)
-add_test_cloud_chamber_parser_reject(CloudChamber_ParserReject_SuperDroplets SuperDroplets)
 add_test_cloud_chamber_parser_reject(CloudChamber_ParserReject_None None
     EXPECTED_TEXT "omit erf.moisture_model for dry mode")
 add_test_cloud_chamber_parity(CloudChamber_SatAdj_Parity)
 add_test_cloud_chamber_budget(CloudChamber_SatAdj_AllDry all_dry CloudChamber_SatAdj_AllDry)
 add_test_cloud_chamber_budget(CloudChamber_SatAdj_WetBudget wet_budget CloudChamber_SatAdj_WetBudget)
+add_test_cloud_chamber_sidewall_bands(CloudChamber_SidewallBands)
 add_test_cloud_chamber_budget(CloudChamber_SatAdj_BulkMixedWet bulk_wet CloudChamber_SatAdj_BulkMixedWet)
 add_test_cloud_chamber_budget(CloudChamber_SatAdj_NeutralWetBudget neutral_wet CloudChamber_SatAdj_NeutralWet)
 add_test_cloud_chamber_budget(CloudChamber_SatAdj_MOSTWetBudget most_wet CloudChamber_SatAdj_MOSTWetBudget)
@@ -1959,7 +2000,7 @@ unset(TEST_FILES_DIR)
 # was skipped whenever erf.enable_ysu_entrainment = false and the first test gave 0.10983.
 # The second test switches the extension off, and the third keeps it with the entrainment
 # term on (0.14500; the entrainment diffusivity goes to the cell above). The second and third
-# gave the same values before the fix: they pin the behaviour the fix must not change. The
+# gave the same values before the fix: they pin the behavior the fix must not change. The
 # bounds are 3.5 percent wide, since the value carries the density, and the two outcomes
 # differ by 32 percent.
 add_test_column_bounds(PBL_CloudTop_YSU "plt00003" 480 "Kmv" "0.140" "0.150" Z_MAX 512 N_CELLS 1)
@@ -2315,6 +2356,16 @@ if(ERF_ENABLE_PARTICLES AND Python3_Interpreter_FOUND)
         WORKING_DIRECTORY "${_diag_dir}" TIMEOUT 600
         PROCESSORS ${_species_ranks} LABELS "regression;restart;particles"
         ATTACHED_FILES_ON_FAIL "${_diag_dir}/straight/simulation.log;${_diag_dir}/restart_2/simulation.log;${_diag_dir}/restart_3/simulation.log")
+    # Local, multiplicity-weighted liquid spectra should be independent of domain diagnostics.
+    set(_probe_dir "${CMAKE_CURRENT_BINARY_DIR}/test_files/SDM_DSDProbes")
+    file(MAKE_DIRECTORY "${_probe_dir}")
+    add_test(NAME SDM_DSDProbes COMMAND "${Python3_EXECUTABLE}"
+        "${CMAKE_CURRENT_SOURCE_DIR}/test_files/SDM_DSDProbes/check_dsd_probes.py"
+        "--exe=$<TARGET_FILE:erf_exec>" "--input=${_species_input}/SDM_SpeciesDiffusion.i"
+        "--mpi-exec=${_species_mpi_exec}" "--mpi-numproc-flag=${MPIEXEC_NUMPROC_FLAG}"
+        "--mpi-preflags=${_species_mpi_preflags}" "--ranks=${_species_ranks}")
+    set_tests_properties(SDM_DSDProbes PROPERTIES WORKING_DIRECTORY "${_probe_dir}"
+        TIMEOUT 600 PROCESSORS ${_species_ranks} LABELS "regression;restart;particles")
     set(_anelastic_options "erf.input_sounding_file=${_species_input}/input_sounding erf.c_p=1200 erf.Cs=2 super_droplets_moisture.include_phase_change=true super_droplets_moisture.num_substeps_phase_change=2 super_droplets_moisture.initial_phase_change_relaxation=true super_droplets_moisture.initial_phase_change_relaxation_time=0.02")
     # Motivation: Restart reconstruction must preserve the active phase-change
     # trajectory with base pressure and a nondefault heat capacity.
@@ -2692,28 +2743,93 @@ if(ERF_ENABLE_MPI AND NOT WIN32)
                                  "erf.if_average_down=plain")
   # Immersed LES on two levels, a patch whose lateral coarse/fine faces cross the surface, theta
   # uniform and no heat entering (erf-model/ERF#4920): with the implicit projection
-  # (erf.if_implicit_projection, FFT) the fluid-mean theta must hold within 1e-6 K; the explicit
+  # (erf.if_implicit_projection) the fluid-mean theta must hold within 1e-6 K; the explicit
   # freeze of the solid after the projection leaves the partial cells at the patch edges a
   # divergence (0.04 K in 20 steps on one build) and must fail the same check. The third leg runs
   # the log-law coarse/fine fill and a mismatch threshold the surface crosses: the mean must hold
   # and the start-up warning must be printed.
+  # The implicit projection is solved with FFT-preconditioned GMRES in a build with FFT and with
+  # multigrid in a build without (erf-model/ERF#4887), so these legs run in both.
+  set(if_hb_fft_option "")
+  if(NOT ERF_ENABLE_FFT)
+    set(if_hb_fft_option "erf.use_fft=false")   # the building deck asks for FFT
+  endif()
+  add_test_immersed_cf_heat_balance(ImmersedLES2LevHeatBalance ImmersedLES2LevHeatBalance 300.0 1.0e-6 OFF OFF "" multilevel)
+  add_test_immersed_cf_heat_balance(ImmersedLES2LevHeatBalance_Freeze ImmersedLES2LevHeatBalance 300.0 1.0e-6 ON OFF
+                                    "erf.if_implicit_projection=false" multilevel)
+  add_test_immersed_cf_heat_balance(ImmersedLES2LevHeatBalance_LogLaw ImmersedLES2LevHeatBalance 300.0 1.0e-6 OFF ON
+                                    "erf.cf_loglaw_fill=true erf.if_cf_mismatch_warning=0.4" multilevel)
+  # The same case with a second tag box, so the refined region is an L in the x-z plane and not a
+  # rectangle: the FFT preconditioner does not apply and the implicit projection is solved with
+  # multigrid in every build (erf-model/ERF#4887). Measured: 4e-7 K implicit, 0.05 K with the freeze.
+  set(if_hb_lshape "erf.refinement_indicators='box1 box2' erf.box2.max_level=1 erf.box2.in_box_lo_indices_crse='8 0 0' erf.box2.in_box_hi_indices_crse='13 7 7' amr.grid_eff=1.0 amr.n_error_buf=0")
+  add_test_immersed_cf_heat_balance(ImmersedLES2LevHeatBalance_LShape ImmersedLES2LevHeatBalance 300.0 1.0e-6 OFF OFF
+                                    "${if_hb_lshape}" multilevel)
+  add_test_immersed_cf_heat_balance(ImmersedLES2LevHeatBalance_LShape_Freeze ImmersedLES2LevHeatBalance 300.0 1.0e-6 ON OFF
+                                    "${if_hb_lshape} erf.if_implicit_projection=false" multilevel)
+  # The L-shaped region with cells four times wider than tall (80 levels of 5 m): the multigrid
+  # coarsens each direction on its own, as the projection without the drag does
+  # (erf-model/ERF#5064); with every direction coarsened together it diverges and the run stops.
+  # Measured: 8e-8 K, at most 7 iterations.
+  add_test_immersed_cf_heat_balance(ImmersedLES2LevHeatBalance_LShape_Aniso ImmersedLES2LevHeatBalance 300.0 1.0e-6 OFF OFF
+                                    "${if_hb_lshape} amr.n_cell='16 8 80' erf.box1.in_box_hi_indices_crse='11 7 19' erf.box2.in_box_hi_indices_crse='13 7 31'" multilevel)
+  # The same case on a stretched mesh (ratio 1.05 from 20 m): the implicit projection is solved with
+  # the multigrid of the terrain Poisson solver, sigma in its face area factors (erf-model/ERF#4887).
+  # Measured: 1.5e-8 K implicit, 0.010 K with the freeze, whose hybrid FFT solve needs a build with
+  # FFT. amrex.fpe_trap_overflow=0: the coarsening set-up of that multigrid multiplies the largest
+  # Real by 1.5 when no direction can be coarsened further, which the deck's overflow trap stops.
+  set(if_hb_stretched "erf.grid_stretching_ratio=1.05 erf.initial_dz=20.0 amrex.fpe_trap_overflow=0")
+  add_test_immersed_cf_heat_balance(ImmersedLES2LevHeatBalance_Stretched ImmersedLES2LevHeatBalance 300.0 1.0e-6 OFF OFF
+                                    "${if_hb_stretched}" multilevel)
   if(ERF_ENABLE_FFT)
-    add_test_immersed_cf_heat_balance(ImmersedLES2LevHeatBalance ImmersedLES2LevHeatBalance 300.0 1.0e-6 OFF OFF "" multilevel)
-    add_test_immersed_cf_heat_balance(ImmersedLES2LevHeatBalance_Freeze ImmersedLES2LevHeatBalance 300.0 1.0e-6 ON OFF
-                                      "erf.if_implicit_projection=false" multilevel)
-    add_test_immersed_cf_heat_balance(ImmersedLES2LevHeatBalance_LogLaw ImmersedLES2LevHeatBalance 300.0 1.0e-6 OFF ON
-                                      "erf.cf_loglaw_fill=true erf.if_cf_mismatch_warning=0.4" multilevel)
-    # Immersed-forcing building (a box whose walls and roof are half-solid cells), one level in four
-    # unequal boxes, theta uniform and no heat entering (erf-model/ERF#4887): with the implicit
-    # projection the fluid-mean theta must hold within 1e-6 K (4e-10 K measured), with and without the
-    # snap of the partial cells; the explicit treatment (the faces between two solid cells zeroed
-    # after the projection) leaves the partial cells at the walls and roof a divergence (0.012 K
-    # measured) and must fail the same check.
-    add_test_immersed_cf_heat_balance(ImmersedBuildingHeatBalance ImmersedBuildingHeatBalance 300.0 1.0e-6 OFF OFF "" "")
-    add_test_immersed_cf_heat_balance(ImmersedBuildingHeatBalance_Snap ImmersedBuildingHeatBalance 300.0 1.0e-6 OFF OFF
-                                      "erf.if_snap_partial_cells=true" "")
-    add_test_immersed_cf_heat_balance(ImmersedBuildingHeatBalance_Freeze ImmersedBuildingHeatBalance 300.0 1.0e-6 ON OFF
-                                      "erf.if_implicit_projection=false" "")
+    add_test_immersed_cf_heat_balance(ImmersedLES2LevHeatBalance_Stretched_Freeze ImmersedLES2LevHeatBalance 300.0 1.0e-6 ON OFF
+                                      "${if_hb_stretched} erf.if_implicit_projection=false" multilevel)
+  endif()
+  # A slab one cell wide in y, so the multigrid of the implicit projection hides y on level 0: its
+  # face coefficients there are zero, or the V-cycle diverges and the run stops (MLABecLaplacian
+  # keeps the faces of a hidden direction in its stencil). Measured: 4e-8 K.
+  add_test_immersed_cf_heat_balance(ImmersedLES2LevHeatBalance_Slab ImmersedLES2LevHeatBalance 300.0 1.0e-6 OFF OFF
+                                    "amr.n_cell='16 1 20' geometry.prob_hi='320 20 400' amr.blocking_factor=1 erf.box1.in_box_hi_indices_crse='11 0 4'" multilevel)
+  # The L-shaped region on the stretched mesh: the terrain Poisson multigrid needs a rectangle, so
+  # the refined level is solved with solve_with_flat_mlmg (erf-model/ERF#5332), sigma in the face
+  # coefficients it takes from the area factors. Measured: -3.4e-7 K implicit, 0.014 K with the
+  # freeze, whose coarse level uses the hybrid FFT solve.
+  add_test_immersed_cf_heat_balance(ImmersedLES2LevHeatBalance_LShape_Stretched ImmersedLES2LevHeatBalance 300.0 1.0e-6 OFF OFF
+                                    "${if_hb_lshape} ${if_hb_stretched}" multilevel)
+  if(ERF_ENABLE_FFT)
+    add_test_immersed_cf_heat_balance(ImmersedLES2LevHeatBalance_LShape_Stretched_Freeze ImmersedLES2LevHeatBalance 300.0 1.0e-6 ON OFF
+                                      "${if_hb_lshape} ${if_hb_stretched} erf.if_implicit_projection=false" multilevel)
+  endif()
+  # Immersed-forcing building (a box whose walls and roof are half-solid cells), one level in four
+  # unequal boxes, theta uniform and no heat entering (erf-model/ERF#4887): with the implicit
+  # projection the fluid-mean theta must hold within 1e-6 K (4e-10 K measured), with and without the
+  # snap of the partial cells; the explicit treatment (the faces between two solid cells zeroed
+  # after the projection) leaves the partial cells at the walls and roof a divergence (0.012 K
+  # measured) and must fail the same check.
+  add_test_immersed_cf_heat_balance(ImmersedBuildingHeatBalance ImmersedBuildingHeatBalance 300.0 1.0e-6 OFF OFF
+                                    "${if_hb_fft_option}" "")
+  add_test_immersed_cf_heat_balance(ImmersedBuildingHeatBalance_Snap ImmersedBuildingHeatBalance 300.0 1.0e-6 OFF OFF
+                                    "erf.if_snap_partial_cells=true ${if_hb_fft_option}" "")
+  add_test_immersed_cf_heat_balance(ImmersedBuildingHeatBalance_Freeze ImmersedBuildingHeatBalance 300.0 1.0e-6 ON OFF
+                                    "erf.if_implicit_projection=false ${if_hb_fft_option}" "")
+  # The building with map factors that vary in x and y (erf.test_mapfactor_amp, 1 +- 0.1): both
+  # treatments are solved with the multigrid of the terrain Poisson solver, the implicit one with
+  # sigma in its face area factors (erf-model/ERF#4887). Measured: 6e-9 K implicit, -0.022 K with the
+  # explicit treatment.
+  set(if_hb_mapfac "erf.test_mapfactor_amp=0.1 amrex.fpe_trap_overflow=0 ${if_hb_fft_option}")
+  add_test_immersed_cf_heat_balance(ImmersedBuildingHeatBalance_MapFactor ImmersedBuildingHeatBalance 300.0 1.0e-6 OFF OFF
+                                    "${if_hb_mapfac}" "")
+  add_test_immersed_cf_heat_balance(ImmersedBuildingHeatBalance_MapFactor_Freeze ImmersedBuildingHeatBalance 300.0 1.0e-6 ON OFF
+                                    "${if_hb_mapfac} erf.if_implicit_projection=false" "")
+  # Thin immersed bodies are projected without the drag coefficient, so the option is refused
+  # with them when the inputs are read (found in the audit after erf-model/ERF#5324)
+  if(ERF_ENABLE_MPI AND NOT WIN32)
+    add_test_abort(ImmersedBuildingHeatBalance_NoThinBodies ${CMAKE_CURRENT_SOURCE_DIR}/test_files/ImmersedBuildingHeatBalance
+                   ImmersedBuildingHeatBalance.i
+                   "erf.if_implicit_projection is not supported with thin immersed bodies"
+                   "${if_hb_fft_option} 'erf.zero_xflux_faces=(4,4,10)'")
+  endif()
+  if(ERF_ENABLE_FFT)
     # Neutral ABL with the k-eqn RANS over an immersed plane on a cell face, two solid rows below it,
     # against the same ABL on flat ground (erf-model/ERF#4134): with the fraction-stress wall law the
     # profiles over the lowest 500 m must agree within 1 % (measured: wind 0.02 %, TKE 0.2 %); the legacy law leaves
@@ -3316,13 +3432,42 @@ if(NOT WIN32)
                  inputs_neutral
                  "erf.rans_realizability needs erf.pbl_type = None"
                  "erf.use_fft=false erf.pbl_type=YSU erf.rans_realizability=0.309")
+  # Input checks of the log-consistent shear of the closure (erf.rans_shear_stencil)
+  add_test_abort(RANSShearStencil_UnknownName ${PROJECT_SOURCE_DIR}/Exec/CanonicalTests/Canonical_RANS/Neutral_ABL_Flat
+                 inputs_neutral
+                 "Unknown enum: loglaw in AMREX_ENUM.RANSShearStencil"
+                 "erf.use_fft=false erf.rans_shear_stencil=loglaw")
+  # a per-level list names a level without the k-eqn closure: abort
+  add_test_abort(RANSShearStencil_NeedsKEqn ${_canopy_dir} ForestCanopyRANS_Uniform.i
+                 "erf.rans_shear_stencil = log_law needs erf.rans_type = kEqn"
+                 "erf.rans_type=None erf.les_type=Smagorinsky erf.Cs=0.1 erf.forest_canopy_tke=false 'erf.rans_shear_stencil=log_law central'")
+  # no surface layer at zlo: no roughness length for the stencil
+  add_test_abort(RANSShearStencil_NeedsSurfaceLayer ${PROJECT_SOURCE_DIR}/Exec/CanonicalTests/Canonical_RANS/Neutral_ABL_Flat
+                 inputs_neutral
+                 "erf.rans_shear_stencil = log_law requires zlo.type = surface_layer"
+                 "erf.use_fft=false zlo.type=SlipWall erf.dirichlet_k=false erf.init_tke_from_ustar=false erf.rans_shear_stencil=log_law")
+  # immersed terrain: the nearest wall need not be the ground below the cell
+  add_test_abort(RANSShearStencil_NoImmersedTerrain ${PROJECT_SOURCE_DIR}/Exec/CanonicalTests/Canonical_RANS/Neutral_ABL_Flat
+                 inputs_neutral
+                 "erf.rans_shear_stencil = log_law is not available with erf.terrain_type = EB or"
+                 "erf.use_fft=false erf.terrain_type=ImmersedForcing erf.rans_shear_stencil=log_law")
+  # a moving mesh: the wall distance is that of the initial mesh while the heights move
+  add_test_abort(RANSShearStencil_NoMovingMesh ${PROJECT_SOURCE_DIR}/Exec/CanonicalTests/Canonical_RANS/Neutral_ABL_Flat
+                 inputs_neutral
+                 "erf.rans_shear_stencil = log_law is not available with erf.terrain_type = MovingFittedMesh"
+                 "erf.use_fft=false erf.compressibility_type=FullyCompressible erf.terrain_type=MovingFittedMesh erf.rans_shear_stencil=log_law")
+  # thin immersed bodies shorten the wall distance
+  add_test_abort(RANSShearStencil_NoThinBodies ${PROJECT_SOURCE_DIR}/Exec/CanonicalTests/Canonical_RANS/Neutral_ABL_Flat
+                 inputs_neutral
+                 "erf.rans_shear_stencil = log_law is not available with thin immersed bodies"
+                 "erf.use_fft=false 'erf.zero_xflux_faces=(4,4,4)' erf.rans_shear_stencil=log_law")
   # One value for the hierarchy is meant for the kEqn levels: on a level without the closure
   # it is reset instead of refused, and the run then completes its step; the level also runs
   # a PBL scheme (MYNN25 on the neutral flat deck), which the cap refuses only where it is
   # still on. Unlike add_test_abort, the command requires both the reset message and the end
   # of step 1 in the log, so a run that prints the reset and stops afterwards (the PBL check
   # before the reset) fails. Covers a single entry and a list whose entries are all equal.
-  function(add_test_rans_reset TEST_NAME CAP_OPTION)
+  function(add_test_rans_reset TEST_NAME CAP_OPTION RESET_MESSAGE)
     set(_rr_src ${PROJECT_SOURCE_DIR}/Exec/CanonicalTests/Canonical_RANS/Neutral_ABL_Flat)
     set(_rr_dir ${CMAKE_CURRENT_BINARY_DIR}/test_files/${TEST_NAME})
     file(MAKE_DIRECTORY ${_rr_dir})
@@ -3336,13 +3481,18 @@ if(NOT WIN32)
     resolve_test_exe("" "erf_exec" _rr_exe)
     set(_rr_log "${_rr_dir}/${TEST_NAME}.log")
     add_test(${TEST_NAME} sh -c
-      "${_rr_mpi} ${_rr_exe} ${_rr_dir}/inputs_neutral max_step=1 erf.plot_int_1=-1 erf.check_int=-1 amrex.call_addr2line=0 erf.use_fft=false erf.rans_type=None erf.pbl_type=MYNN25 erf.most.pblh_calc=MYNN25 ${CAP_OPTION} > ${_rr_log} 2>&1 && grep -q 'erf.rans_realizability reset to 0 on level 0' ${_rr_log} && grep -q 'Coarse STEP 1 ends' ${_rr_log}")
+      "${_rr_mpi} ${_rr_exe} ${_rr_dir}/inputs_neutral max_step=1 erf.plot_int_1=-1 erf.check_int=-1 amrex.call_addr2line=0 erf.use_fft=false erf.rans_type=None erf.pbl_type=MYNN25 erf.most.pblh_calc=MYNN25 ${CAP_OPTION} > ${_rr_log} 2>&1 && grep -q '${RESET_MESSAGE}' ${_rr_log} && grep -q 'Coarse STEP 1 ends' ${_rr_log}")
     set_tests_properties(${TEST_NAME} PROPERTIES
         TIMEOUT 600 PROCESSORS 1 WORKING_DIRECTORY "${_rr_dir}/" LABELS "regression"
         ATTACHED_FILES_ON_FAIL "${_rr_log}")
   endfunction(add_test_rans_reset)
-  add_test_rans_reset(RANSRealizability_SingleValueResetOnLESLevel "erf.rans_realizability=0.309")
-  add_test_rans_reset(RANSRealizability_EqualListResetOnLESLevel "'erf.rans_realizability=0.309 0.309'")
+  add_test_rans_reset(RANSRealizability_SingleValueResetOnLESLevel "erf.rans_realizability=0.309"
+                      "erf.rans_realizability reset to 0 on level 0")
+  add_test_rans_reset(RANSRealizability_EqualListResetOnLESLevel "'erf.rans_realizability=0.309 0.309'"
+                      "erf.rans_realizability reset to 0 on level 0")
+  # the same for the shear stencil of the closure: one value, reset where there is no closure
+  add_test_rans_reset(RANSShearStencil_SingleValueResetOnLESLevel "erf.rans_shear_stencil=log_law"
+                      "erf.rans_shear_stencil reset to central on level 0")
   # kEqn on level 0 only: the canopy terms would act on part of the hierarchy
   add_test_abort(ForestCanopyRANS_NeedsKEqnOnEveryLevel
                  ${CMAKE_CURRENT_SOURCE_DIR}/test_files/PBLH_FinePatch PBLH_FinePatch.i
@@ -4397,6 +4547,38 @@ if(NOT WIN32)
         CHECK_OPTIONS "--tol 3.0e-4")
 endif()
 
+# Vertical shear of the k-eqn closure (erf.rans_shear_stencil, erf-model/ERF#5261): one step from
+# a logarithmic wind profile with the central stencil (A) and the log-consistent one (B). The
+# S of the closure is pinned to each stencil on the initial wind and, for B, to the closed form
+# u*/(kappa (z + z0)); the ratio A/B in the cells 2-4 is 1.2046, 1.0588, 1.0285; and the
+# difference of rho k after the step is the difference of the shear production. The cap is on
+# with C_r = 10 so that the closure writes cap_ratio (from which S follows) without capping.
+# The three mesh branches of erf_make_tau_terms each call the correction:
+#   _LogShear            uniform layers (MeshType::ConstantDz)
+#   _LogShear_Stretched  stretched layers (erf.initial_dz = 6 m, top layer 5 times the bottom one),
+#                        boxes cut in z; the check reads the heights from the plotfile and leaves
+#                        out the closed form and the pinned ratios (the sounding is interpolated)
+#   _LogShear_Fitted     terrain-fitted mesh over flat ground (a ridge of 1e-9 m), all checks of
+#                        the uniform case; needs the FFT-preconditioned projection
+# The command runs through sh, so not on Windows.
+if(NOT WIN32)
+    set(_log_shear_common "erf.use_fft=false erf.input_sounding_file=input_sounding_log erf.rans_realizability=10 erf.plot_int_1=1")
+    add_test_rans_pair(RANS_Neutral_ABL_Flat_LogShear Neutral_ABL_Flat inputs_neutral 1 check_log_shear.py
+        RUNTIME_OPTIONS "${_log_shear_common} erf.fixed_dt=0.05 erf.plot_vars_1=density x_velocity y_velocity KE Kmv Lturb diss cmu cap_ratio"
+        OPTIONS_A "erf.rans_shear_stencil=central" OPTIONS_B "erf.rans_shear_stencil=log_law"
+        CHECK_OPTIONS "--dt 0.05 --cr 10")
+    add_test_rans_pair(RANS_Neutral_ABL_Flat_LogShear_Stretched Neutral_ABL_Flat inputs_neutral 1 check_log_shear.py
+        RUNTIME_OPTIONS "${_log_shear_common} erf.fixed_dt=0.02 erf.initial_dz=6 erf.vert_implicit=false amr.no_box_split_dir=-1 'amr.max_grid_size=8 8 16' erf.plot_vars_1=density x_velocity y_velocity KE Kmv Lturb diss cmu cap_ratio z_phys"
+        OPTIONS_A "erf.rans_shear_stencil=central" OPTIONS_B "erf.rans_shear_stencil=log_law"
+        CHECK_OPTIONS "--dt 0.02 --cr 10 --stretched")
+    if(ERF_ENABLE_FFT)
+        add_test_rans_pair(RANS_Neutral_ABL_Flat_LogShear_Fitted Neutral_ABL_Flat inputs_neutral 1 check_log_shear.py
+            RUNTIME_OPTIONS "${_log_shear_common} erf.fixed_dt=0.02 erf.terrain_type=StaticFittedMesh erf.terrain_smoothing=0 erf.wall_dist_type=terrain_height prob.custom_terrain_type=WoA prob.dir=0 prob.hmax=1e-9 prob.L=500 erf.plot_vars_1=density x_velocity y_velocity KE Kmv Lturb diss cmu cap_ratio"
+            OPTIONS_A "erf.rans_shear_stencil=central" OPTIONS_B "erf.rans_shear_stencil=log_law"
+            CHECK_OPTIONS "--dt 0.02 --cr 10")
+    endif()
+endif()
+
 # The check scripts' own pass/fail logic: kind = "range" accepted half a band
 # width outside the band, so every band check was looser than it reads.
 # Pure Python, no ERF run.
@@ -5380,8 +5562,200 @@ if(ERF_ENABLE_NETCDF AND ERF_TEST_PYTHON)
           "" ""
           "restart WRFInput_SurfaceFields_Restart_MPI.log" "max_step=0" 3)
     endif()
+
+    # The first skin temperature of the two-stream force-restore balance from the TSK of a
+    # wrfinput file (erf.radiation.seb_init_skin_from_file). make_wrfinput.py writes
+    # TSK = 280 + 0.5 i + 0.25 j and a block of water columns in both boxes; erf.rad_t_sfc is
+    # 300 K. check_skin.py compares every column of the 2D plotfile with the formula: a land
+    # column holds TSK, a water column 300 K. The legs: the input on, with a water TSK of
+    # -999 K, which is not read; off, when every column holds 300 K as before; a file without
+    # water and a second level without a file, made by tagging at the start, which must hold
+    # the same linear field at its own column centers; a restart, which must not read the file
+    # again; a nest with a file, with and without a lower boundary file of its own; a start
+    # without a file, another radiation model, a land TSK of 350 K (above
+    # seb_prognostic_t_max_k) and the balance not prognostic, each of which must stop the run
+    # with a message that names the input; 350 K with the bound raised to 360 K, which runs;
+    # and, with MPI, four ranks on two boxes, a land TSK of -999 K on each of two ranks, the
+    # nest on small boxes and the restart.
+    function(add_test_wrfinput_seb_skin TEST_NAME MAKE_OPTIONS RUNTIME_OPTIONS EXPECT CHECK)
+      set(_launch "")
+      set(_np 1)
+      if(ARGC GREATER 5)
+        set(_np ${ARGV5})
+        set(_launch "${MPIEXEC_EXECUTABLE} ${MPIEXEC_NUMPROC_FLAG} ${ARGV5} ${MPIEXEC_PREFLAGS} ")
+      endif()
+      set(TEST_FILES_DIR WRFInput_SEBSkinInit)
+      setup_test()
+      file(COPY ${PROJECT_SOURCE_DIR}/Exec/Tools/erf_plotfile.py DESTINATION "${CURRENT_TEST_BINARY_DIR}/")
+      resolve_test_exe("" "erf_exec" TEST_EXE)
+      set(_log ${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.log)
+      set(_make "${ERF_TEST_PYTHON} make_wrfinput.py ${MAKE_OPTIONS} > generate.log")
+      set(_exe "${_launch}${TEST_EXE} WRFInput_SEBSkinInit.i amrex.call_addr2line=0")
+      set(_py "${ERF_TEST_PYTHON} check_skin.py")
+      if("${EXPECT}" STREQUAL "runs")
+        set(_run "( ${_exe} ${RUNTIME_OPTIONS} > ${_log} 2>&1 || ( tail -n 40 ${_log} && false ) )")
+      elseif("${EXPECT}" STREQUAL "stops")
+        # The run must stop; CHECK then finds the message in the log
+        set(_run "( ! ${_exe} ${RUNTIME_OPTIONS} > ${_log} 2>&1 )")
+      else()
+        # A run of two steps with a checkpoint after the first, then a restart from it.
+        # With "restart_deep_on" only the restart sets seb_init_t_deep_from_file: the
+        # checkpoint is then one of a run without the input.
+        set(_first ${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}_first.log)
+        set(_two "max_step=2 erf.check_file=chk erf.check_int=1")
+        # With "restart_deep_off" only the first run sets it.
+        set(_second "")
+        if("${EXPECT}" STREQUAL "restart_deep_on")
+          set(_second "erf.radiation.seb_init_t_deep_from_file=true")
+        elseif("${EXPECT}" STREQUAL "restart_deep_off")
+          set(_second "erf.radiation.seb_init_t_deep_from_file=false")
+        endif()
+        set(_run "rm -rf chk0000? && ( ${_exe} ${RUNTIME_OPTIONS} ${_two} erf.plot2d_file_1=plt2dA > ${_first} 2>&1 || ( tail -n 40 ${_first} && false ) ) && ( ${_exe} ${RUNTIME_OPTIONS} ${_second} ${_two} erf.restart=chk00001 erf.plot2d_file_1=plt2dB > ${_log} 2>&1 || ( tail -n 40 ${_log} && false ) )")
+      endif()
+      string(REPLACE "@PY@" "${_py}" _check "${CHECK}")
+      string(REPLACE "@LOG@" "${_log}" _check "${_check}")
+      add_test(${TEST_NAME} sh -c "rm -rf plt2d* && ${_make} && ${_run} && ${_check}")
+      set_tests_properties(${TEST_NAME} PROPERTIES TIMEOUT 300 PROCESSORS ${_np}
+          WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
+          LABELS "regression;wrfinput" ATTACHED_FILES_ON_FAIL "${_log}")
+    endfunction(add_test_wrfinput_seb_skin)
+    set(_skin_named "@PY@ log @LOG@ 'erf.radiation.seb_init_skin_from_file = true'")
+    # The water column (8, 1) of the file holds -999 K here: a water value is not read
+    add_test_wrfinput_seb_skin(WRFInput_SEBSkinInit "--water -999" "" runs
+        "@PY@ file plt2d00000 --log @LOG@ --count 78 && @PY@ log @LOG@ 'The restoring temperature stays erf.radiation.seb_t_deep_default = 290 K in every column, up to 10 K from the values set'")
+    add_test_wrfinput_seb_skin(WRFInput_SEBSkinInit_Off "" "erf.radiation.seb_init_skin_from_file=false" runs
+        "@PY@ default plt2d00000 --log @LOG@")
+    add_test_wrfinput_seb_skin(WRFInput_SEBSkinInit_TaggedLevel "--all-land"
+        "amr.max_level=1 amr.ref_ratio_vect=2 2 1 amr.n_error_buf=0 amr.blocking_factor=2 erf.regrid_int=-1 erf.refinement_indicators=boxa erf.boxa.max_level=1 erf.boxa.in_box_lo=2000.0 2000.0 erf.boxa.in_box_hi=6000.0 6000.0"
+        runs "@PY@ tagged plt2d00000 --log @LOG@ --count 96 && @PY@ log @LOG@ 'ERF::init_seb_skin_from_file: level 1' --absent")
+    add_test_wrfinput_seb_skin(WRFInput_SEBSkinInit_Restart "" "" restart
+        "@PY@ same plt2dA00002 plt2dB00002 --log @LOG@ && @PY@ log @LOG@ 'NOTE: erf.radiation.seb_init_skin_from_file is not used on a restart'")
+    # The wrfinput reader itself needs TSK, so "no skin temperature" is a start without a file
+    add_test_wrfinput_seb_skin(WRFInput_SEBSkinInit_NoFile "" "erf.init_type=Uniform" stops
+        "${_skin_named} && @PY@ log @LOG@ 'the initial file of level 0 gave no skin temperature'")
+    add_test_wrfinput_seb_skin(WRFInput_SEBSkinInit_NotTwoStream "" "erf.radiation_model=None" stops
+        "${_skin_named} && @PY@ log @LOG@ 'needs erf.radiation_model = TwoStream'")
+    # A second level with a wrfinput file of its own, and a lower boundary file of its own
+    set(_skin_nest "amr.max_level=1 amr.ref_ratio_vect='2 2 1' erf.nc_init_file_1=wrfinput_d02")
+    add_test_wrfinput_seb_skin(WRFInput_SEBSkinInit_Nested "--nest"
+        "${_skin_nest} erf.nc_low_file_1=wrflowinp_d02" runs
+        "@PY@ nested plt2d00000 --log @LOG@ --count 78 --count 62")
+    # ... and without one: the level's surface temperature follows its parent's
+    add_test_wrfinput_seb_skin(WRFInput_SEBSkinInit_NestedParentLow "--nest" "${_skin_nest}" runs
+        "@PY@ file plt2d00000 --log @LOG@ --count 78 && @PY@ log @LOG@ 'level 1: the skin temperature is that of level 0, interpolated'")
+    add_test_wrfinput_seb_skin(WRFInput_SEBSkinInit_AboveRange "--land 350" "" stops
+        "${_skin_named} && @PY@ log @LOG@ 'on 1 land column(s)' && @PY@ log @LOG@ '= [200.000000, 340.000000] K'")
+    add_test_wrfinput_seb_skin(WRFInput_SEBSkinInit_RangeRaised "--land 350"
+        "erf.radiation.seb_prognostic_t_max_k=360" runs
+        "@PY@ file plt2d00000 --land 350 --log @LOG@ --count 78")
+    add_test_wrfinput_seb_skin(WRFInput_SEBSkinInit_NotPrognostic ""
+        "erf.radiation.seb_prognostic_enable=false" stops
+        "${_skin_named} && @PY@ log @LOG@ 'needs erf.radiation.seb_prognostic_enable = true'")
+    if(ERF_ENABLE_MPI)
+      add_test_wrfinput_seb_skin(WRFInput_SEBSkinInit_MPI "" "" runs
+          "@PY@ file plt2d00000 --log @LOG@ --count 78" 4)
+      # One bad column in each box, so each rank holds one: the count is the sum over the ranks
+      add_test_wrfinput_seb_skin(WRFInput_SEBSkinInit_FlagOnLand_MPI "--land -999 --land-west -999" "" stops
+          "${_skin_named} && @PY@ log @LOG@ 'on 2 land column(s)'" 2)
+      add_test_wrfinput_seb_skin(WRFInput_SEBSkinInit_Nested_MPI "--nest"
+          "${_skin_nest} erf.nc_low_file_1=wrflowinp_d02 amr.max_grid_size=4" runs
+          "@PY@ nested plt2d00000 --log @LOG@ --count 78 --count 62" 3)
+      add_test_wrfinput_seb_skin(WRFInput_SEBSkinInit_Restart_MPI "" "" restart
+          "@PY@ same plt2dA00002 plt2dB00002 --log @LOG@ && @PY@ log @LOG@ 'NOTE: erf.radiation.seb_init_skin_from_file is not used on a restart'" 3)
+    endif()
+
+    # The deep (restoring) temperature of the same balance from the TMN of the wrfinput file
+    # (erf.radiation.seb_init_t_deep_from_file), on the same deck. make_wrfinput.py writes
+    # TMN = 275 + 0.25 i + 0.5 j; erf.radiation.seb_t_deep_default is 290 K. check_skin.py
+    # --field deep compares every column of seb_t_deep with the formula: a land column holds
+    # TMN, a water column 290 K. The deck leaves the input off and the legs set it on the
+    # command line, which is read after the deck. The legs: the input on, two steps, with a water TMN of 350 K, which is not read, and the deep
+    # temperature still the file's after the two steps; off, when every column holds 290 K
+    # after two steps as before; on with the skin input off; a second level without a file,
+    # made by tagging; a nest with a file, with and without a lower boundary file of its own
+    # (TMN is the nest's own in both); a restart, whose deep and skin temperatures must be
+    # those of the run without a restart, bit for bit; a restart with the input from a
+    # checkpoint of a run without it, which keeps 290 K and says so; the input with the deep
+    # reservoir (seb_deep_prognostic_enable), at the start, after two steps (within 0.01 K
+    # of TMN and not equal to it) and through a restart; a restart without the input from a
+    # checkpoint that holds the field, which goes back to 290 K and says so; a restart of
+    # the nest, where the coarse columns under the nest hold the mean of the nest's land
+    # TMN after the first step; a land TMN of 150 K, below seb_prognostic_t_min_k; a file
+    # without TMN, a start without a file, a water TMN of -999 K (the reader then does not
+    # hold the field), a land TMN of 350 K, another radiation model and the balance not
+    # prognostic, each of which must stop the run with a message that names the input; 350 K
+    # with the bound raised to 360 K, which runs; and, with MPI, four ranks on two boxes, a
+    # land TMN of 350 K on each of two ranks, the nest on small boxes and the restart.
+    set(_deep_on "erf.radiation.seb_init_t_deep_from_file=true")
+    set(_deep_named "@PY@ log @LOG@ 'erf.radiation.seb_init_t_deep_from_file = true'")
+    set(_deep_restart "@PY@ same plt2dA00002 plt2dB00002 --field deep && @PY@ file plt2dB00002 --field deep && @PY@ same plt2dA00002 plt2dB00002 && @PY@ log @LOG@ 'ERF::init_seb_t_deep_from_file' --absent")
+    add_test_wrfinput_seb_skin(WRFInput_SEBDeepInit "--tmn-water 350" "${_deep_on} max_step=2" runs
+        "@PY@ file plt2d00000 --field deep --log @LOG@ --count 78 && @PY@ file plt2d00002 --field deep && @PY@ file plt2d00000 --log @LOG@ --count 78 && @PY@ log @LOG@ 'water columns keep erf.radiation.seb_t_deep_default = 290 K. The balance does not evolve it.' && @PY@ log @LOG@ 'The restoring temperature stays' --absent")
+    add_test_wrfinput_seb_skin(WRFInput_SEBDeepInit_Off "" "max_step=2" runs
+        "@PY@ default plt2d00000 --field deep && @PY@ default plt2d00002 --field deep && @PY@ log @LOG@ 'ERF::init_seb_t_deep_from_file' --absent")
+    add_test_wrfinput_seb_skin(WRFInput_SEBDeepInit_SkinOff ""
+        "${_deep_on} erf.radiation.seb_init_skin_from_file=false" runs
+        "@PY@ file plt2d00000 --field deep --log @LOG@ --count 78 && @PY@ default plt2d00000")
+    add_test_wrfinput_seb_skin(WRFInput_SEBDeepInit_TaggedLevel "--all-land"
+        "${_deep_on} amr.max_level=1 amr.ref_ratio_vect=2 2 1 amr.n_error_buf=0 amr.blocking_factor=2 erf.regrid_int=-1 erf.refinement_indicators=boxa erf.boxa.max_level=1 erf.boxa.in_box_lo=2000.0 2000.0 erf.boxa.in_box_hi=6000.0 6000.0"
+        runs "@PY@ tagged plt2d00000 --field deep --log @LOG@ --count 96 && @PY@ log @LOG@ 'ERF::init_seb_t_deep_from_file: level 1' --absent")
+    add_test_wrfinput_seb_skin(WRFInput_SEBDeepInit_Nested "--nest"
+        "${_deep_on} ${_skin_nest} erf.nc_low_file_1=wrflowinp_d02" runs
+        "@PY@ nested plt2d00000 --field deep --log @LOG@ --count 78 --count 62")
+    # Without a lower boundary file of its own the nest's skin follows its parent's; its TMN
+    # is still its own file's
+    add_test_wrfinput_seb_skin(WRFInput_SEBDeepInit_NestedParentLow "--nest" "${_deep_on} ${_skin_nest}" runs
+        "@PY@ nested plt2d00000 --field deep --log @LOG@ --count 78 --count 62 && @PY@ log @LOG@ 'level 1: the skin temperature is that of level 0, interpolated'")
+    add_test_wrfinput_seb_skin(WRFInput_SEBDeepInit_Restart "" "${_deep_on}" restart "${_deep_restart}")
+    add_test_wrfinput_seb_skin(WRFInput_SEBDeepInit_OlderCheckpoint "" "" restart_deep_on
+        "@PY@ default plt2dB00002 --field deep && @PY@ same plt2dA00002 plt2dB00002 && @PY@ log @LOG@ 'NOTE: the checkpoint has no TwoStream_TDeep: erf.radiation.seb_init_t_deep_from_file is not used on this restart' && @PY@ log @LOG@ 'ERF::init_seb_t_deep_from_file' --absent")
+    add_test_wrfinput_seb_skin(WRFInput_SEBDeepInit_DeepPrognostic ""
+        "${_deep_on} erf.radiation.seb_deep_prognostic_enable=true erf.radiation.seb_soil_porosity=0.4 max_step=2" runs
+        "@PY@ file plt2d00000 --field deep --log @LOG@ --count 78 && @PY@ near plt2d00002 --field deep --tol 0.01 && @PY@ log @LOG@ 'It is the first value of the deep reservoir, which evolves.'")
+    add_test_wrfinput_seb_skin(WRFInput_SEBDeepInit_DeepPrognostic_Restart ""
+        "${_deep_on} erf.radiation.seb_deep_prognostic_enable=true erf.radiation.seb_soil_porosity=0.4" restart
+        "@PY@ same plt2dA00002 plt2dB00002 --field deep && @PY@ near plt2dB00002 --field deep --tol 0.01 && @PY@ same plt2dA00002 plt2dB00002 && @PY@ log @LOG@ 'ERF::init_seb_t_deep_from_file' --absent")
+    # The input on in the first run only: the restart goes back to the default
+    add_test_wrfinput_seb_skin(WRFInput_SEBDeepInit_RestartInputOff "" "${_deep_on}" restart_deep_off
+        "@PY@ file plt2dA00002 --field deep && @PY@ default plt2dB00002 --field deep && @PY@ log @LOG@ 'NOTE: the checkpoint holds TwoStream_TDeep, which is not read'")
+    # The nest through a restart: both levels come back, and the level 0 columns under the
+    # nest hold the mean of the nest's land TMN (two-way coupling) from the first step on
+    add_test_wrfinput_seb_skin(WRFInput_SEBDeepInit_Nested_Restart "--nest"
+        "${_deep_on} ${_skin_nest} erf.nc_low_file_1=wrflowinp_d02" restart
+        "@PY@ same plt2dA00002 plt2dB00002 --field deep && @PY@ nested plt2dB00002 --field deep --averaged && @PY@ same plt2dA00002 plt2dB00002 && @PY@ log @LOG@ 'ERF::init_seb_t_deep_from_file' --absent")
+    add_test_wrfinput_seb_skin(WRFInput_SEBDeepInit_NoTMN "--no-tmn" "${_deep_on}" stops
+        "${_deep_named} && @PY@ log @LOG@ 'the initial file of level 0 gave no usable TMN'")
+    add_test_wrfinput_seb_skin(WRFInput_SEBDeepInit_NoFile ""
+        "${_deep_on} erf.radiation.seb_init_skin_from_file=false erf.init_type=Uniform" stops
+        "${_deep_named} && @PY@ log @LOG@ 'the initial file of level 0 gave no usable TMN'")
+    # The reader does not hold a field with a value outside its own range, on water too
+    add_test_wrfinput_seb_skin(WRFInput_SEBDeepInit_FlagOnWater "--tmn-water -999" "${_deep_on}" stops
+        "${_deep_named} && @PY@ log @LOG@ 'the initial file of level 0 gave no usable TMN'")
+    add_test_wrfinput_seb_skin(WRFInput_SEBDeepInit_NotTwoStream "" "${_deep_on} erf.radiation.seb_init_skin_from_file=false erf.radiation_model=None" stops
+        "${_deep_named} && @PY@ log @LOG@ 'needs erf.radiation_model = TwoStream'")
+    add_test_wrfinput_seb_skin(WRFInput_SEBDeepInit_AboveRange "--tmn-land 350" "${_deep_on}" stops
+        "${_deep_named} && @PY@ log @LOG@ 'on 1 land column(s)' && @PY@ log @LOG@ '= [200.000000, 340.000000] K'")
+    add_test_wrfinput_seb_skin(WRFInput_SEBDeepInit_BelowRange "--tmn-land 150" "${_deep_on}" stops
+        "${_deep_named} && @PY@ log @LOG@ 'on 1 land column(s)' && @PY@ log @LOG@ '= [200.000000, 340.000000] K'")
+    add_test_wrfinput_seb_skin(WRFInput_SEBDeepInit_RangeRaised "--tmn-land 350"
+        "${_deep_on} erf.radiation.seb_prognostic_t_max_k=360" runs
+        "@PY@ file plt2d00000 --field deep --land 350 --log @LOG@ --count 78")
+    add_test_wrfinput_seb_skin(WRFInput_SEBDeepInit_NotPrognostic ""
+        "${_deep_on} erf.radiation.seb_init_skin_from_file=false erf.radiation.seb_prognostic_enable=false" stops
+        "${_deep_named} && @PY@ log @LOG@ 'needs erf.radiation.seb_prognostic_enable = true'")
+    if(ERF_ENABLE_MPI)
+      add_test_wrfinput_seb_skin(WRFInput_SEBDeepInit_MPI "" "${_deep_on} max_step=2" runs
+          "@PY@ file plt2d00000 --field deep --log @LOG@ --count 78 && @PY@ file plt2d00002 --field deep" 4)
+      # One bad column in each box, so each rank holds one: the count is the sum over the ranks
+      add_test_wrfinput_seb_skin(WRFInput_SEBDeepInit_AboveRange_MPI "--tmn-land 350 --tmn-land-west 350" "${_deep_on}" stops
+          "${_deep_named} && @PY@ log @LOG@ 'on 2 land column(s)'" 2)
+      add_test_wrfinput_seb_skin(WRFInput_SEBDeepInit_Nested_MPI "--nest"
+          "${_deep_on} ${_skin_nest} erf.nc_low_file_1=wrflowinp_d02 amr.max_grid_size=4" runs
+          "@PY@ nested plt2d00000 --field deep --log @LOG@ --count 78 --count 62" 3)
+      add_test_wrfinput_seb_skin(WRFInput_SEBDeepInit_Restart_MPI "" "${_deep_on}" restart "${_deep_restart}" 3)
+    endif()
   else()
-    message(STATUS "Skipping WRFInput_CroppedParent, WRFInput_LegacySurfaceTemperature, and WRFInput_SurfaceFields: Python netCDF4 and numpy are required")
+    message(STATUS "Skipping WRFInput_CroppedParent, WRFInput_LegacySurfaceTemperature, WRFInput_SurfaceFields, and WRFInput_SEBSkinInit: Python netCDF4 and numpy are required")
   endif()
 endif()
 
@@ -5709,6 +6083,16 @@ add_test_restart_parity(SLM_TwoLevel_Restart SLM_Restart 7 20
     COMMON_OPTIONS "amr.max_level=1 amr.blocking_factor=4 erf.refinement_indicators=box1 erf.box1.in_box_lo=100.0 100.0 0.0 erf.box1.in_box_hi=300.0 300.0 100.0"
     PLT2DFILE "plt_lsm_2D_00020"
     FCOMPARE_RTOL "0.0" FCOMPARE_ATOL "0.0")
+
+# The same, restarted with a smaller amr.max_grid_size, so the first regrid remakes level 1 on
+# new boxes over the same region (issue 5177). SLM keeps the state it carries from step to step
+# outside lsm_data (canopy and puddle water, the canopy, canopy-air and ground temperatures, snow
+# albedo and age) across the remake, so the run ends as the straight one does.
+add_test_restart_parity(SLM_TwoLevel_RemakeLevel SLM_Restart 10 20
+    COMMON_OPTIONS "amr.max_level=1 amr.blocking_factor=4 erf.regrid_int=2 erf.refinement_indicators=box1 erf.box1.in_box_lo=100.0 100.0 0.0 erf.box1.in_box_hi=300.0 300.0 100.0"
+    RESTART_OPTIONS "amr.max_grid_size=4"
+    PLT2DFILE "plt_lsm_2D_00020"
+    ALLOW_DIFF_GRIDS FCOMPARE_RTOL "0.0" FCOMPARE_ATOL "0.0")
 endif()
 
 # SLM does not treat a frozen canopy (issue 4467): the canopy starts at the reference-level air
@@ -6896,6 +7280,48 @@ if(NOT WIN32 AND ERF_TEST_PYTHON AND ERF_PRECISION STREQUAL "DOUBLE")
   add_test_anelastic_scalar_advection(AnelasticScalarAdvection_Hill_PartialDepth_TwoWay inputs_hill 30
       RUNTIME_OPTIONS "${_hill_amr} ${_hill_part}"
       CHECK check_uniform_scalar.py PLOTFILES ${_hill_amr_tol} --require-level)
+  # Map factors that vary in space on a flat mesh with a refined level: through all of z and
+  # stopping inside the domain in z (refined 2 x 2 x 2), on ConstantDz and StretchedDz, one-way
+  # and two-way.  The coarse/fine faces take the coarse mass flux with the map factors in all
+  # three directions (cf_flat_mapfac), and the average-down divides by the sum of the fine
+  # volumes (fine_volume_average).  Measured 1.3e-11 at most; with the coarse/fine faces filled
+  # from the coarse momenta instead, 8e-5 to 6e-4.
+  set(_flat_amr "amr.max_level=1 erf.refinement_indicators=box1 erf.box1.max_level=1 erf.poisson_reltol=1e-12 erf.poisson_abstol=1e-12 erf.test_mapfactor_amp=0.2")
+  set(_flat_full "'amr.ref_ratio_vect=2 2 1' 'erf.box1.in_box_lo_indices_crse=8 12 0' 'erf.box1.in_box_hi_indices_crse=19 23 11'")
+  set(_flat_part "'amr.ref_ratio_vect=2 2 2' 'erf.box1.in_box_lo_indices_crse=8 12 2' 'erf.box1.in_box_hi_indices_crse=19 23 8'")
+  set(_flat_sdz "erf.initial_dz=20.0 erf.grid_stretching_ratio=1.2")
+  add_test_anelastic_scalar_advection(AnelasticScalarAdvection_Flat_TwoLevels_VaryingMapFactor inputs_flat 30
+      RUNTIME_OPTIONS "${_flat_amr} ${_flat_full} erf.coupling_type=OneWay"
+      CHECK check_uniform_scalar.py PLOTFILES ${_hill_amr_tol} --require-level)
+  add_test_anelastic_scalar_advection(AnelasticScalarAdvection_Flat_PartialDepth_TwoWay_VaryingMapFactor inputs_flat 30
+      RUNTIME_OPTIONS "${_flat_amr} ${_flat_part}"
+      CHECK check_uniform_scalar.py PLOTFILES ${_hill_amr_tol} --require-level)
+  add_test_anelastic_scalar_advection(AnelasticScalarAdvection_Stretched_PartialDepth_TwoWay_VaryingMapFactor inputs_flat 30
+      RUNTIME_OPTIONS "${_flat_amr} ${_flat_part} ${_flat_sdz}"
+      CHECK check_uniform_scalar.py PLOTFILES ${_hill_amr_tol} --require-level)
+  # A refined level whose boxes make an L, not a rectangle (amr.grid_eff = 1 keeps the two
+  # boxes apart).  The FFT solvers and MLTerrainPoisson need a rectangle; on a flat mesh such a
+  # level is projected with MLABecLaplacian (solve_with_flat_mlmg).  One-way: measured 1.3e-11 at
+  # most; these stopped at the first projection before.
+  set(_flat_l "amr.max_level=1 'amr.ref_ratio_vect=2 2 2' 'erf.refinement_indicators=box1 box2' erf.box1.max_level=1 erf.box2.max_level=1 'erf.box1.in_box_lo_indices_crse=8 12 2' 'erf.box1.in_box_hi_indices_crse=19 23 8' 'erf.box2.in_box_lo_indices_crse=8 4 2' 'erf.box2.in_box_hi_indices_crse=15 11 8' amr.grid_eff=1.0 erf.coupling_type=OneWay erf.poisson_reltol=1e-12 erf.poisson_abstol=1e-12")
+  add_test_anelastic_scalar_advection(AnelasticScalarAdvection_Flat_LShaped_VaryingMapFactor inputs_flat 30
+      RUNTIME_OPTIONS "${_flat_l} erf.test_mapfactor_amp=0.2"
+      CHECK check_uniform_scalar.py PLOTFILES ${_hill_amr_tol} --require-level)
+  # A refined level one cell wide in the periodic y direction (ratio 1 in y).  The y-faces at
+  # j = 0 and j = 1 are periodic images of each other; the coarse/fine mask used to take j = 1
+  # for a coarse/fine face and fill it from the coarse level, and the y-fluxes no longer
+  # canceled (issue 5336).  One-way: measured 6.3e-12; 6.8e-4 before.
+  add_test_anelastic_scalar_advection(AnelasticScalarAdvection_Flat_OneCellWide inputs_flat 30
+      RUNTIME_OPTIONS "amr.max_level=1 'amr.ref_ratio_vect=2 1 2' 'amr.n_cell=32 1 12' amr.blocking_factor=1 'geometry.prob_lo=-1280. -40. 0.' 'geometry.prob_hi=1280. 40. 791.6' erf.refinement_indicators=box1 erf.box1.max_level=1 'erf.box1.in_box_lo_indices_crse=8 0 2' 'erf.box1.in_box_hi_indices_crse=19 0 8' erf.coupling_type=OneWay erf.poisson_reltol=1e-12 erf.poisson_abstol=1e-12"
+      CHECK check_uniform_scalar.py PLOTFILES ${_hill_amr_tol} --require-level)
+  # A refined level of two boxes that meet across the periodic x boundary, one at each end of x:
+  # one region, solved with multigrid on the periodic Geometry.  Before, multigrid solved each box
+  # alone, with a zero-flux face at the boundary (the scalar departed from uniform), and the FFT
+  # paths stopped.
+  set(_flat_wrap "amr.max_level=1 'amr.ref_ratio_vect=2 2 2' 'erf.refinement_indicators=box1 box2' erf.box1.max_level=1 erf.box2.max_level=1 'erf.box1.in_box_lo_indices_crse=0 12 2' 'erf.box1.in_box_hi_indices_crse=7 23 8' 'erf.box2.in_box_lo_indices_crse=24 12 2' 'erf.box2.in_box_hi_indices_crse=31 23 8' amr.grid_eff=1.0 erf.coupling_type=OneWay erf.poisson_reltol=1e-12 erf.poisson_abstol=1e-12")
+  add_test_anelastic_scalar_advection(AnelasticScalarAdvection_Flat_PeriodicWrap inputs_flat 30
+      RUNTIME_OPTIONS "${_flat_wrap}"
+      CHECK check_uniform_scalar.py PLOTFILES ${_hill_amr_tol} --require-level)
   # The other anelastic integrator (the default is RK2)
   add_test_anelastic_scalar_advection(AnelasticScalarAdvection_Hill_MidPoint inputs_hill 30
       RUNTIME_OPTIONS "erf.timestepping_type=MidPoint"
@@ -6929,6 +7355,17 @@ if(NOT WIN32 AND ERF_TEST_PYTHON AND ERF_PRECISION STREQUAL "DOUBLE")
     add_test_anelastic_scalar_advection(AnelasticScalarAdvection_Hill_GmresFFT inputs_hill 30
         RUNTIME_OPTIONS "erf.terrain_poisson_solver=gmres_fft"
         CHECK check_uniform_scalar.py PLOTFILES ${_hill_tol})
+    # The L-shaped refined level on a stretched mesh (level 0 uses the hybrid FFT)
+    add_test_anelastic_scalar_advection(AnelasticScalarAdvection_Stretched_LShaped inputs_flat 30
+        RUNTIME_OPTIONS "${_flat_l} ${_flat_sdz}"
+        CHECK check_uniform_scalar.py PLOTFILES ${_hill_amr_tol} --require-level)
+    # The refined level across the periodic boundary (see above), where level 0 uses the FFT
+    add_test_anelastic_scalar_advection(AnelasticScalarAdvection_Flat_PeriodicWrap_FFT inputs_flat 30
+        RUNTIME_OPTIONS "${_flat_wrap} erf.use_fft=true"
+        CHECK check_uniform_scalar.py PLOTFILES ${_hill_amr_tol} --require-level)
+    add_test_anelastic_scalar_advection(AnelasticScalarAdvection_Stretched_PeriodicWrap inputs_flat 30
+        RUNTIME_OPTIONS "${_flat_wrap} ${_flat_sdz}"
+        CHECK check_uniform_scalar.py PLOTFILES ${_hill_amr_tol} --require-level)
   endif()
 
   # The pseudo-incompressible projection, div(rho0 theta0 u) = 0, solves div(beta grad phi) with
@@ -6950,6 +7387,33 @@ if(NOT WIN32 AND ERF_TEST_PYTHON AND ERF_PRECISION STREQUAL "DOUBLE")
   add_test_anelastic_scalar_advection(PseudoIncompressibleScalarAdvection_Hill_TwoWay inputs_hill 30
       RUNTIME_OPTIONS "${_pi} ${_hill_amr} ${_hill_full}"
       CHECK check_uniform_scalar.py PLOTFILES ${_hill_amr_tol} --require-level)
+  # Map factors that vary in space, two-way, over terrain and on the flat meshes (see the anelastic
+  # cases above).  A pseudo-incompressible level evolves rho with the fluxes of rho S, so the
+  # scalar stays uniform whatever the divergence: the density is checked too (it drifted 1.8e-4
+  # on the flat meshes when the average-down divided by N times the coarse volume)
+  add_test_anelastic_scalar_advection(PseudoIncompressibleScalarAdvection_Hill_TwoWay_VaryingMapFactor inputs_hill 30
+      RUNTIME_OPTIONS "${_pi} ${_hill_amr} ${_hill_full} erf.test_mapfactor_amp=0.2"
+      CHECK check_uniform_scalar.py PLOTFILES ${_hill_amr_tol} --require-level --density)
+  add_test_anelastic_scalar_advection(PseudoIncompressibleScalarAdvection_Flat_PartialDepth_TwoWay_VaryingMapFactor inputs_flat 30
+      RUNTIME_OPTIONS "${_pi} ${_flat_amr} ${_flat_part}"
+      CHECK check_uniform_scalar.py PLOTFILES ${_hill_amr_tol} --require-level --density)
+  add_test_anelastic_scalar_advection(PseudoIncompressibleScalarAdvection_Stretched_PartialDepth_TwoWay_VaryingMapFactor inputs_flat 30
+      RUNTIME_OPTIONS "${_pi} ${_flat_amr} ${_flat_part} ${_flat_sdz}"
+      CHECK check_uniform_scalar.py PLOTFILES ${_hill_amr_tol} --require-level --density)
+  # The L-shaped refined level (see the anelastic case above)
+  add_test_anelastic_scalar_advection(PseudoIncompressibleScalarAdvection_Flat_LShaped inputs_flat 30
+      RUNTIME_OPTIONS "${_pi} ${_flat_l}"
+      CHECK check_uniform_scalar.py PLOTFILES ${_hill_amr_tol} --require-level --density)
+  add_test_anelastic_scalar_advection(PseudoIncompressibleScalarAdvection_Stretched_LShaped_VaryingMapFactor inputs_flat 30
+      RUNTIME_OPTIONS "${_pi} ${_flat_l} ${_flat_sdz} erf.test_mapfactor_amp=0.2"
+      CHECK check_uniform_scalar.py PLOTFILES ${_hill_amr_tol} --require-level --density)
+  # The refined level across the periodic boundary (see the anelastic case above)
+  add_test_anelastic_scalar_advection(PseudoIncompressibleScalarAdvection_Flat_PeriodicWrap inputs_flat 30
+      RUNTIME_OPTIONS "${_pi} ${_flat_wrap}"
+      CHECK check_uniform_scalar.py PLOTFILES ${_hill_amr_tol} --require-level --density)
+  add_test_anelastic_scalar_advection(PseudoIncompressibleScalarAdvection_Stretched_PeriodicWrap_VaryingMapFactor inputs_flat 30
+      RUNTIME_OPTIONS "${_pi} ${_flat_wrap} ${_flat_sdz} erf.test_mapfactor_amp=0.2"
+      CHECK check_uniform_scalar.py PLOTFILES ${_hill_amr_tol} --require-level --density)
   add_test_anelastic_scalar_advection(PseudoIncompressibleScalarAdvection_Inertial_RK2 inputs_inertial 40
       RUNTIME_OPTIONS "${_pi} erf.timestepping_type=RK2 prob.T_0=300"
       CHECK check_inertial_drift.py PLOTFILES)
@@ -6961,11 +7425,15 @@ if(NOT WIN32 AND ERF_TEST_PYTHON AND ERF_PRECISION STREQUAL "DOUBLE")
         RUNTIME_OPTIONS "${_pi} erf.terrain_poisson_solver=gmres_fft"
         CHECK check_uniform_scalar.py PLOTFILES ${_hill_tol})
   endif()
-  # Not yet supported: a refined level that stops inside the domain in z on a terrain-fitted mesh
-  add_test_abort(PseudoIncompressible_Hill_PartialDepth_Abort
-      ${PROJECT_SOURCE_DIR}/Exec/RegTests/AnelasticScalarAdvection inputs_hill
-      "a refined level that stops inside the domain in z is not yet supported"
-      "${_pi} ${_hill_amr} ${_hill_part}")
+  # A refined level over the hill that stops inside the domain in z: its top and bottom faces take
+  # the coarse Omega(rho u), which beta multiplies as on its side faces.  These stopped at the
+  # first projection before.
+  add_test_anelastic_scalar_advection(PseudoIncompressibleScalarAdvection_Hill_PartialDepth inputs_hill 30
+      RUNTIME_OPTIONS "${_pi} ${_hill_amr} ${_hill_part} erf.coupling_type=OneWay"
+      CHECK check_uniform_scalar.py PLOTFILES ${_hill_amr_tol} --require-level --density)
+  add_test_anelastic_scalar_advection(PseudoIncompressibleScalarAdvection_Hill_PartialDepth_TwoWay inputs_hill 30
+      RUNTIME_OPTIONS "${_pi} ${_hill_amr} ${_hill_part}"
+      CHECK check_uniform_scalar.py PLOTFILES ${_hill_amr_tol} --require-level --density)
 endif()
 
 #=============================================================================

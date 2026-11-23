@@ -536,7 +536,7 @@ void erf_substep_NS (int step, int nrk,
                     coeff_Q * (slow_rhs_cons(i,j,k-1,RhoTheta_comp) - temp_rhs_arr(i,j,k-1,RhoTheta_comp)) );
 
             // Explicit part of the vertical flux on each face is beta_1 * Omega. beta_1 on face k
-            // is factored out, and dbeta_1 is how much larger beta_1 is on the neighbouring faces,
+            // is factored out, and dbeta_1 is how much larger beta_1 is on the neighboring faces,
             // which is exactly zero (so the roundoff is that of a scalar beta_1) for uniform beta_s
             Real beta_1      = myhalf * (one - beta_s_a(i,j,k));
             Real dbeta_1_kp1 = myhalf * (one - beta_s_a(i,j,k+1)) - beta_1;

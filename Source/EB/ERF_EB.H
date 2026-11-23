@@ -65,12 +65,14 @@ class eb_ {
      * \param ba BoxArray over which factories are defined.
      * \param dm DistributionMapping for the BoxArray.
      * \param a_eb_level AMReX EB level used to populate factory data.
+     * \param cover_zero_area_faces Cover FC faces with zero CC area fraction.
      */
     void make_all_factories ( int level,
                         amrex::Geometry   const& a_geom,
                         amrex::BoxArray            const& ba,
                         amrex::DistributionMapping const& dm,
-                        amrex::EB2::Level const& a_eb_level);
+                        amrex::EB2::Level const& a_eb_level,
+                        bool cover_zero_area_faces = false);
 
     /**
      * \brief Build only the cell-centered EB factory for the level.
@@ -141,10 +143,12 @@ class eb_ {
      * \param fc_factory Face-centered factory to modify (non-const)
      * \param cc_factory Cell-centered factory to read neighbor states (const)
      * \param idim Direction of face centering (0=x, 1=y, 2=z)
+     * \param cover_zero_area_faces Also cover faces with zero CC area fraction
      */
     void mask_fc_from_cc (amrex::EBFArrayBoxFactory* fc_factory,
                           const amrex::EBFArrayBoxFactory* cc_factory,
-                          int idim);
+                          int idim,
+                          bool cover_zero_area_faces);
 
     #if USE_FC_FACTORY
     //! Return the native AMReX x-face EB factory.

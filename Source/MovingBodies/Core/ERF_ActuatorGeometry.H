@@ -10,7 +10,7 @@
 namespace erf_actuator {
 
 /**
- * Return the height (m) of the centre of face (i,j,k) of the staggered grid dir (0: x face,
+ * Return the height (m) of the center of face (i,j,k) of the staggered grid dir (0: x face,
  * 1: y face, 2: z face): the mean of the four mesh nodes of that face on a stretched or
  * terrain-following mesh (znd, has_znd true), or the nominal height on a uniform-dz mesh:
  * zlo + k dz for a z face (z face k is the bottom face of cell k), zlo + (k + 1/2) dz otherwise.
@@ -36,7 +36,7 @@ amrex::Real face_height (int dir, int i, int j, int k,
 
 /**
  * Return the volume (m^3) attached to face (i,j,k) of the staggered grid dir: half of each
- * neighbouring cell, with the cell volumes dx dy dz detJ on a stretched or terrain-following mesh
+ * neighboring cell, with the cell volumes dx dy dz detJ on a stretched or terrain-following mesh
  * (detJ = 1 otherwise). Reads detj at i-1 (x), j-1 (y) or k-1 (z): detJ needs one ghost cell at a
  * box's low faces.
  */

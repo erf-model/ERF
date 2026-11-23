@@ -56,7 +56,7 @@ planar_sources_supported_for_terrain (TerrainType terrain_type,
  * 20(3), 479–amrex::Real(489.) https://doi.org/amrex::Real(10.1002)/we.2017
  *
  * Consistent with Dyer (1974) formulation from page 57, Chapter 2, Modeling
- * the vertical ABL structure in Modelling of Atmospheric Flow Fields,
+ * the vertical ABL structure in Modeling of Atmospheric Flow Fields,
  * Demetri P Lalas and Corrado F Ratto, January 1996,
  * https://doi.org/amrex::Real(10.1142)/amrex::Real(2975.)
  */
@@ -927,7 +927,7 @@ public:
           read_custom_roughness(lev, fname);
       }
 
-      // The surface layer normalises with ln(zref / z0), so the reference height
+      // The surface layer normalizes with ln(zref / z0), so the reference height
       // must lie above the roughness length in every column.  With the default
       // (the first cell center) a fine mesh over a rough surface can fail this.
       {
@@ -1369,7 +1369,7 @@ public:
    * moisture flux is beta times the potential one. With resistances:
    * erf_surface_moisture::two_source_surface_mixing_ratio of the aerodynamic resistance
    * (from the last u* and Obukhov length; neutral before the first flux), the canopy
-   * resistance with its vapour-deficit factor, the soil resistance and the soil pore air's
+   * resistance with its vapor-deficit factor, the soil resistance and the soil pore air's
    * relative humidity. Needs set_skin_temperature and the averages of this step.
    *
    * @param[in] lev       level index
@@ -1792,7 +1792,7 @@ public:
    *                            canopy's (two_source_surface_mixing_ratio), not from the
    *                            soil-water factor alone:
    *                            the two-stream balance passes true whenever it has a soil type
-   * @param[in] hs              the canopy's vapour-deficit parameter [1/(kg/kg)]; 0 without
+   * @param[in] hs              the canopy's vapor-deficit parameter [1/(kg/kg)]; 0 without
    *                            vegetation
    */
   void set_skin_moisture (const int& lev, const amrex::MultiFab* moisture,
@@ -2030,7 +2030,7 @@ public:
 
   /**
    * Set the surface current on this level from an ocean coupler's current at the cell
-   * centres of the surface.
+   * centers of the surface.
    *
    * The current is rotated from east and north to the grid axes and averaged to the faces.
    * A face takes it where the cells on both sides of it are water (land mask 0) and covered
@@ -2042,11 +2042,11 @@ public:
    * be replaced by a later call.
    *
    * @param[in] lev       level index
-   * @param[in] east      eastward current [m/s], cell-centred on the 2D surface layout
+   * @param[in] east      eastward current [m/s], cell-centered on the 2D surface layout
    * @param[in] north     northward current [m/s], on the layout of east
    * @param[in] covered   nonzero where the ocean covers the cell, on the layout of east;
    *                      null when it covers none, as for the coupled SST
-   * @param[in] cos_alpha cosine of the angle of the grid x axis from east, cell-centred on
+   * @param[in] cos_alpha cosine of the angle of the grid x axis from east, cell-centered on
    *                      the 2D surface layout; null when the grid is aligned with east
    * @param[in] sin_alpha sine of that angle, on the layout of cos_alpha
    */

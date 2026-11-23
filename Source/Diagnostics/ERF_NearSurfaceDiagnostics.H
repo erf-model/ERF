@@ -269,7 +269,7 @@ void fill (amrex::MultiFab& dst,
            amrex::Real missing_value = amrex::Real(-999.0));
 
 // Inputs to the 10 m wind: the surface layer's friction velocity, roughness height
-// and Obukhov length set the speed; the grid-relative wind at the centre of the first
+// and Obukhov length set the speed; the grid-relative wind at the center of the first
 // cell sets the direction; cos_alpha and sin_alpha, where given, turn it earth-relative.
 // Over a moving surface (current_x and current_y given, on the x- and y-faces of the
 // plane k = klo) the speed and direction are those of the wind relative to the surface,

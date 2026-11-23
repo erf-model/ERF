@@ -115,7 +115,8 @@ int check_mean (PlotFileData& pf, Real theta0, Real tol)
 
 int main (int argc, char* argv[])
 {
-    amrex::Initialize(argc, argv);
+    // No ParmParse: argv[1] is a plotfile directory, not an inputs file
+    amrex::Initialize(argc, argv, false);
     int rc = 0;
     {
         if (argc < 4) {

@@ -44,7 +44,7 @@ recompute_p_pi_hse (MultiFab& base_state_mf, const Real l_rdOcp)
  * A copy of bs, a base state of level lev, on the boxes of bs's BoxArray grown laterally by
  * grow, and level lev's heights on the same boxes.
  *
- * The grown boxes overlap where bs's boxes are neighbours; a column they share is built from
+ * The grown boxes overlap where bs's boxes are neighbors; a column they share is built from
  * the same heights in each.  A base state built in their valid cells and copied back from
  * those alone, base_state.ParallelCopy(bs_g, 0, 0, ncomp, IntVect(0,0,ng[2]), bs.nGrowVect()),
  * therefore holds in each of bs's lateral ghost cells (grow = bs's lateral ghost cells) the
@@ -70,7 +70,7 @@ recompute_p_pi_hse (MultiFab& base_state_mf, const Real l_rdOcp)
  * @param[in]  ng     ghost cells of bs_g, z_nd_g and z_cc_g; ng[2] at most bs's vertical ones
  * @param[out] bs_g   the copy
  * @param[out] z_nd_g z_phys_nd[lev] on the grown boxes (nodal)
- * @param[out] z_cc_g the cell-centre heights on the grown boxes, as make_zcc forms them
+ * @param[out] z_cc_g the cell-center heights on the grown boxes, as make_zcc forms them
  */
 void
 ERF::make_base_state_on_grown_boxes (int lev, const MultiFab& bs, int grow, const IntVect& ng,
@@ -296,7 +296,7 @@ ERF::rebuild_base_state (int lev)
  * theta_0 and qv_0 are interpolated from the coarser level; they vary smoothly and are kept.
  * In each column of the valid region and of the lateral ghost cells, the lowest cell
  * of the level is then given the density that puts it in hydrostatic balance with the coarse
- * cell that contains it, integrating from the height of that coarse cell's centre to its own,
+ * cell that contains it, integrating from the height of that coarse cell's center to its own,
  * and the column is integrated upward from there with rebalance_columns.  p_0 and pi_0 follow
  * from the equation of state.  Working in physical heights, this also holds where the fine
  * terrain differs from the coarse terrain.
@@ -344,7 +344,7 @@ ERF::rebuild_base_state_from_coarse (int lev)
     MultiFab z_nd(gba_nd, dm, 1, 0);
     z_nd.ParallelCopy(*z_phys_nd[lev], 0, 0, 1, z_phys_nd[lev]->nGrowVect(), IntVect(0));
 
-    // The coarse cell containing each fine cell: p_0, theta_0, qv_0 and the height of its centre
+    // The coarse cell containing each fine cell: p_0, theta_0, qv_0 and the height of its center
     enum { Pc = 0, Thc, Qvc, Zc, n_crse };
     MultiFab crse(base_state[lev-1].boxArray(), base_state[lev-1].DistributionMap(), n_crse, 1);
     base_state[lev-1].FillBoundary(geom[lev-1].periodicity());
@@ -376,13 +376,13 @@ ERF::rebuild_base_state_from_coarse (int lev)
 
         ParallelFor(slab, [=,RdoCp_d=RdoCp] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
-            // From the coarse cell centre ...
+            // From the coarse cell center ...
             const Real P_lo  = s(i,j,k,Pc);
             const Real Th_lo = s(i,j,k,Thc);
             const Real qv_lo = s(i,j,k,Qvc);
             const Real z_lo  = s(i,j,k,Zc);
 
-            // ... to the centre of this fine cell, at the height rebalance_columns uses
+            // ... to the center of this fine cell, at the height rebalance_columns uses
             const Real z_hi = Real(0.125) * (zna(i,j,k  ) + zna(i+1,j,k  ) + zna(i,j+1,k  ) + zna(i+1,j+1,k  )
                                             +zna(i,j,k+1) + zna(i+1,j,k+1) + zna(i,j+1,k+1) + zna(i+1,j+1,k+1));
             const Real dz = z_hi - z_lo;
@@ -424,7 +424,7 @@ ERF::rebuild_base_state_from_coarse (int lev)
  * is not.
  *
  * The residual is dp_0/dz + rho_0 (1 + qv_0) |g| between vertically adjacent cells of the
- * same grid, with dz the distance between the cell centres (from z_phys_nd), which is the balance
+ * same grid, with dz the distance between the cell centers (from z_phys_nd), which is the balance
  * rebalance_columns and the initializations enforce.  It is checked over the valid region,
  * as compute_max_pressure_gradient_diagnostic does.  The tolerance is the one
  * compute_max_pressure_gradient_diagnostic uses.
@@ -470,7 +470,7 @@ ERF::check_base_state_hse (int lev, const std::string& when, bool abort_if_fail)
 
         ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
-            // Cell-centre heights as rebalance_columns forms them, from the nodal heights
+            // Cell-center heights as rebalance_columns forms them, from the nodal heights
             auto zcc = [&] (int kk) {
                 return Real(0.125) * (zn(i,j,kk  ) + zn(i+1,j,kk  ) + zn(i,j+1,kk  ) + zn(i+1,j+1,kk  )
                                      +zn(i,j,kk+1) + zn(i+1,j,kk+1) + zn(i,j+1,kk+1) + zn(i+1,j+1,kk+1));

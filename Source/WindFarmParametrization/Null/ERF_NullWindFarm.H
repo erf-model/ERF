@@ -7,7 +7,7 @@
 #include <AMReX_Gpu.H>
 
 /**
- * Height above the ground of the horizontal face kf at the centre of column (i,j).  With
+ * Height above the ground of the horizontal face kf at the center of column (i,j).  With
  * z_phys_nd (zp) it is the mean of the four nodes of the face minus that of the bottom face
  * klo; without it, the uniform spacing dz above the domain bottom.  Wind farm hub heights are
  * measured from the ground, as in WindFarm::fill_SMark_multifab*.

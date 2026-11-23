@@ -1,5 +1,6 @@
 #include <ERF_EWP.H>
 #include <ERF_IndexDefines.H>
+#include <ERF_LengthScaleCellSize.H>
 #include <cmath>
 #include <ERF_NumericalConstants.H>
 #include <ERF_Interpolation_1D.H>
@@ -147,7 +148,8 @@ EWP::source_terms_cellcentered (const Geometry& geom,
   get_turb_spec(rotor_rad, hub_height, thrust_coeff_standing,
                   wind_speed, thrust_coeff, power);
 
-  auto dx = geom.CellSizeArray();
+  // dx in place of a dy over one cell, and the reverse (only dz is used as a spacing)
+  auto dx = LengthScaleCellSize(geom);
   Real sigma_0 = Real(1.7)*rotor_rad;
 
   Real d_rotor_rad = rotor_rad;
@@ -190,7 +192,7 @@ EWP::source_terms_cellcentered (const Geometry& geom,
 
             int kk = amrex::min(amrex::max(k, domlo_z), domhi_z);
             int kc = amrex::min(amrex::max(k, domlo_z), domhi_cc);
-            // Cell-centre height above the ground, where the hub height is measured from
+            // Cell-center height above the ground, where the hub height is measured from
             Real z = myhalf * (windfarm_face_height_above_ground(zp, i, j, kc  , domlo_z, dx[2]) +
                                windfarm_face_height_above_ground(zp, i, j, kc+1, domlo_z, dx[2]));
 

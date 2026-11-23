@@ -28,11 +28,11 @@ int bndry_plane_index (int i, int lo, int hi, bool periodic) noexcept
 
 /**
  * Where a fine index sits among the level-0 plane indices along one tangential direction:
- * the two plane indices to blend and the weight on the second.  The plane holds cell-centred
- * values in every direction (the writer averages the face velocities to cell centres), so a
- * cell-centred index and a nodal (face) index are both located by their positions relative
- * to the plane's cell centres.  At level 0 (ratio 1) a cell-centred index is the plane cell
- * itself with zero weight on its neighbour, and node j is the average of plane cells j - 1
+ * the two plane indices to blend and the weight on the second.  The plane holds cell-centered
+ * values in every direction (the writer averages the face velocities to cell centers), so a
+ * cell-centered index and a nodal (face) index are both located by their positions relative
+ * to the plane's cell centers.  At level 0 (ratio 1) a cell-centered index is the plane cell
+ * itself with zero weight on its neighbor, and node j is the average of plane cells j - 1
  * and j, the two cells it separates.  Both indices are brought into the plane's extent, which
  * is the level-0 domain: along a periodic direction they take the periodic image, as the
  * interior cells across the seam do (bndry_plane_index); otherwise they are clamped.

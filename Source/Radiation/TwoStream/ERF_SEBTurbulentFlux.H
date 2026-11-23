@@ -64,7 +64,7 @@ select_seb_flux_origin (bool land_surface_field_present,
  *
  * The selected values go to the valid cells; the halo always holds the fallback.
  * The force-restore update, the residual diagnostic and the seb_hfx/seb_lh outputs
- * read valid cells only. A consumer that needs neighbouring values in the halo must
+ * read valid cells only. A consumer that needs neighboring values in the halo must
  * fill it first (FillBoundary).
  *
  * @param[out] seb_flux           2D SEB field (k = 0), laid out like the level's state

@@ -59,7 +59,7 @@ public:
         SNOWH,     ///< snow depth [m]
         TSLB,      ///< soil temperature, one component per soil layer, top layer first [K]
         SMOIS,     ///< soil moisture, one component per soil layer, top layer first [m3/m3]
-        ZS,        ///< depth of the centre of each soil layer, one column for the level [m]
+        ZS,        ///< depth of the center of each soil layer, one column for the level [m]
         DZS,       ///< thickness of each soil layer, one column for the level [m]
         NumFields
     };
@@ -125,7 +125,7 @@ public:
 
     [[nodiscard]] bool has (int lev, Field id) const { return get(lev, id) != nullptr; }
 
-    /** Depth of the centre of each soil layer [m], top layer first (ZS); empty when not held. */
+    /** Depth of the center of each soil layer [m], top layer first (ZS); empty when not held. */
     [[nodiscard]] const amrex::Vector<amrex::Real>& soil_depth (int lev) const
     {
         AMREX_ALWAYS_ASSERT(lev >= 0 && lev < num_levels());

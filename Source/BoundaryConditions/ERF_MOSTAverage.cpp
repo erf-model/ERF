@@ -5,6 +5,7 @@
 
 #include "ERF_MOSTAverage.H"
 #include "ERF_TileNoZ.H"
+#include "ERF_LengthScaleCellSize.H"
 
 using namespace amrex;
 
@@ -419,7 +420,8 @@ MOSTAverage::make_MOSTAverage_at_level (const int& lev,
     if (include_subgrid_vel) {
         AMREX_ALWAYS_ASSERT_WITH_MESSAGE(dir == 2, "Subgrid velocity correction only for Z faces!");
         Print() << "Subgrid velocity scale correction at level : " << lev << ' ';
-        const auto dxArr = m_geom[lev].CellSizeArray();
+        // dx in place of a dy over one cell, and the reverse
+        const auto dxArr = LengthScaleCellSize(m_geom[lev]);
         Real dx = std::sqrt(dxArr[0]*dxArr[1]);
         if (dx > Real(5000.)) {
             m_Vsg[lev] = Real(0.32) * std::pow(dx/Real(5000.)-1, Real(0.33));
@@ -1116,7 +1118,7 @@ MOSTAverage::set_k_indices_T (const int& lev)
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!(user_zref && read_k),
                                      "Specify erf.most.zref or erf.most.k_arr_in for MOST, not both");
 
-    // Without most.zref the reference is the centre of the first cell above the
+    // Without most.zref the reference is the center of the first cell above the
     // wall, as on every other mesh.  On a terrain-fitted mesh its height above
     // the wall varies by column, so it is filled column by column below
     // (erf-model/ERF#4935).
@@ -1202,7 +1204,7 @@ MOSTAverage::set_k_indices_T (const int& lev)
                 const int cell_step = is_lo_face ? 1 : -1;
                 k_arr(i,j,k) = first_cell;
 
-                // Default: the centre of this column's first cell, half its
+                // Default: the center of this column's first cell, half its
                 // thickness above the wall
                 if (!d_user_zref) {
                     zref_arr(i,j,k) = myhalf * (z_at(i, j, first_cell + 1) - z_at(i, j, first_cell));
@@ -1270,7 +1272,7 @@ MOSTAverage::set_norm_indices_T (const int& lev)
     pp.queryAdd("most.zref",zref_tmp);
     const bool user_zref = (zref_tmp > Real(0));
     if (!user_zref) {
-        // The centre of each column's first cell (erf-model/ERF#4935)
+        // The center of each column's first cell (erf-model/ERF#4935)
         Print() << "erf.most.zref not set: the MOST reference is the center of the first cell above the surface"
                 << std::endl;
         AMREX_ALWAYS_ASSERT_WITH_MESSAGE(m_radius == 0,
@@ -1327,7 +1329,7 @@ MOSTAverage::set_norm_indices_T (const int& lev)
             Real z_top_face  = fourth * ( z_phys_arr(i  ,j  ,k+1) + z_phys_arr(i+1,j  ,k+1)
                                           + z_phys_arr(i  ,j+1,k+1) + z_phys_arr(i+1,j+1,k+1) );
 
-            // Default: the centre of this column's first cell, no displacement
+            // Default: the center of this column's first cell, no displacement
             if (!d_user_zref) {
                 i_arr(i,j,0)    = i;
                 j_arr(i,j,0)    = j;
@@ -1356,7 +1358,7 @@ MOSTAverage::set_norm_indices_T (const int& lev)
 
             Real z_target    = z_bot_face + delta_z;
             k_arr(i,j,0)     = klo;
-            // Fallback if no cell holds the target: the first cell's centre height
+            // Fallback if no cell holds the target: the first cell's center height
             zref_arr(i,j,0)  = myhalf * (z_top_face - z_bot_face);
             for (int lk(klo); lk<=kmax; ++lk) {
                 Real z_lo = fourth * ( z_phys_arr(i_new,j_new  ,lk  ) + z_phys_arr(i_new+1,j_new  ,lk  )
@@ -1402,7 +1404,7 @@ MOSTAverage::set_z_positions_T (const int& lev)
     pp.queryAdd("most.zref",zref_tmp);
     const bool user_zref = (zref_tmp > Real(0));
     if (!user_zref) {
-        // The centre of each column's first cell (erf-model/ERF#4935)
+        // The center of each column's first cell (erf-model/ERF#4935)
         Print() << "erf.most.zref not set: the MOST reference is the center of the first cell above the surface"
                 << std::endl;
         AMREX_ALWAYS_ASSERT_WITH_MESSAGE(m_radius == 0,
@@ -1492,7 +1494,7 @@ MOSTAverage::set_norm_positions_T (const int& lev)
     pp.queryAdd("most.zref",zref_tmp);
     const bool user_zref = (zref_tmp > Real(0));
     if (!user_zref) {
-        // The centre of each column's first cell (erf-model/ERF#4935)
+        // The center of each column's first cell (erf-model/ERF#4935)
         Print() << "erf.most.zref not set: the MOST reference is the center of the first cell above the surface"
                 << std::endl;
         AMREX_ALWAYS_ASSERT_WITH_MESSAGE(m_radius == 0,
@@ -1540,7 +1542,7 @@ MOSTAverage::set_norm_positions_T (const int& lev)
             Real z_bot_face  = fourth * ( z_phys_arr(i  ,j  ,k) + z_phys_arr(i+1,j  ,k)
                                         + z_phys_arr(i  ,j+1,k) + z_phys_arr(i+1,j+1,k) );
 
-            // Default: the centre of this column's first cell, no displacement
+            // Default: the center of this column's first cell, no displacement
             if (!d_user_zref) {
                 Real z_top_face = fourth * ( z_phys_arr(i  ,j  ,k+1) + z_phys_arr(i+1,j  ,k+1)
                                            + z_phys_arr(i  ,j+1,k+1) + z_phys_arr(i+1,j+1,k+1) );

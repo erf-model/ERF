@@ -84,7 +84,8 @@ ERF::make_eb_factories (int lev, const BoxArray& ba, const DistributionMapping& 
         const amrex::EB2::IndexSpace& ebis = amrex::EB2::IndexSpace::top();
         const EB2::Level& eb_level = ebis.getLevel(geom[lev]);
         if (solverChoice.terrain_type == TerrainType::EB) {
-            eb[lev]->make_all_factories(lev, geom[lev], ba, dm, eb_level);
+            eb[lev]->make_all_factories(lev, geom[lev], ba, dm, eb_level,
+                                        solverChoice.ebChoice.eb_cover_zero_area_faces);
         } else if (solverChoice.terrain_type == TerrainType::ImmersedForcing ||
                    solverChoice.buildings_type == BuildingsType::ImmersedForcing) {
             if (use_native_fc_factories()) {
@@ -408,7 +409,17 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
     // holds erf.is_land of the level. Not on a restart: the parent holds the scalar
     // defaults here and the mask is still erf.is_land, and the checkpoint read sets the
     // state and the mask of every level afterwards.
-    if (restart_chkfile.empty()) { fill_seb_from_coarse(lev); }
+    if (restart_chkfile.empty()) {
+        fill_seb_from_coarse(lev);
+        // With erf.radiation.seb_init_skin_from_file the land columns of a level that read
+        // an initial file then start from that file's skin temperature. After the fill:
+        // the level's own file is the finer source. A level with no file keeps the fill,
+        // which reads the parent's skin that was set here a moment ago.
+        init_seb_skin_from_file(lev);
+        // With erf.radiation.seb_init_t_deep_from_file the same for the deep temperature,
+        // from the file's TMN.
+        init_seb_t_deep_from_file(lev);
+    }
 
     // Initialize the non-cons auxiliary tracer only after the host atmospheric
     // density has been initialized from the selected problem configuration.
@@ -641,6 +652,12 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
     // *******************************************************************************************
     init_stuff(lev, ba, dm, vars_new[lev], vars_old[lev], base_state[lev], z_phys_nd[lev]);
 
+    // init_stuff leaves map factors of 1.  A level with no init file of its own takes them from
+    // the coarser level; do that now, as MakeNewLevelFromScratch and RemakeLevel do, so they are
+    // in place for the detJ average-down below (average_down_detJ reads them).  Interp2DArrays,
+    // further down, does it again, to the same values.
+    if (!has_own_init_file(lev)) { interp_mapfac_from_coarse(lev); }
+
     // FillCoarsePatch fills the faces of the new level that touch fluid.  A face between two
     // covered cells it leaves as it is, so start every face at rest, as the initial state of a
     // level made from scratch is there, rather than at init_stuff's placeholder
@@ -697,11 +714,12 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
         //       derived from z_phys_nd, which is not averaged down either, so averaging only
         //       the cell-centered heights made the two disagree inside the refined region.
         //
-        //       detJ IS still averaged down: AverageDownTo weights (rho S) by detJ_cc before
-        //       averaging and divides by it afterwards, so the coarse detJ must be the average
-        //       of the fine detJ for that average-down to telescope and stay conservative.
+        //       detJ IS still averaged down: AverageDownTo weights (rho S) by the cell volume
+        //       detJ_cc/(m_x m_y) before averaging and divides by it afterwards, so the coarse
+        //       volume must be the mean of the fine ones (average_down_detJ) for that
+        //       average-down to telescope, stay conservative and keep a uniform value uniform.
         for (int crse_lev = lev-1; crse_lev >= 0; crse_lev--) {
-            average_down(  *detJ_cc[crse_lev+1],   *detJ_cc[crse_lev], 0, 1, refRatio(crse_lev));
+            average_down_detJ(crse_lev);
 
             //
             // Keep the halo in step with the valid cells we just replaced.  The coarse detJ
@@ -860,14 +878,14 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
         // read from its file, when detJ_cc[lev] still held the init_stuff placeholder
         // of one -- so it stamped 1.0 into the coarse detJ under this level's
         // footprint. Repeat it now that the real fine detJ exists: AverageDownTo
-        // weights (rho S) by detJ_cc before averaging and divides by the coarse detJ
-        // afterwards, so a coarse detJ that is not the average of the fine one
-        // (let alone a placeholder ~9x too large) scales every covered coarse cell
-        // wrongly on the first two-level step.
+        // weights (rho S) by the cell volume detJ_cc/(m_x m_y) before averaging and
+        // divides by the coarse volume afterwards, so a coarse volume that is not the
+        // mean of the fine ones (let alone a placeholder ~9x too large) scales every
+        // covered coarse cell wrongly on the first two-level step.
         if ( (SolverChoice::mesh_type != MeshType::ConstantDz) &&
              (solverChoice.coupling_type == CouplingType::TwoWay) ) {
             for (int crse_lev = lev-1; crse_lev >= 0; crse_lev--) {
-                average_down(*detJ_cc[crse_lev+1], *detJ_cc[crse_lev], 0, 1, refRatio(crse_lev));
+                average_down_detJ(crse_lev);
 
                 // Keep the halo in step with the valid cells we just replaced (see the note on
                 // the first average-down in MakeNewLevelFromCoarse).
@@ -1355,11 +1373,12 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
         //       derived from z_phys_nd, which is not averaged down either, so averaging only
         //       the cell-centered heights made the two disagree inside the refined region.
         //
-        //       detJ IS still averaged down: AverageDownTo weights (rho S) by detJ_cc before
-        //       averaging and divides by it afterwards, so the coarse detJ must be the average
-        //       of the fine detJ for that average-down to telescope and stay conservative.
+        //       detJ IS still averaged down: AverageDownTo weights (rho S) by the cell volume
+        //       detJ_cc/(m_x m_y) before averaging and divides by it afterwards, so the coarse
+        //       volume must be the mean of the fine ones (average_down_detJ) for that
+        //       average-down to telescope, stay conservative and keep a uniform value uniform.
         for (int crse_lev = lev-1; crse_lev >= 0; crse_lev--) {
-            average_down(  *detJ_cc[crse_lev+1],   *detJ_cc[crse_lev], 0, 1, refRatio(crse_lev));
+            average_down_detJ(crse_lev);
 
             // Keep the halo in step with the valid cells we just replaced (see the note on
             // the first average-down in MakeNewLevelFromCoarse).
@@ -1472,7 +1491,7 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
         // reads only the valid region of cons/xvel/yvel/zvel and then deliberately poisons
         // their halos with bogus_large_value (Source/IO/ERF_Checkpoint.cpp -- the only
         // setBndry calls on state in the code).  An old box's interior halo overlaps its
-        // neighbour's valid region, and ParallelCopy intersects the GROWN source box with
+        // neighbor's valid region, and ParallelCopy intersects the GROWN source box with
         // the grown destination boxes with no exclusion and no ordering guarantee between
         // overlapping sources.  Offering those halos would therefore land 1e150 in valid
         // cells of the new grids -- which is how a level-0 regrid on restart used to reach

@@ -231,7 +231,7 @@ ERF::WriteSubvolume (int isub,Vector<std::string> subvol_var_names)
             const int cons_comp = erf_plotfile::plot3d_conserved_component_index(cons_names[i]);
             AMREX_ALWAYS_ASSERT(cons_comp >= 0 && cons_comp < vars_new[lev_for_sub][Vars::cons].nComp());
             // valid cells only: the subvolume lies inside the domain, so every output cell is a
-            // valid source cell, and a ghost cell of a neighbouring box may be out of date
+            // valid source cell, and a ghost cell of a neighboring box may be out of date
             mf.ParallelCopy(vars_new[lev_for_sub][Vars::cons],cons_comp,mf_comp,1,0,0);
             mf_comp++;
         }

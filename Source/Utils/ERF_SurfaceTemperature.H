@@ -36,9 +36,9 @@ struct SurfacePressureResult {
 /**
  * Diagnose pressure at a boundary face from the adjacent atmospheric cell.
  *
- * The state pressure is diagnosed at the cell centre. Adding rho*g*delta_z
+ * The state pressure is diagnosed at the cell center. Adding rho*g*delta_z
  * gives the pressure at the boundary face, where delta_z is the signed
- * distance from the face to the cell centre. The moisture component is read
+ * distance from the face to the cell center. The moisture component is read
  * only when moisture is enabled and present.
  */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
@@ -93,9 +93,9 @@ diagnose_surface_pressure (const amrex::Real rho,
 /**
  * Pressure at a boundary face from the adjacent atmospheric cell state.
  *
- * The state pressure is diagnosed at the cell centre. Adding rho*g*delta_z
+ * The state pressure is diagnosed at the cell center. Adding rho*g*delta_z
  * gives the pressure at the boundary face, where delta_z is the signed
- * distance from the face to the cell centre.
+ * distance from the face to the cell center.
  */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 amrex::Real

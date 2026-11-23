@@ -27,7 +27,7 @@ amrex::Real snapped (amrex::Real b, bool snap) noexcept
 
 /**
  * The face blanking the explicit path zeroes on after the projection (ERF_SlowRhsPost.cpp): the
- * face-centred fraction when the build has it, else the mean of the two cells the face joins.
+ * face-centered fraction when the build has it, else the mean of the two cells the face joins.
  * (io, jo, ko) is the unit vector of the face's direction.
  */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
@@ -52,8 +52,8 @@ amrex::Real face_blank (const amrex::Array4<const amrex::Real>& t, const amrex::
 }
 
 /**
- * A horizontal-momentum face (x or y) and its neighbours as the kernels read them. lo/hi are the
- * neighbouring faces across the other horizontal direction: south/north for an x-face, west/east
+ * A horizontal-momentum face (x or y) and its neighbors as the kernels read them. lo/hi are the
+ * neighboring faces across the other horizontal direction: south/north for an x-face, west/east
  * for a y-face. raw is the unthresholded blanking of the face (raw_face_blank); normal is true
  * when, with the snap, the face joins a solid and a fluid cell (wall-normal).
  */
@@ -64,7 +64,7 @@ struct HorizFace {
 
 /**
  * @param t     Cell blanking (with at least one ghost cell in each direction)
- * @param tf    Face-centred blanking of this direction, or an empty Array4
+ * @param tf    Face-centered blanking of this direction, or an empty Array4
  * @param klo   Lowest cell index of the domain (the face below the domain bottom counts as fluid)
  * @param snap  erf.if_snap_partial_cells
  * @param small eb2.small_volfrac
@@ -90,7 +90,7 @@ HorizFace horiz_face (const amrex::Array4<const amrex::Real>& t, const amrex::Ar
     return f;
 }
 
-/** A z-face and its neighbours as the kernels read them (see HorizFace) */
+/** A z-face and its neighbors as the kernels read them (see HorizFace) */
 struct VertFace {
     amrex::Real t, above, south, north, west, east, raw;
     bool normal;
@@ -113,7 +113,7 @@ VertFace vert_face (const amrex::Array4<const amrex::Real>& t, const amrex::Arra
 }
 
 /**
- * Masks of a horizontal-momentum face (x or y). lo/hi are the neighbouring faces across the
+ * Masks of a horizontal-momentum face (x or y). lo/hi are the neighboring faces across the
  * other horizontal direction: south/north for an x-face, west/east for a y-face.
  */
 struct HorizMasks {
@@ -130,8 +130,8 @@ struct HorizMasks {
  * @param t           Blanking of the face
  * @param below       Blanking of the face below (zero at the domain bottom)
  * @param above       Blanking of the face above
- * @param lo          Blanking of the neighbouring face on the low side across the other direction
- * @param hi          Blanking of the neighbouring face on the high side across the other direction
+ * @param lo          Blanking of the neighboring face on the low side across the other direction
+ * @param hi          Blanking of the neighboring face on the high side across the other direction
  * @param normal_face With the snap, a face joining a solid and a fluid cell (wall-normal)
  * @param use_most    erf.if_use_most
  * @param snap        erf.if_snap_partial_cells
@@ -175,7 +175,7 @@ struct VertMasks {
 /**
  * @param t           Blanking of the face
  * @param above       Blanking of the face above
- * @param south,north,west,east Blanking of the neighbouring z-faces
+ * @param south,north,west,east Blanking of the neighboring z-faces
  * @param above_floor The face is not the domain bottom (k >= 1)
  * @param normal_face With the snap, a face joining a solid and a fluid cell (wall-normal)
  * @param use_most    erf.if_use_most

@@ -90,8 +90,8 @@ ERF::initRayleigh_at_level (const int& lev)
 
 /**
  * Sets the Rayleigh Damping reference profiles at one level from the input sounding
- * (sounding 0), at the cell-centre heights of that level.  The sounding is the one
- * sampled at this level's own cell centres (sounding_at_level), as for the level's
+ * (sounding 0), at the cell-center heights of that level.  The sounding is the one
+ * sampled at this level's own cell centers (sounding_at_level), as for the level's
  * initial state, so that the damping targets are the profile the level starts from.
  * Called from initRayleigh_at_level, before the profiles are copied to the device.  The
  * sounding is already loaded: at start-up by init_only, on a restart by

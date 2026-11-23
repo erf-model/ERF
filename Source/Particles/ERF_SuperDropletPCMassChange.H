@@ -11,7 +11,7 @@
 #ifdef ERF_USE_PARTICLES
 
 /*! \brief Namespace with classes and functions for condensation/evaporation
- *  (liquid <--> vapour) */
+ *  (liquid <--> vapor) */
 namespace SDMassChangeUtils_LV
 {
     /*! \brief Ventilation factor as a function of droplet radius (Bayley et al., 2025, Eq. 3) */
@@ -37,7 +37,7 @@ namespace SDMassChangeUtils_LV
     {
         RT L;         /*!< latent heat of vaporization (condensate) */
         RT K;         /*!< thermal conductivity (condensate) */
-        RT Rv;        /*!< gas constant of air with vapour */
+        RT Rv;        /*!< gas constant of air with vapor */
         RT rho_l;     /*!< density of condensate */
 
         /*! \brief Right-hand-side of the phase change ODE */
@@ -83,7 +83,7 @@ namespace SDMassChangeUtils_LV
     {
         RT L;         /*!< latent heat of vaporization (condensate) */
         RT K;         /*!< thermal conductivity (condensate) */
-        RT Rv;        /*!< gas constant of air with vapour */
+        RT Rv;        /*!< gas constant of air with vapor */
         RT rho_l;     /*!< density of condensate */
 
         /*! \brief Right-hand-side of the phase change ODE */
@@ -796,7 +796,7 @@ namespace SDMassChangeUtils_LV
 }
 
 /*! \brief Namespace with classes and functions for deposition/sublimation
- *  (solid <--> vapour) */
+ *  (solid <--> vapor) */
 namespace SDMassChangeUtils_SV
 {
     /*! \brief Phase change equation (in terms of mass) */
@@ -805,7 +805,7 @@ namespace SDMassChangeUtils_SV
     {
         RT L;       /*!< latent heat of vaporization (condensate) */
         RT K;       /*!< thermal conductivity */
-        RT Rv;      /*!< gas constant of air with vapour */
+        RT Rv;      /*!< gas constant of air with vapor */
         RT rho_ice; /*!< True density of ice */
 
         /*! \brief Compute growth ratio */
@@ -878,7 +878,7 @@ namespace SDMassChangeUtils_SV
                         const RT a_c  /*!< polar radius */ ) const noexcept
         {
             auto phi = a_c / a_a;
-            // The optimiser evaluates both shape branches before selecting one (a sphere,
+            // The optimizer evaluates both shape branches before selecting one (a sphere,
             // phi = 1, divides 0 by 0 in each), so keep every argument in its domain. The
             // abs, min and max leave the selected branch's values unchanged.
             const RT tiny = std::numeric_limits<RT>::min();
@@ -1003,19 +1003,19 @@ namespace SDMassChangeUtils_SV
 
         /*! \brief Ice melt rate dm_ice/dt (Pruppacher-Klett; Seifert-Beheng 2006 Eq. 72).
          *  Negative when melting. Heat conducted from warm air plus latent heat of the
-         *  vapour flux to the 0 degC wet surface, divided by the latent heat of fusion.
+         *  vapor flux to the 0 degC wet surface, divided by the latent heat of fusion.
          *  Reuses capacitance and ventilation. For this functor built with the water
          *  material, L is the latent heat of vaporization, K the air thermal
-         *  conductivity, and Rv the vapour gas constant. */
+         *  conductivity, and Rv the vapor gas constant. */
         AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
         RT meltRate ( const RT a_a,         /*!< equatorial radius */
                       const RT a_c,         /*!< polar radius */
                       const RT a_vterm,     /*!< terminal velocity */
                       const RT a_T,         /*!< temperature */
-                      const RT a_e_inf,     /*!< ambient vapour pressure */
+                      const RT a_e_inf,     /*!< ambient vapor pressure */
                       const RT a_e_sat_wT0, /*!< sat. pressure over water at melting point */
                       const RT a_rhom,      /*!< moist density */
-                      const RT a_D,         /*!< vapour diffusion coeff */
+                      const RT a_D,         /*!< vapor diffusion coeff */
                       const RT a_L_f        /*!< latent heat of fusion */ ) const noexcept
         {
             auto capaci = capacitance(a_a, a_c);

@@ -2,6 +2,7 @@
 #include "ERF_EOS.H"
 #include "ERF_GroundAverageDown.H"
 #include "ERF_IndexDefines.H"
+#include "ERF_LengthScaleCellSize.H"
 #include "ERF_MicrophysicsUtils.H"
 
 #ifdef ERF_USE_PARTICLES
@@ -286,7 +287,7 @@ void SuperDropletsMoist::Copy_State_to_Micro (const MultiFab& a_cons_vars,
 
     // compute saturation ratio for water
     {
-        // Get vapour material properties object for water
+        // Get vapor material properties object for water
         auto& vapour_mat = m_super_droplets->getSpeciesMaterial(Species::Name::H2O);
 
         // Compute saturation ratio
@@ -867,7 +868,9 @@ void SuperDropletsMoist::speciesAccumulation (const MultiFab& a_z_phys_nd)
                          ? m_super_droplets->Geom(lev)
                          : m_geom;
     auto domain = geom.Domain();
-    const auto dx = geom.CellSizeArray();
+    // The mass per column is over a dx by dy footprint, with dx in place of a dy over one
+    // cell, and the reverse
+    const auto dx = LengthScaleCellSize(geom);
     int k_lo = domain.smallEnd(2);
     auto dt = m_dt;
 
@@ -905,7 +908,9 @@ void SuperDropletsMoist::aerosolAccumulation (const MultiFab& a_z_phys_nd)
                          ? m_super_droplets->Geom(lev)
                          : m_geom;
     auto domain = geom.Domain();
-    const auto dx = geom.CellSizeArray();
+    // The mass per column is over a dx by dy footprint, with dx in place of a dy over one
+    // cell, and the reverse
+    const auto dx = LengthScaleCellSize(geom);
     int k_lo = domain.smallEnd(2);
     auto dt = m_dt;
 

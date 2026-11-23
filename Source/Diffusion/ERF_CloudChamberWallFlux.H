@@ -1143,6 +1143,30 @@ scalar_flux_in (const WallFlux& flux, ScalarChannel channel) noexcept
     return amrex::Real(0.0);
 }
 
+// Each panel sees the same adjacent air and pressure. In particular evaluate
+// wet-wall saturation per panel, not at an area-averaged temperature.
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+amrex::Real evaluate_face_scalar_flux_in (
+    const erf_wall_thermodynamics::FaceWall& wall, ScalarChannel channel,
+    const ScalarWallSample& sample, const erf_wall_thermodynamics::TemperatureBandView& bands,
+    int k) noexcept
+{
+    const bool uses_temperature = (channel == ScalarChannel::Heat && wall.heat_is_conductive()) ||
+                                  (channel == ScalarChannel::Vapor && wall.vapor_is_wet());
+    if (!bands.offsets || !uses_temperature) {
+        return scalar_flux_in(evaluate_scalar_flux_in(wall, channel, sample), channel);
+    }
+    const int row = k - bands.k_lo;
+    auto panel_wall = wall;
+    amrex::Real inward = 0;
+    for (int n = bands.offsets[row]; n < bands.offsets[row+1]; ++n) {
+        const auto panel = bands.panels[n];
+        panel_wall.thermal.temperature_K = panel.temperature_K;
+        inward += panel.fraction * scalar_flux_in(evaluate_scalar_flux_in(panel_wall, channel, sample), channel);
+    }
+    return inward;
+}
+
 template <int DIR, bool HIGH>
 AMREX_GPU_HOST_DEVICE
 AMREX_FORCE_INLINE
@@ -1183,7 +1207,8 @@ void apply_face (const amrex::Box& bx,
                  const amrex::Real alpha_T,
                  const amrex::Real alpha_C,
                  const amrex::Real rdOcp,
-                 const bool cloudy)
+                 const bool cloudy,
+                 const erf_wall_thermodynamics::TemperatureBandView bands = {})
 {
     // A tile may belong to an interior BoxArray box. Do not relocate that
     // tile to a global boundary: its Array4 views do not own data there.
@@ -1240,15 +1265,10 @@ void apply_face (const amrex::Box& bx,
             DIR == 2 ? (HIGH ? -1 : 1) : 0
         };
 
-        const WallFlux physical =
-            evaluate_scalar_flux_in(wall, channel, sample);
-        if (!owns(physical, channel)) { return; }
-
+        // Ownership was checked for this face/channel before the launch.
+        const auto inward = evaluate_face_scalar_flux_in(wall, channel, sample, bands, k);
         const ScalarFluxReplacement update =
-            scalar_flux_replacement<DIR,HIGH>(
-                old_flux,
-                scalar_flux_in(physical, channel),
-                dx_inv[DIR]);
+            scalar_flux_replacement<DIR,HIGH>(old_flux, inward, dx_inv[DIR]);
 
         flux(fi,fj,fk,flux_comp) = update.coordinate_flux;
         rhs(i,j,k,quantity) += update.rhs_delta;
@@ -1271,12 +1291,13 @@ inline void apply (const amrex::Box& bx, const amrex::Box& domain,
                    const erf_wall_thermodynamics::Boundary& walls,
                    const amrex::Real alpha_T, const amrex::Real alpha_C,
                    const amrex::Real rdOcp,
-                   const bool cloudy = false)
+                   const bool cloudy = false,
+                   const erf_wall_thermodynamics::SidewallBandViews& bands = {})
 {
-    apply_face<0,false>(bx,domain,quantity,flux_comp,state,prim,base_state,u,v,w,rhs,xflux,yflux,zflux,dx_inv,walls,alpha_T,alpha_C,rdOcp,cloudy);
-    apply_face<0,true >(bx,domain,quantity,flux_comp,state,prim,base_state,u,v,w,rhs,xflux,yflux,zflux,dx_inv,walls,alpha_T,alpha_C,rdOcp,cloudy);
-    apply_face<1,false>(bx,domain,quantity,flux_comp,state,prim,base_state,u,v,w,rhs,xflux,yflux,zflux,dx_inv,walls,alpha_T,alpha_C,rdOcp,cloudy);
-    apply_face<1,true >(bx,domain,quantity,flux_comp,state,prim,base_state,u,v,w,rhs,xflux,yflux,zflux,dx_inv,walls,alpha_T,alpha_C,rdOcp,cloudy);
+    apply_face<0,false>(bx,domain,quantity,flux_comp,state,prim,base_state,u,v,w,rhs,xflux,yflux,zflux,dx_inv,walls,alpha_T,alpha_C,rdOcp,cloudy,bands[0]);
+    apply_face<0,true >(bx,domain,quantity,flux_comp,state,prim,base_state,u,v,w,rhs,xflux,yflux,zflux,dx_inv,walls,alpha_T,alpha_C,rdOcp,cloudy,bands[1]);
+    apply_face<1,false>(bx,domain,quantity,flux_comp,state,prim,base_state,u,v,w,rhs,xflux,yflux,zflux,dx_inv,walls,alpha_T,alpha_C,rdOcp,cloudy,bands[2]);
+    apply_face<1,true >(bx,domain,quantity,flux_comp,state,prim,base_state,u,v,w,rhs,xflux,yflux,zflux,dx_inv,walls,alpha_T,alpha_C,rdOcp,cloudy,bands[3]);
     apply_face<2,false>(bx,domain,quantity,flux_comp,state,prim,base_state,u,v,w,rhs,xflux,yflux,zflux,dx_inv,walls,alpha_T,alpha_C,rdOcp,cloudy);
     apply_face<2,true >(bx,domain,quantity,flux_comp,state,prim,base_state,u,v,w,rhs,xflux,yflux,zflux,dx_inv,walls,alpha_T,alpha_C,rdOcp,cloudy);
 }

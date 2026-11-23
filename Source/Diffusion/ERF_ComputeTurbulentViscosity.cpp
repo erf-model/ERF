@@ -4,12 +4,14 @@
 #include "ERF_SurfaceLayer.H"
 #include "ERF_Constants.H"
 #include "ERF_EddyViscosity.H"
+#include "ERF_LogShear.H"
 #include "ERF_RANSClosure.H"
 #include "ERF_CanopyTurbulence.H"
 #include "ERF_Diffusion.H"
 #include "ERF_PBLModels.H"
 #include "ERF_TileNoZ.H"
 #include "ERF_TerrainMetrics.H"
+#include "ERF_LengthScaleCellSize.H"
 #include "ERF_TerrainDiffusionLimits.H"
 #include "ERF_MoistUtils.H"
 #include "ERF_RichardsonNumber.H"
@@ -46,6 +48,8 @@ void ComputeTurbulentViscosityLES (Vector<std::unique_ptr<MultiFab>>& Tau_lev,
                                    const MultiFab* yvel)
 {
     const GpuArray<Real, AMREX_SPACEDIM> cellSizeInv = geom.InvCellSizeArray();
+    // The filter widths take dx in place of a dy over one cell, and the reverse
+    const GpuArray<Real, AMREX_SPACEDIM> lenInv = LengthScaleInvCellSize(geom);
     const Box& domain = geom.Domain();
 
     Real inv_Pr_t    = turbChoice.Pr_t_inv;
@@ -85,7 +89,7 @@ void ComputeTurbulentViscosityLES (Vector<std::unique_ptr<MultiFab>>& Tau_lev,
         {
             Box bxcc  = mfi.growntilebox(1) & domain;
             // NOTE: the closures deliberately store no subgrid heat flux.  hfx_z (Hfx3)
-            //       is z-nodal, (0,0,1), while the closure's -K dtheta/dz is cell-centred,
+            //       is z-nodal, (0,0,1), while the closure's -K dtheta/dz is cell-centered,
             //       and the theta diffusion of every RK stage overwrites all z-faces (the
             //       surface layer the bottom face) before anything reads them, so the value
             //       written here was both misplaced and unused.  The TKE buoyancy source
@@ -118,8 +122,8 @@ void ComputeTurbulentViscosityLES (Vector<std::unique_ptr<MultiFab>>& Tau_lev,
                 // =====================================================================
                 // 2. GRID SCALE CALCULATION (filter width Δ)
                 // =====================================================================
-                Real dxInv = cellSizeInv[0];
-                Real dyInv = cellSizeInv[1];
+                Real dxInv = lenInv[0];
+                Real dyInv = lenInv[1];
                 Real dzInv = cellSizeInv[2];
                 if (use_terrain_fitted_coords) {
                     dzInv /= Compute_h_zeta_AtCellCenter(i,j,k, cellSizeInv, z_nd_arr);
@@ -197,7 +201,7 @@ void ComputeTurbulentViscosityLES (Vector<std::unique_ptr<MultiFab>>& Tau_lev,
             Box bxcc  = mfi.tilebox();
 
             // NOTE: the closures deliberately store no subgrid heat flux.  hfx_z (Hfx3)
-            //       is z-nodal, (0,0,1), while the closure's -K dtheta/dz is cell-centred,
+            //       is z-nodal, (0,0,1), while the closure's -K dtheta/dz is cell-centered,
             //       and the theta diffusion of every RK stage overwrites all z-faces (the
             //       surface layer the bottom face) before anything reads them, so the value
             //       written here was both misplaced and unused.  The TKE buoyancy source
@@ -214,8 +218,8 @@ void ComputeTurbulentViscosityLES (Vector<std::unique_ptr<MultiFab>>& Tau_lev,
 
             ParallelFor(bxcc, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
-                Real dxInv = cellSizeInv[0];
-                Real dyInv = cellSizeInv[1];
+                Real dxInv = lenInv[0];
+                Real dyInv = lenInv[1];
                 Real dzInv = cellSizeInv[2];
                 if (use_terrain_fitted_coords) {
                     // the terrain grid is only deformed in z for now
@@ -369,8 +373,10 @@ void ComputeTurbulentViscosityLES_EB (Vector<std::unique_ptr<MultiFab>>& Tau_lev
                                   const MultiFab* yvel)
 {
     const GpuArray<Real, AMREX_SPACEDIM> cellSizeInv = geom.InvCellSizeArray();
-    Real dxInv = cellSizeInv[0];
-    Real dyInv = cellSizeInv[1];
+    // The filter widths take dx in place of a dy over one cell, and the reverse
+    const GpuArray<Real, AMREX_SPACEDIM> lenInv = LengthScaleInvCellSize(geom);
+    Real dxInv = lenInv[0];
+    Real dyInv = lenInv[1];
     Real dzInv = cellSizeInv[2];
 
     const Box& domain = geom.Domain();
@@ -517,7 +523,7 @@ void ComputeTurbulentViscosityLES_EB (Vector<std::unique_ptr<MultiFab>>& Tau_lev
                     // the only writer of the SGS heat flux output (the surface layer
                     // overwrites the bottom).  Elsewhere the theta diffusion writes the
                     // face fluxes and the closures do not store a heat flux.  This write
-                    // keeps the z-nodal/cell-centred mismatch noted above; moving the EB
+                    // keeps the z-nodal/cell-centered mismatch noted above; moving the EB
                     // heat-flux output to the EB face fluxes belongs with that diffusion.
                     hfx_x(i,j,k) = zero;
                     hfx_y(i,j,k) = zero;
@@ -646,7 +652,9 @@ void ComputeTurbulentViscosityRANS (int level,
                                     const MultiFab* ib_blank,
                                     bool flat_wall_diss,
                                     Real ib_small_volfrac,
-                                    Real ib_z0)
+                                    Real ib_z0,
+                                    const MultiFab* xvel,
+                                    const MultiFab* yvel)
 {
     const GpuArray<Real, AMREX_SPACEDIM> cellSizeInv = geom.InvCellSizeArray();
     const bool use_SurfLayer = (SurfLayer != nullptr);
@@ -686,6 +694,13 @@ void ComputeTurbulentViscosityRANS (int level,
         // Realizability cap nu_t <= C_r k / S (AL01::realizable_nut); off at 0
         const Real Cr = turbChoice.rans_realizability;
         const bool use_cap = (Cr > zero);
+        // The S of the cap with the log-consistent vertical shear (ERF_LogShear.H), as in the
+        // shear production of k
+        const bool cap_log_shear = use_cap && (turbChoice.rans_shear_stencil == RANSShearStencil::log_law);
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!cap_log_shear || (use_SurfLayer && xvel && yvel),
+            "erf.rans_shear_stencil = log_law needs zlo.type = surface_layer and the velocities of the strain");
+        const int dom_klo = geom.Domain().smallEnd(2);
+        const int dom_khi = geom.Domain().bigEnd(2);
 
         // Clamped divisor: the select is if-converted, so 1/theta_ref runs even
         //   when theta_ref = 0 and would trip fpe_trap_zero (see ERF_SetupDiff.H)
@@ -707,7 +722,7 @@ void ComputeTurbulentViscosityRANS (int level,
                                                                         : Array4<Real const>{};
 
             // NOTE: the closures deliberately store no subgrid heat flux.  hfx_z (Hfx3)
-            //       is z-nodal, (0,0,1), while the closure's -K dtheta/dz is cell-centred,
+            //       is z-nodal, (0,0,1), while the closure's -K dtheta/dz is cell-centered,
             //       and the theta diffusion of every RK stage overwrites all z-faces (the
             //       surface layer the bottom face) before anything reads them, so the value
             //       written here was both misplaced and unused.  The TKE buoyancy source
@@ -728,6 +743,8 @@ void ComputeTurbulentViscosityRANS (int level,
             // closure cannot run with EB terrain (SolverChoice stops the run), so the plain
             // ComputeSmnSmn is the right form here.
             const StrainArrays tau = (use_cap) ? strain_arrays(Tau_lev, mfi) : StrainArrays{};
+            const Array4<Real const>& u_arr = (cap_log_shear) ? xvel->const_array(mfi) : Array4<Real const>{};
+            const Array4<Real const>& v_arr = (cap_log_shear) ? yvel->const_array(mfi) : Array4<Real const>{};
 
             ParallelFor(bxcc, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
@@ -822,7 +839,12 @@ void ComputeTurbulentViscosityRANS (int level,
                 // Realizability cap nu_t <= C_r k / S; cap_ratio = nu_t / (C_r k / S)
                 Real cap_ratio = zero;
                 if (use_cap) {
-                    Real S = std::sqrt(two * ComputeSmnSmn(i,j,k,tau.tau11,tau.tau22,tau.tau33,tau.tau12,tau.tau13,tau.tau23));
+                    Real SmnSmn = ComputeSmnSmn(i,j,k,tau.tau11,tau.tau22,tau.tau33,tau.tau12,tau.tau13,tau.tau23);
+                    if (cap_log_shear && k > dom_klo && k < dom_khi) {
+                        SmnSmn = log_shear::corrected_SmnSmn(i, j, k, SmnSmn, u_arr, v_arr, tau.tau13, tau.tau23,
+                                                             d_arr, z0_arr(i,j,0), z_nd_arr);
+                    }
+                    Real S = std::sqrt(two * SmnSmn);
                     nut = AL01::realizable_nut(nut, tke, S, Cr, cap_ratio);
                 }
                 mu_turb(i, j, k, EddyDiff::RANS_cap_ratio) = cap_ratio;
@@ -850,7 +872,7 @@ void ComputeTurbulentViscosityRANS (int level,
     // With erf.rans_consistent_diffusivities every heat, scalar and moisture
     // diffusivity is rho * cmu' * sqrt(k) * L, i.e. the Theta_v value set by
     // the closure; without it the horizontal heat and all scalar diffusivities
-    // are the eddy viscosity over Pr_t / Sc_t (the historical behaviour).
+    // are the eddy viscosity over Pr_t / Sc_t (the historical behavior).
     const bool consistent = use_KE && turbChoice.rans_consistent_diffusivities;
 
 #ifdef _OPENMP
@@ -1016,7 +1038,8 @@ void ComputeTurbulentViscosity (double dt,
                                       (solverChoice.if_fraction_stress) ? terrain_blank : nullptr,
                                       solverChoice.if_flat_wall_dissipation,
                                       solverChoice.if_small_volfrac,
-                                      solverChoice.if_z0);
+                                      solverChoice.if_z0,
+                                      &xvel, &yvel);
     }
 
     if (turbChoice.pbl_type == PBLType::MYJ) {
@@ -1176,7 +1199,7 @@ void ComputeTurbulentViscosity (double dt,
             });
             //
             // Edge and corner ghost cells at a C/F boundary are skipped above when every face
-            // neighbour toward the valid box is itself a C/F ghost cell, e.g. (i_lo-1,j_lo-1).
+            // neighbor toward the valid box is itself a C/F ghost cell, e.g. (i_lo-1,j_lo-1).
             // Fill these from a cell that is valid at this level (in this grid or another),
             // stepping toward the valid box in two directions (xy, xz, yz) before all three.
             // The sources are never written in this block, and taking covered cells as well as

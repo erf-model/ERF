@@ -39,10 +39,10 @@
     // rather than a zero-mean perturbation.
     Real pert_deltaT    = amrex::Real(0); pp_prob.query("pert_deltaT", pert_deltaT);
 
-    // Optional warm bubble, made as WRF's idealized fire initialisation makes it
+    // Optional warm bubble, made as WRF's idealized fire initialization makes it
     // (module_initialize_fire.F: delt_perturbation, x/y/zrad_perturbation, hght_perturbation):
     // theta += bubble_dT cos^2(pi r / 2) for r = |((x-x_c)/x_r, (y-y_c)/y_r, (z-z_c)/z_r)| <= 1,
-    // with z the cell-centre height z_cc (the same height the other perturbations here use).
+    // with z the cell-center height z_cc (the same height the other perturbations here use).
     // bubble_dT = 0 (the default) adds no bubble.
     Real bubble_dT  = amrex::Real(0);
     const bool bubble_dT_given = pp_prob.query("bubble_dT", bubble_dT);

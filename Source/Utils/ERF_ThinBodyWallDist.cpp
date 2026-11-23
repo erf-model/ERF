@@ -60,7 +60,7 @@ thinbody_wall_dist (std::unique_ptr<MultiFab>& wdist,
                     Real y1  = prob_lo[1] + (jj+1)         * dx[1];
                     Real z0  = prob_lo[2] +  kk            * dx[2];
                     Real z1  = prob_lo[2] + (kk+1)         * dx[2];
-                    // Nearest point of the face: the cell centre clamped onto the rectangle
+                    // Nearest point of the face: the cell center clamped onto the rectangle
                     Real yn  = amrex::min(amrex::max(yr, y0), y1);
                     Real zn  = amrex::min(amrex::max(zr, z0), z1);
                     Real wd2 = wd_arr(i, j, k) * wd_arr(i, j, k);
@@ -77,7 +77,7 @@ thinbody_wall_dist (std::unique_ptr<MultiFab>& wdist,
                     Real x1  = prob_lo[0] + (ii+1)         * dx[0];
                     Real z0  = prob_lo[2] +  kk            * dx[2];
                     Real z1  = prob_lo[2] + (kk+1)         * dx[2];
-                    // Nearest point of the face: the cell centre clamped onto the rectangle
+                    // Nearest point of the face: the cell center clamped onto the rectangle
                     Real xn  = amrex::min(amrex::max(xr, x0), x1);
                     Real zn  = amrex::min(amrex::max(zr, z0), z1);
                     Real wd2 = wd_arr(i, j, k) * wd_arr(i, j, k);
@@ -94,7 +94,7 @@ thinbody_wall_dist (std::unique_ptr<MultiFab>& wdist,
                     Real x1  = prob_lo[0] + (ii+1)         * dx[0];
                     Real y0  = prob_lo[1] +  jj            * dx[1];
                     Real y1  = prob_lo[1] + (jj+1)         * dx[1];
-                    // Nearest point of the face: the cell centre clamped onto the rectangle
+                    // Nearest point of the face: the cell center clamped onto the rectangle
                     Real xn  = amrex::min(amrex::max(xr, x0), x1);
                     Real yn  = amrex::min(amrex::max(yr, y0), y1);
                     Real wd2 = wd_arr(i, j, k) * wd_arr(i, j, k);

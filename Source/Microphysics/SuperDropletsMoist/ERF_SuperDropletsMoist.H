@@ -3,6 +3,7 @@
 
 #ifdef ERF_USE_PARTICLES
 
+#include <fstream>
 #include <limits>
 #include <string>
 #include <AMReX_Enum.H>
@@ -19,8 +20,8 @@ namespace MicVar_SD {
         theta,       /*!< Potential temperature */
         temperature, /*!< Temperature */
         pressure,    /*!< Pressure */
-        q_t,         /*!< Total (vapour + cloud) */
-        q_v,         /*!< Water vapour */
+        q_t,         /*!< Total (vapor + cloud) */
+        q_v,         /*!< Water vapor */
         q_c,         /*!< Liquid water */
         q_i,         /*!< Ice */
         q_r,         /*!< Rain */
@@ -40,7 +41,7 @@ namespace MicVar_SD {
 namespace MicVar_SD_Species {
     enum {
         q_t = 0,    /*!< Total density ratio */
-        q_v,        /*!< Vapour density ratio */
+        q_v,        /*!< Vapor density ratio */
         q_c,        /*!< Condensate density ratio */
         sr,         /*!< Saturation ratio */
         accum,      /*!< Ground accumulation */
@@ -183,6 +184,9 @@ class SuperDropletsMoist : public NullMoistLagrangian {
                                   const amrex::Real&,
                                   const amrex::Vector<MFPtr>&,
                                   const int) override;
+
+        /*! Sample owned particles across levels (public for CUDA extended lambdas). */
+        void sampleDSDProbes (int step, amrex::Real time, const amrex::Vector<MFPtr>& z_nd);
 
         void Advance ( const amrex::Real&, const SolverChoice& ) override
         {
@@ -531,6 +535,21 @@ class SuperDropletsMoist : public NullMoistLagrangian {
 
         int m_diagnostics_iter; /*!< number of iterations between computing diagnostics */
 
+        struct DSDProbe {
+            std::string name;
+            bool by_cell = false;
+            amrex::IntVect cell{0}; // level 0
+            amrex::GpuArray<amrex::Real,3> lo{}, hi{}; // physical meters
+            amrex::Vector<double> edges; // liquid-water-equivalent radii, meters
+            bool write_mass = false;
+            amrex::Gpu::DeviceVector<double> device_edges, histogram;
+            amrex::Vector<double> sums;
+            std::ofstream output; // only opened on the I/O rank
+        };
+        amrex::Vector<DSDProbe> m_dsd_probes;
+        int m_dsd_probe_interval = 1;
+        void readDSDProbes ();
+
         /*! name of model and its particle container */
         std::string m_name;
         /*! Geometry object */
@@ -555,7 +574,7 @@ class SuperDropletsMoist : public NullMoistLagrangian {
         /*! current AMR level being processed */
         mutable int m_current_lev = 0;
 
-        /*! names of vapour/condensate species */
+        /*! names of vapor/condensate species */
         std::vector<Species::Name> m_species;
         int m_num_species;
 

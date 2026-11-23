@@ -160,7 +160,7 @@ TwoStreamFaceSky two_stream_face_sky (int i, int j, int k, int k0, int dir, int 
     const amrex::Real sw_dn  = w_lo * fluxes(i, j, k0 + ms, 1) + w_up * fluxes(i, j, k0 + mu, 1);
     TwoStreamFaceSky s;
     const amrex::Real cz = cosz(i, j, 0);
-    // Both operands valid in both arms: an optimiser may evaluate the division
+    // Both operands valid in both arms: an optimizer may evaluate the division
     // before the selection, and 0 / 0 at night would raise the invalid flag.
     s.dni     = (cz > amrex::Real(0.0)) ? beam_h / (cz + std::numeric_limits<amrex::Real>::min()) : amrex::Real(0.0);
     s.diffuse = (sw_dn - beam_h > amrex::Real(0.0)) ? sw_dn - beam_h : amrex::Real(0.0);
@@ -234,7 +234,7 @@ GroundWallTerms two_stream_ground_wall_terms (amrex::Real sw_net, amrex::Real sw
                                               amrex::Real sw_walls, amrex::Real lw_walls, amrex::Real lw_down,
                                               amrex::Real absorb_dif, amrex::Real emis) noexcept
 {
-    // The divisor is at least 1 whatever the share: an optimiser that forms both sides of
+    // The divisor is at least 1 whatever the share: an optimizer that forms both sides of
     // a choice would otherwise divide by a share of zero, which traps where traps are on.
     const amrex::Real whole = (wall_view > amrex::Real(1.0)) ? wall_view : amrex::Real(1.0);
     const amrex::Real c = amrex::Real(1.0) / whole;

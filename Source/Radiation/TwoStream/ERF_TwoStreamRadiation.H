@@ -216,7 +216,7 @@ public:
      * of the current q_s); with erf.radiation.seb_soil_type, the bare-soil resistance and
      * the relative humidity of its pore air at the skin temperature; and
      * with erf.radiation.seb_vegetation_type as well, the vegetated fraction and the canopy
-     * resistance without its vapour-deficit factor (from the net shortwave the balance
+     * resistance without its vapor-deficit factor (from the net shortwave the balance
      * holds divided by (1 - surface albedo) -- the sweep's with seb_use_radiation_fluxes,
      * seb_sw_flux_default otherwise -- and the skin temperature). Absent pieces are a
      * fraction of 0 and resistances of 1e6 s/m. nullptr
@@ -229,9 +229,11 @@ public:
      * @brief Every field of the force-restore state of @p lev that evolves and so must
      * survive a regrid, be filled from the coarse level on a new level and be averaged
      * down: t_sfc and q_sfc; with erf.radiation.seb_deep_prognostic_enable, t_deep and
-     * q_deep; with the hydrology, its running totals (several components); with the snow
-     * layer, its water equivalent and totals. Empty when the
-     * state is not evolved. Each is a 2D field (k = 0) on the level's horizontal grids.
+     * q_deep; with erf.radiation.seb_init_t_deep_from_file, t_deep (it does not evolve
+     * then, but it differs from column to column); with the hydrology, its running totals
+     * (several components); with the snow layer, its water equivalent and totals. Empty
+     * when the state is not evolved. Each is a 2D field (k = 0) on the level's horizontal
+     * grids.
      */
     [[nodiscard]] amrex::Vector<amrex::MultiFab*> seb_prognostic_fields (int lev);
 
@@ -255,6 +257,29 @@ public:
      * view (every pointer nullptr) when the force-restore state is not evolved there.
      */
     [[nodiscard]] ForceRestoreSoil force_restore_soil (int lev) const;
+
+    /**
+     * @brief True when the deep temperature is part of the state: it evolves
+     * (erf.radiation.seb_deep_prognostic_enable) or it was set per column from the initial
+     * file (erf.radiation.seb_init_t_deep_from_file). It is then not reset to
+     * erf.radiation.seb_t_deep_default at a radiation step, it is one of
+     * seb_prognostic_fields and it is written to the checkpoint and read back.
+     */
+    [[nodiscard]] bool seb_t_deep_is_state () const {
+        return active() && m_rad->seb_enable &&
+               (m_rad->seb_deep_prognostic_enable ||
+                (m_rad->seb_prognostic_enable && m_rad->seb_init_t_deep_from_file));
+    }
+
+    /**
+     * @brief The deep temperature [K] of @p lev for ERF::init_seb_t_deep_from_file to
+     * write, or nullptr when it is not part of the state (seb_t_deep_is_state) or the
+     * level has not been built.
+     */
+    [[nodiscard]] amrex::MultiFab* seb_t_deep_state (int lev) {
+        return (seb_t_deep_is_state() && lev >= 0 && lev < static_cast<int>(m_t_deep.size()))
+               ? m_t_deep[lev].get() : nullptr;
+    }
 
     /** @brief The deep temperature [K] and column water content of @p lev, or nullptr. Read-only: for output. */
     [[nodiscard]] const amrex::MultiFab* seb_t_deep (int lev) const {
@@ -374,7 +399,7 @@ public:
      * Call after define_level(); a later define_level() of the level drops it.
      *
      * @param lev      level, which must have been defined
-     * @param blanking the level's cell-centred blanking (ERF::terrain_blanking), on the
+     * @param blanking the level's cell-centered blanking (ERF::terrain_blanking), on the
      *                 state's grids: 0 in the air, 1 inside a building
      * @param domain   the level's domain Box; its bottom cell is the ground's
      * @param take_ground_walls also take, at the update after the dycore, what the walls
@@ -527,7 +552,7 @@ private:
         // False until a column sweep has filled this level's entry. The post-dycore call
         // reports the cached values rather than sweeping again, and a level whose
         // pre-dycore sweep was skipped -- the interp-from-coarse-pending path, which
-        // returns before the sweep -- would otherwise report the zero-initialised struct
+        // returns before the sweep -- would otherwise report the zero-initialized struct
         // as though the fluxes really were zero.
         bool valid = false;
         amrex::Real SW_surface = 0.0;
@@ -563,7 +588,8 @@ private:
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> m_q_sfc;       // surface moisture, prognostic (see RadChoice::seb_q_sfc_default)
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> m_t_deep;      // deep-soil temperature [K]
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> m_q_deep;      // deep-soil moisture q_s restores to
-    // (both constant at their defaults unless erf.radiation.seb_deep_prognostic_enable)
+    // (both constant at their defaults unless erf.radiation.seb_deep_prognostic_enable; the
+    // deep temperature is also kept per column with erf.radiation.seb_init_t_deep_from_file)
     ForceRestorePrecipRate m_precip;                                // rain and snowfall of the step (ERF_ForceRestorePrecipRate.H)
     ForceRestoreHydrology m_hydro;                                  // rain, runoff, drainage (ERF_ForceRestoreHydrologyState.H)
     ForceRestoreSnow m_snow;                                        // snow water equivalent (ERF_ForceRestoreSnowState.H)

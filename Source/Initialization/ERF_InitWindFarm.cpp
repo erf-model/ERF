@@ -7,7 +7,7 @@ using namespace amrex;
 
 /**
  * Read in the turbine locations in latitude-longitude from windturbines.txt
- * and convert it into x and y coordinates in metres
+ * and convert it into x and y coordinates in meters
  *
  * @param lev Integer specifying the current level
  */
@@ -97,7 +97,7 @@ ERF::fill_windfarm_markers (int lev)
  * @param mf_Nturb MultiFab storing turbine counts
  * @param mf_SMark MultiFab storing source-marker data
  * @param z_phys_nd Physical heights of the nodes (may be null)
- * @param z_phys_cc Physical heights of the cell centres (may be null)
+ * @param z_phys_cc Physical heights of the cell centers (may be null)
  * @param time Current simulation time
  */
 void

@@ -228,7 +228,7 @@ amrex::Real seb_moisture_availability (amrex::Real q_s,
 }
 
 /**
- * @brief Canopy resistance to transpiration [s/m] without its vapour-deficit factor.
+ * @brief Canopy resistance to transpiration [s/m] without its vapor-deficit factor.
  *
  * Noah's big-leaf Jarvis form (Chen et al. 1996) on the parameters and floors of Noah-MP's
  * canopy-resistance option 2 (ResistanceCanopyStomataJarvisMod). Noah-MP itself applies
@@ -241,7 +241,7 @@ amrex::Real seb_moisture_availability (amrex::Real q_s,
  *   F_sw = (f + RS/RSMAX) / (1 + f),  f = 0.55 * 2 SW_down / (RGL * LAI),
  *   F_T  = 1 - 0.0016 (TOPT - T)^2,
  *
- * F_soil the soil-water factor (seb_moisture_availability) and F_vpd the vapour-deficit
+ * F_soil the soil-water factor (seb_moisture_availability) and F_vpd the vapor-deficit
  * factor, which needs the air's humidity and is applied by the surface layer
  * (erf_surface_moisture::vapour_deficit_factor); this returns r_c * F_vpd. F_sw and F_T
  * are floored at 1e-4 as in Noah-MP, F_soil at 1e-6 (Noah-MP's MinThr).
@@ -275,7 +275,7 @@ amrex::Real seb_canopy_resistance_without_vpd (amrex::Real rs_min, amrex::Real r
 
 /**
  * @brief Resistance of bare soil to evaporation [s/m], Noah-MP's ground-evaporation option 1
- * (Sakaguchi and Zeng 2009; ResistanceGroundEvaporationMod): vapour diffuses through a dry
+ * (Sakaguchi and Zeng 2009; ResistanceGroundEvaporationMod): vapor diffuses through a dry
  * surface layer whose thickness grows as the top soil dries,
  *
  *   d_dry = d1 (exp((1 - min(1, theta/theta_sat))^p) - 1) / (e - 1),

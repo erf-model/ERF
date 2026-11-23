@@ -717,7 +717,7 @@ ERF::compute_tag_field (int levc, const std::string& field, Real time, MultiFab&
         // [levc, finest_level] and averaged down level-by-level so that
         // a signal present only on a finer level still triggers
         // refinement at the coarser level being tagged.  Without this,
-        // particles localised at level 1 would not register at level 0
+        // particles localized at level 1 would not register at level 0
         // and the fine grid would disappear at the next regrid.
         //
         const auto& particles_namelist( particleData.getNames() );

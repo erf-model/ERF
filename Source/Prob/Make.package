@@ -1,4 +1,5 @@
 CEXE_headers += ERF_InitDensityHSE.H
+CEXE_headers += ERF_CloudChamberTemperatureBands.H
 CEXE_headers += ERF_InitCustomPert.H
 CEXE_headers += ERF_InitRayleighDamping.H
 CEXE_headers += ERF_MoistPerturbation.H

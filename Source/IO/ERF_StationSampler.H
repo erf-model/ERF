@@ -36,7 +36,7 @@
 // four.  A station may instead be placed with .x/.y in domain coordinates, which
 // is the only option for a run that has no lat/lon arrays.  The heights apply to
 // every location of the station and are given one way or the other, never both:
-// .height_agl is metres above the local terrain, .height_abs is metres in the
+// .height_agl is meters above the local terrain, .height_abs is meters in the
 // model's own vertical coordinate, the same z as geometry.prob_lo/prob_hi.
 //
 // The variable names accepted are the 3D plotfile variables and the built-in 2D
@@ -87,9 +87,9 @@ struct StationVar
 //
 // Bilinear interpolation of the four values around a station, with weights
 // (1-wx)(1-wy), wx(1-wy), (1-wx)wy and wx*wy.  A value equal to missing_value, or
-// not finite, is left out and the weights of the others are renormalised, so a
-// missing neighbour cannot be blended in as a number; missing_value is returned
-// only when every neighbour with a nonzero weight is missing.
+// not finite, is left out and the weights of the others are renormalized, so a
+// missing neighbor cannot be blended in as a number; missing_value is returned
+// only when every neighbor with a nonzero weight is missing.
 //
 inline amrex::Real
 station_bilinear_skip_missing (amrex::Real v00, amrex::Real v10,
@@ -150,7 +150,7 @@ struct StationLoc
                                           // reads, which is as high as the chosen
                                           // level is known to cover the stencil
 
-    // Height of the chosen level's first cell centre above the zero the requested
+    // Height of the chosen level's first cell center above the zero the requested
     // heights are measured from; a requested height below it is sampled there
     amrex::Real first_cc_height = amrex::Real(0.0);
 
@@ -175,7 +175,7 @@ struct Station
     std::string name;
     amrex::Vector<StationVar>  vars;
     amrex::Vector<StationLoc>  locs;
-    // The requested heights, in metres, and what they are measured from.  The
+    // The requested heights, in meters, and what they are measured from.  The
     // two input keys collapse to one list here: which one was given only decides
     // where the column's zero is, and that is a single flag rather than two
     // lists everything downstream would have to choose between.
@@ -235,7 +235,7 @@ public:
     // cannot produce as a constant missing column instead of stopping the run
     [[nodiscard]] bool allowUnavailable () const { return m_allow_unavailable; }
 
-    // A height below the first cell centre is honored by clamping, which is
+    // A height below the first cell center is honored by clamping, which is
     // worth saying once and not once per output step.
     [[nodiscard]] bool lowHeightWarned () const { return m_low_height_warned; }
     void setLowHeightWarned () { m_low_height_warned = true; }
