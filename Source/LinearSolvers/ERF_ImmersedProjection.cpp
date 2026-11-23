@@ -1,8 +1,8 @@
 /**
  * \file ERF_ImmersedProjection.cpp
  *
- * Implicit immersed-forcing drag in the anelastic projection (erf.if_implicit_projection,
- * erf-model/ERF#4919 for terrain, #4887 for buildings).
+ * Implicit immersed-forcing drag in the projection of an anelastic or pseudo-incompressible level
+ * (erf.if_implicit_projection, erf-model/ERF#4919 for terrain, #4887 for buildings).
  *
  * The terrain immersed forcing drags the momentum of the solid faces toward zero at the rate
  * rate = beta_face * if_Cd_momentum / (dx dy dz)^(1/3). Applied explicitly, the drag is undone by
@@ -25,11 +25,12 @@
  *       the terrain Poisson multigrid, with sigma in its face area factors
  *       (ERF::project_momenta); a region that is not a rectangle goes to solve_with_flat_mlmg
  *       with the same area factors (erf-model/ERF#5332).
- * On a pseudo-incompressible level the projected momentum is m = beta (rho u) with
- * beta = rho0 theta0 / rho on the faces, and the two coefficients multiply:
+ * On a pseudo-incompressible level the projected momentum is m = beta_pi (rho u) with
+ * beta_pi = rho0 theta0 / rho on the faces (pi_beta in ERF::project_momenta; not the solid
+ * fraction beta_face of the rate above), and the two coefficients multiply:
  *
- *     m^{n+1} = sigma (m* - beta grad phi),
- *     div(sigma beta grad phi) = div(sigma m*) - S,
+ *     m^{n+1} = sigma (m* - beta_pi grad phi),
+ *     div(sigma beta_pi grad phi) = div(sigma m*) - S,
  *
  * with phi the pressure correction times dt as above, and S the source term of the
  * pseudo-incompressible constraint, which sigma does not multiply.

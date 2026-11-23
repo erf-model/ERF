@@ -379,16 +379,16 @@ variable-coefficient equation follows the mesh
 
 - constant :math:`\Delta z`, map factors of one, an anelastic level, a build with FFT and every
   refined region a rectangle: GMRES, preconditioned by the FFT Poisson solve;
-- constant :math:`\Delta z`, map factors of one and an anelastic level, in a build without FFT or with a refined region
-  that is not a rectangle: geometric multigrid with :math:`\sigma` as its face coefficient;
+- constant :math:`\Delta z`, map factors of one and an anelastic level, in a build without FFT
+  or with a refined region that is not a rectangle: geometric multigrid with :math:`\sigma` as
+  its face coefficient;
 - stretched :math:`\Delta z`, map factors other than one (on level 0 or on a refined level), or
   a pseudo-incompressible level: the multigrid of the
   terrain Poisson solver, which takes :math:`\sigma` through its face area factors. A refined
   region that is not a rectangle is solved with the multigrid for such regions on a flat mesh
   (`erf-model/ERF#5332 <https://github.com/erf-model/ERF/pull/5332>`_), which takes the same
-  area factors. On
-  a stretched mesh every projection of the level uses these solvers, also the ones without the
-  drag (the initial projection, and after a regrid), so no FFT is needed.
+  area factors. On a stretched mesh every projection of the level uses these solvers, also the
+  ones without the drag (the initial projection, and after a regrid), so no FFT is needed.
 
 The choice follows the build and the mesh, not ``erf.use_fft``. Refined regions that meet
 across a periodic boundary are solved as one region with multigrid on the level's periodic
@@ -402,18 +402,19 @@ have their own projection, which does not take :math:`\sigma`. The option is ref
 when the inputs are read.
 
 On a pseudo-incompressible level (:ref:`PseudoIncompressibleEquations`) the projection acts on
-:math:`m = \beta\,(\rho\mathbf{u})` with :math:`\beta = \rho_0\theta_0/\rho` on the faces, and
-the two coefficients multiply:
+:math:`m = \beta_{pi}\,(\rho\mathbf{u})` with :math:`\beta_{pi} = \rho_0\theta_0/\rho` on the
+faces. This is the coefficient written :math:`\beta` in that section; the subscript keeps it apart
+from the solid fraction :math:`\beta_f` of the drag rate. The two coefficients multiply:
 
 .. math::
 
-    m^{n+1} = \sigma\left(m^* - \beta\,\nabla\phi\right), \qquad
-    \nabla\cdot\left(\sigma\beta\,\nabla\phi\right) =
+    m^{n+1} = \sigma\left(m^* - \beta_{pi}\,\nabla\phi\right), \qquad
+    \nabla\cdot\left(\sigma\beta_{pi}\,\nabla\phi\right) =
     \nabla\cdot\left(\sigma m^*\right) - S,
 
 with :math:`\phi` as above (the pressure correction times :math:`\Delta t`) and :math:`S` the
-source term of the pseudo-incompressible constraint, which :math:`\sigma` does not multiply. The solid faces are not
-zeroed afterwards, so :math:`\rho\theta` stays at :math:`\rho_0\theta_0` in the cells next to the
+source term of the pseudo-incompressible constraint, which :math:`\sigma` does not multiply. The
+solid faces are not zeroed afterwards, so :math:`\rho\theta` stays at :math:`\rho_0\theta_0` in the cells next to the
 solid as it does elsewhere. The ``ImmersedBuildingHeatBalance_PseudoIncompressible`` tests check
 this: after 20 steps :math:`\max|\rho\theta - \rho_0\theta_0| / (\rho_0\theta_0)` is
 :math:`6 \times 10^{-11}` with the drag in the projection and :math:`4 \times 10^{-2}` with the

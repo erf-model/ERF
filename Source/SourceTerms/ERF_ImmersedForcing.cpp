@@ -106,7 +106,8 @@ void ImmersedForcingTerrain_Xmom (const Box& tbx,
     const Real tiny = std::numeric_limits<amrex::Real>::epsilon();
     const Real U_s = one; // unit velocity scale
     const bool l_implicit_drag = solverChoice.if_implicit_drag;
-    // erf.if_implicit_projection: the drag of the solid is applied inside the anelastic projection
+    // erf.if_implicit_projection: the drag of the solid is applied inside the projection
+    // (anelastic and pseudo-incompressible levels)
     const bool l_drag = !l_drag_in_projection;
 
     // MOST parameters (the similarity functions from erf.most.stable_functions)
@@ -231,7 +232,8 @@ void ImmersedForcingTerrain_Ymom (const Box& tby,
     const Real tiny = std::numeric_limits<amrex::Real>::epsilon();
     const Real U_s = one; // unit velocity scale
     const bool l_implicit_drag = solverChoice.if_implicit_drag;
-    // erf.if_implicit_projection: the drag of the solid is applied inside the anelastic projection
+    // erf.if_implicit_projection: the drag of the solid is applied inside the projection
+    // (anelastic and pseudo-incompressible levels)
     const bool l_drag = !l_drag_in_projection;
 
     // MOST parameters (the similarity functions from erf.most.stable_functions)
@@ -440,7 +442,8 @@ void ImmersedForcingTerrain_HorizMom_FractionStress (const Box& tb,
     const Real alpha_m = solverChoice.if_Cd_momentum;
     const Real z0      = solverChoice.if_z0;
     const bool l_implicit_drag = solverChoice.if_implicit_drag;
-    // erf.if_implicit_projection: the drag of the solid is applied inside the anelastic projection
+    // erf.if_implicit_projection: the drag of the solid is applied inside the projection
+    // (anelastic and pseudo-incompressible levels)
     const bool l_drag = !l_drag_in_projection;
     const Real tiny  = std::numeric_limits<Real>::epsilon();
     const Real small = solverChoice.if_small_volfrac;
@@ -656,7 +659,8 @@ void ImmersedForcingTerrain_Zmom (const Box& tbz,
     const Real alpha_m = solverChoice.if_Cd_momentum;
     const Real tiny = std::numeric_limits<amrex::Real>::epsilon();
     const bool l_implicit_drag = solverChoice.if_implicit_drag;
-    // erf.if_implicit_projection: the drag of the solid is applied inside the anelastic projection
+    // erf.if_implicit_projection: the drag of the solid is applied inside the projection
+    // (anelastic and pseudo-incompressible levels)
     const bool l_drag = !l_drag_in_projection;
 
     const Real small_volfrac = solverChoice.if_small_volfrac;
@@ -737,8 +741,8 @@ void ImmersedForcingBuildings_Xmom (const Box& tbx,
     const Real damp_alpha         = solverChoice.if_damp_alpha;
     // Point-implicit alternative to the clamp above; stabilizes both compressible and anelastic
     const bool l_implicit_drag    = solverChoice.if_implicit_drag;
-    // erf.if_implicit_projection: the linear drag of the solid is applied inside the anelastic
-    // projection (ERF::make_if_projection_sigma), not here
+    // erf.if_implicit_projection: the linear drag of the solid is applied inside the projection of
+    // an anelastic or pseudo-incompressible level (ERF::make_if_projection_sigma), not here
     const bool l_ip               = l_drag_in_projection;
 
     const Real small_volfrac = solverChoice.if_small_volfrac;
@@ -937,8 +941,8 @@ void ImmersedForcingBuildings_Ymom (const Box& tby,
     const Real damp_alpha         = solverChoice.if_damp_alpha;
     // Point-implicit alternative to the clamp above; stabilizes both compressible and anelastic
     const bool l_implicit_drag    = solverChoice.if_implicit_drag;
-    // erf.if_implicit_projection: the linear drag of the solid is applied inside the anelastic
-    // projection (ERF::make_if_projection_sigma), not here
+    // erf.if_implicit_projection: the linear drag of the solid is applied inside the projection of
+    // an anelastic or pseudo-incompressible level (ERF::make_if_projection_sigma), not here
     const bool l_ip               = l_drag_in_projection;
 
     const Real small_volfrac = solverChoice.if_small_volfrac;
@@ -1136,8 +1140,8 @@ void ImmersedForcingBuildings_Zmom (const Box& tbz,
     const Real damp_alpha         = solverChoice.if_damp_alpha;
     // Point-implicit alternative to the clamp above; stabilizes both compressible and anelastic
     const bool l_implicit_drag    = solverChoice.if_implicit_drag;
-    // erf.if_implicit_projection: the linear drag of the solid is applied inside the anelastic
-    // projection (ERF::make_if_projection_sigma), not here
+    // erf.if_implicit_projection: the linear drag of the solid is applied inside the projection of
+    // an anelastic or pseudo-incompressible level (ERF::make_if_projection_sigma), not here
     const bool l_ip               = l_drag_in_projection;
 
     const Real small_volfrac = solverChoice.if_small_volfrac;

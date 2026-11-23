@@ -352,9 +352,9 @@ void ERF::project_momenta (int lev, double l_time, double l_dt_d, Vector<MultiFa
     const bool l_pi = (solverChoice.compressibility_type[lev] == CompressibilityType::PseudoIncompressible);
     Array<MultiFab,AMREX_SPACEDIM> pi_beta;
     // With erf.if_implicit_projection on a pseudo-incompressible level, the momenta, the area
-    // factors and the correction carry sigma as well as beta (below): m = sigma (m* - beta grad phi)
-    // and div(sigma beta grad phi) = div(sigma m*) - S, phi the pressure correction times dt;
-    // S is not multiplied by sigma (erf-model/ERF#4887)
+    // factors and the correction carry sigma as well as pi_beta (below):
+    // m = sigma (m* - pi_beta grad phi) and div(sigma pi_beta grad phi) = div(sigma m*) - S,
+    // phi the pressure correction times dt; S is not multiplied by sigma (erf-model/ERF#4887)
     // If !fixed_density, we must convert (rho u) which came in
     // to (rho0 u) which is what we will project
     if (!l_pi && !solverChoice.fixed_density[lev]) {
