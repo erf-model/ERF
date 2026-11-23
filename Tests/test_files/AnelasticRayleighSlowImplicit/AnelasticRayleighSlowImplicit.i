@@ -37,6 +37,7 @@ erf.les_type = "None"
 erf.molec_diff_type = "None"
 
 erf.terrain_type = StaticFittedMesh
+erf.terrain_poisson_solver = mlmg  # needs no FFT
 erf.terrain_smoothing = 0
 prob.custom_terrain_type = "ScharMountain"
 prob.a      = 5000.0
