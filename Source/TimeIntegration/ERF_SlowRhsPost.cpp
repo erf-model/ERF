@@ -17,8 +17,8 @@ using namespace amrex;
 
 namespace {
 
-// Map a level's host integrator onto an auxiliary stage recipe; any anelastic
-// integrator without a recipe aborts instead of borrowing another one's.
+// Map a level's host integrator onto an auxiliary stage recipe; any integrator of an anelastic or
+// pseudo-incompressible level without a recipe aborts instead of borrowing another one's.
 erf_auxiliary::HostIntegrator
 auxiliary_host_integrator (const SolverChoice& solverChoice, const int level)
 {
@@ -289,7 +289,7 @@ void erf_slow_rhs_post (int level, int finest_level,
     //       components come from the LES model or are left as zero.
     // *************************************************************************
 
-    // Anelastic: the slow scalars are advected with the momenta (EB)AdvectionSrcForRho set in
+    // Anelastic and pseudo-incompressible: the slow scalars are advected with the momenta (EB)AdvectionSrcForRho set in
     // erf_slow_rhs_pre from the start of this stage (ax rho_u / mf_uy, ay rho_v / mf_vx,
     // az Omega / (mf_mx mf_my); with EB the area fractions are applied to the fluxes instead),
     // the same faces that advect theta.  These momenta are already projected, by the previous
@@ -815,7 +815,7 @@ void erf_slow_rhs_post (int level, int finest_level,
                         }
                     });
 
-                } else if (l_anelastic && l_anelastic_rk2 && (nrk == 1)) { // not moving and ( (anelastic) and second RK stage) )
+                } else if (l_anelastic && l_anelastic_rk2 && (nrk == 1)) { // not moving and ( (anelastic or pseudo-incompressible RK2) and second RK stage) )
 
                     erf_sbm::require_host_write_range_allowed(
                         sbm_active, start_comp, num_comp, erf_sbm::HostWritePath::Positivity);
@@ -837,7 +837,7 @@ void erf_slow_rhs_post (int level, int finest_level,
                         }
                     });
 
-                } else { // not moving and ( (not anelastic) or (first RK stage) )
+                } else { // not moving and ( (not anelastic / pseudo-incompressible RK2) or (first RK stage) )
 
                     erf_sbm::require_host_write_range_allowed(
                         sbm_active, start_comp, num_comp, erf_sbm::HostWritePath::Positivity);
@@ -852,7 +852,7 @@ void erf_slow_rhs_post (int level, int finest_level,
                         }
                     });
 
-                } // moving, anelastic or neither?
+                } // moving, anelastic / pseudo-incompressible RK2, or neither?
 
             } // is_valid
         } // ivar
@@ -903,7 +903,7 @@ void erf_slow_rhs_post (int level, int finest_level,
 
         {
         BL_PROFILE("rhs_post_10()");
-        if (l_anelastic && terrain_blank) { // explicitly set fully immersed cells to have 0 velocities for anelastic (unstable for fully compressible).
+        if (l_anelastic && terrain_blank) { // explicitly set fully immersed cells to have 0 velocities for anelastic and pseudo-incompressible (unstable for fully compressible).
             // With erf.if_implicit_projection the drag of the solid is inside the projection, which
             // already left these momenta divergence free; zeroing the faces between solid cells here
             // would leave the surface faces unbalanced (a mass sink in the solid cells next to them,

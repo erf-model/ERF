@@ -193,8 +193,8 @@ ERF::ComputeDiffusiveRates (int lev, Real& rate_mom, Real& rate_scal) const
 
     // Explicit fraction of the vertical diffusion (ExplicitVerticalFraction): 0 where the
     // partly implicit stages keep it bounded, 1 otherwise.  Compressible levels use the
-    // three-stage scheme; anelastic MidPoint is two stages; anelastic RK2 turns the implicit
-    // solve off (its factors are zero).
+    // three-stage scheme; MidPoint (anelastic and pseudo-incompressible levels) is two stages;
+    // RK2 turns the implicit solve off (its factors are zero).
     const auto& fac = solverChoice.vert_implicit_fac[lev];
     const int nstages = (solverChoice.compressibility_type[lev] != CompressibilityType::FullyCompressible &&
                          solverChoice.timestepping_type[lev] == TimesteppingType::MidPoint) ? 2 : 3;
@@ -655,7 +655,7 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
     estdt_comp_N = (estdt_comp_inv_N > zero) ? (cfl / estdt_comp_inv_N) : bogus_large_value;
 
     //
-    // Anelastic (low Mach) estimate -- purely advective, again terrain aware
+    // Anelastic / pseudo-incompressible (low Mach) estimate -- purely advective, again terrain aware
     // and terrain unaware
     //
     if (solverChoice.terrain_type == TerrainType::EB)
@@ -774,8 +774,8 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
         erf_auxiliary::MappedFaceFluxRate mapped_carrier;
         mapped_carrier.define(cell_ba, cell_dm, 1, 0);
         std::string sbm_diagnostic;
-        // The same mapped carrier for both integrators: erf_slow_rhs_pre gives the anelastic
-        // transport these faces too, from the current momenta
+        // The same mapped carrier for both integrators: erf_slow_rhs_pre gives the anelastic and
+        // pseudo-incompressible transport these faces too, from the current momenta
         MultiFab sbm_vertical_carrier(zface_ba, cell_dm, 1, 0);
         const bool terrain_fitted =
             solverChoice.mesh_type == MeshType::VariableDz;
@@ -1118,7 +1118,7 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
      if (fixed_dt[level] > zero) {
          return fixed_dt[level];
      } else {
-         // Anelastic (substepping is not allowed)
+         // Anelastic or pseudo-incompressible (substepping is not allowed)
          if (l_anelastic) {
 
             // Make sure that timestep is less than the dt_max

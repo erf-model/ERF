@@ -139,7 +139,7 @@ Compute_InvDt_Compressible (const int i, const int j, const int k,
 
 /**
  * Pointwise inverse time step (1/dt, before the CFL is applied) for the
- * anelastic (low Mach) solver -- this is a purely advective constraint.
+ * anelastic and pseudo-incompressible (low Mach) solvers -- this is a purely advective constraint.
  *
  * As above, the metric terms are computed here from z_nd:
  *

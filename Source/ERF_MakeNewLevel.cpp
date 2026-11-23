@@ -634,8 +634,8 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
     //
     // AmrCore::regrid does not call SetBoxArray/SetDistributionMap for this new level
     // until MakeNewLevelFromCoarse returns, so grids[lev]/dmap[lev] are still empty here.
-    // Any subsequent calls that utilize grids[lev]/dmap[lev] will then fail (e.g. anelastic
-    // velocity projection below).
+    // Any subsequent calls that utilize grids[lev]/dmap[lev] will then fail (e.g. the
+    // anelastic or pseudo-incompressible velocity projection below).
     // ****************************************************************************************
     SetBoxArray(lev, ba);
     SetDistributionMap(lev, dm);
@@ -986,10 +986,11 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
     }
 
     // ********************************************************************************************
-    // For anelastic levels created from coarse (either on restart or during a run), project the
-    // interpolated velocity to enforce the divergence-free constraint. This Initializes gradp[lev]
-    // via the pressure projection, handling both the pure-anelastic case and the hybrid case
-    // (compressible lev-1, anelastic lev) where there is no coarse gradp to interpolate.
+    // For anelastic or pseudo-incompressible levels created from coarse (either on restart or during
+    // a run), project the interpolated velocity to enforce the level's divergence constraint. This
+    // initializes gradp[lev] via the pressure projection, which is where these levels get their
+    // pressure gradient, handling both the case where lev-1 also projects and the hybrid case
+    // (compressible lev-1) where there is no coarse gradp to interpolate.
     // FillPatchers must be constructed above before this call. pp_inc is scratch; zero afterward.
     // ********************************************************************************************
     if (solverChoice.compressibility_type[lev] != CompressibilityType::FullyCompressible) {
@@ -1618,7 +1619,7 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
     }
 
     // ********************************************************************************************
-    // Re-establish the pressure gradient on an anelastic level.
+    // Re-establish the pressure gradient on an anelastic or pseudo-incompressible level.
     //
     // init_stuff has just re-defined gradp[lev] on the new grids and zeroed it.
     // MakeNewLevelFromCoarse recovers it with a projection; without the same call here every

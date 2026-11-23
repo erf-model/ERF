@@ -893,7 +893,7 @@ ERF::FillPlot2DVars (int lev,
     }
 
     const int static_output_count = static_cast<int>(plot_var_names.size());
-    // If this level is anelastic then the base state pressure -- not the compressible
+    // If this level is anelastic or pseudo-incompressible then the base state pressure -- not the compressible
     //    EOS -- defines the pressure, both for the sampled "pressure" field and for
     //    the pressure vertical coordinate.  This matches the 3-D plotfile path.
     MultiFab p_hse(base_state[lev], make_alias, BaseState::p0_comp, 1);

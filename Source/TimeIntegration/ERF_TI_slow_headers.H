@@ -38,8 +38,9 @@ class ShocDriver;
 
 /**
  * The weight of the fluxes of RK stage nrk at this level in the update the step ends with.  The
- * compressible integrator and the anelastic MidPoint integrator update from their final stage
- * alone (nrk = 2 and nrk = 1), which takes weight 1.  The anelastic RK2 integrator is Heun's,
+ * compressible integrator and the MidPoint integrator of anelastic and pseudo-incompressible
+ * levels update from their final stage alone (nrk = 2 and nrk = 1), which takes weight 1.  The
+ * RK2 integrator of those levels is Heun's,
  * S^{n+1} = S^n + dt (R0 + R1) / 2, so both of its stages take weight 1/2.
  *
  * @param[in] solverChoice  the solver options
@@ -62,8 +63,9 @@ StageFluxWeight (const SolverChoice& solverChoice, int level, int nrk)
  * The weight with which the fluxes of RK stage nrk at this level go into the flux registers:
  * the weight of that stage's fluxes in the update the step ends with, or zero if they are not
  * registered.  Only with two-way coupling and more than one level.  The compressible integrator
- * and the anelastic MidPoint integrator update from their final stage alone (nrk = 2 and nrk = 1),
- * which takes weight 1.  The anelastic RK2 integrator is Heun's, S^{n+1} = S^n + dt (R0 + R1) / 2,
+ * and the MidPoint integrator of anelastic and pseudo-incompressible levels update from their final
+ * stage alone (nrk = 2 and nrk = 1), which takes weight 1.  The RK2 integrator of those levels is
+ * Heun's, S^{n+1} = S^n + dt (R0 + R1) / 2,
  * so both of its stages take weight 1/2.  Every stage that adds fluxes to the registers must use
  * this, so that the registers hold the fluxes the update applied.
  *
