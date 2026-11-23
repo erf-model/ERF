@@ -154,11 +154,28 @@ void fill_fire_wind_from_interpolation(
                                              col_z0->nGrowVect()[2] == 0,
                 "fill_fire_wind_from_interpolation: col_z0 must be a 2D field, one cell in z");
         }
-        Real z_low = (z_ref_cell_mf != nullptr) ? z_ref_cell_mf->min(0) : z_ref;
-        if (resample) { z_low = amrex::min(z_low, z_sample); }
-        const std::string err = fire_column_z0_range_error(*col_z0, z_low);
-        if (!err.empty()) { amrex::Abort("fill_fire_wind_from_interpolation: " + err); }
+        // Only a run that evaluates a log profile depends on the field
+        if (below_first_log || resample) {
+            Real z_low = (z_ref_cell_mf != nullptr) ? z_ref_cell_mf->min(0) : z_ref;
+            if (resample) { z_low = amrex::min(z_low, z_sample); }
+            const std::string err = fire_column_z0_range_error(*col_z0, z_low);
+            if (!err.empty()) { amrex::Abort("fill_fire_wind_from_interpolation: " + err); }
+        }
     }
+
+    // Atmospheric columns the fire grid covers. Across a non-periodic face of
+    // that region the column roughness is taken from the edge column, so only
+    // valid cells of col_z0 are read: FillBoundary does not fill a ghost cell
+    // there, and the range check sees valid cells only.
+    const Box& fire_dom = fg.geom.Domain();
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!z0_cols || fire_dom.ok(),
+        "fill_fire_wind_from_interpolation: col_z0 needs the fire grid's Geometry (create_fire_grid)");
+    const int z0_reg_ilo = lo_x;
+    const int z0_reg_ihi = lo_x + (fire_dom.bigEnd(0) + 1) / C - 1;
+    const int z0_reg_jlo = lo_y;
+    const int z0_reg_jhi = lo_y + (fire_dom.bigEnd(1) + 1) / C - 1;
+    const bool z0_per_x = fg.geom.isPeriodic(0);
+    const bool z0_per_y = fg.geom.isPeriodic(1);
 
     for (MFIter mfi(fire_wind_ref, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
         const Box& bx = mfi.tilebox();
@@ -189,8 +206,9 @@ void fill_fire_wind_from_interpolation(
             jo_min = obox.smallEnd(1); jo_max = obox.bigEnd(1);
         }
 
-        // Column roughness: same layout and clamping as the open-column
-        // fields, read on the field's own k slab
+        // Column roughness: same layout as the open-column fields, read on
+        // the field's own k slab; clamped to the fab and, across a
+        // non-periodic face of the fire grid's region, to its edge column
         Array4<const Real> z0_arr;
         int iz_min = 0, iz_max = 0, jz_min = 0, jz_max = 0, kz = 0;
         if (z0_cols) {
@@ -199,6 +217,14 @@ void fill_fire_wind_from_interpolation(
             iz_min = z0box.smallEnd(0); iz_max = z0box.bigEnd(0);
             jz_min = z0box.smallEnd(1); jz_max = z0box.bigEnd(1);
             kz = z0box.smallEnd(2);
+            if (!z0_per_x) {
+                iz_min = amrex::max(iz_min, z0_reg_ilo);
+                iz_max = amrex::min(iz_max, z0_reg_ihi);
+            }
+            if (!z0_per_y) {
+                jz_min = amrex::max(jz_min, z0_reg_jlo);
+                jz_max = amrex::min(jz_max, z0_reg_jhi);
+            }
         }
 
         // Bilinear reaches one atmospheric cell beyond the column holding the

@@ -13,10 +13,12 @@
 #include <ERF_FireGrid.H>
 
 #include <AMReX_MultiFab.H>
+#include <AMReX_Geometry.H>
 #include <AMReX_Gpu.H>
 
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <cmath>
 #include <limits>
 
@@ -41,6 +43,13 @@ constexpr Real v_c = Real(-1.5);
 
 // Column roughness [m], 0.02 to 1.02 over the columns and their ghost ring
 Real z0_of (int i, int j) { return Real(0.02) + Real(0.05) * Real(i + 1) + Real(0.15) * Real(j + 1); }
+// The column the roughness is read from: across a non-periodic face of the region
+// (columns lo to lo + n - 1) the edge column, across a periodic face the periodic image
+int z0_column (int i, int lo, int n, bool periodic)
+{
+    if (periodic) { return lo + (((i - lo) % n) + n) % n; }
+    return std::max(lo, std::min(i, lo + n - 1));
+}
 Real u_of (int i) { return u_a + u_b * (Real(i) + Real(0.5)); }
 
 struct Sampler {
@@ -50,8 +59,12 @@ struct Sampler {
     MultiFab xvel, yvel, zcc, z0col;
     MultiFab fire_wind, extract_z, surf_z, col_ground;
 
-    // lo: lower corner of the atmospheric boxes, as on a refined level (fg.atm_lo)
-    explicit Sampler (IntVect lo = IntVect(0, 0, 0))
+    bool periodic = false;
+
+    // lo: lower corner of the atmospheric boxes, as on a refined level (fg.atm_lo);
+    // periodic: the region spans a domain periodic in x and y
+    explicit Sampler (IntVect lo = IntVect(0, 0, 0), bool per = false)
+        : periodic(per)
     {
         ba_atm    = BoxArray(Box(lo, lo + IntVect(nx - 1, ny - 1, nz - 1)));
         ba_atm_2d = BoxArray(Box(lo, lo + IntVect(nx - 1, ny - 1, 0)));
@@ -61,6 +74,13 @@ struct Sampler {
         fg.atm_lo = lo;
         fg.ba = BoxArray(Box(IntVect(0, 0, 0), IntVect(C * nx - 1, C * ny - 1, 0)));
         fg.dm = dm;
+        {
+            const Box fire_dom(IntVect(0, 0, 0), IntVect(C * nx - 1, C * ny - 1, 0));
+            const RealBox rb({AMREX_D_DECL(Real(0.0), Real(0.0), Real(0.0))},
+                             {AMREX_D_DECL(Real(C * nx), Real(C * ny), Real(1.0))});
+            const int ip = periodic ? 1 : 0;
+            fg.geom = Geometry(fire_dom, rb, CoordSys::cartesian, {AMREX_D_DECL(ip, ip, 0)});
+        }
 
         const MFInfo host_info = MFInfo().SetArena(The_Managed_Arena());
         xvel.define(convert(ba_atm, IntVect(1, 0, 0)), dm, 1, 2, host_info);
@@ -97,7 +117,9 @@ struct Sampler {
             const Box gb = mfi.fabbox();
             for (int j = gb.smallEnd(1); j <= gb.bigEnd(1); ++j) {
             for (int i = gb.smallEnd(0); i <= gb.bigEnd(0); ++i) {
-                z0(i, j, 0) = z0_of(i, j);
+                z0(i, j, 0) = periodic ? z0_of(z0_column(i, lo[0], nx, true),
+                                               z0_column(j, lo[1], ny, true))
+                                       : z0_of(i, j);
             }}
         }
         surf_z.setVal(0.0);
@@ -113,22 +135,23 @@ struct Sampler {
     }
 };
 
-// The closed-form wind of column (i, j) at z_ref
-Real column_factor (int i, int j, Real z_sample)
+// The closed-form factor of column (i, j) at z_ref, with the roughness of the column it is read from
+Real column_factor (int i, int j, Real z_sample, const IntVect& lo, bool periodic)
 {
-    const Real z0 = z0_of(i, j);
+    const Real z0 = z0_of(z0_column(i, lo[0], nx, periodic), z0_column(j, lo[1], ny, periodic));
     if (z_sample > Real(0.0)) { return std::log(z_ref / z0) / std::log(z_sample / z0); }
     return std::log(z_ref / z0) / std::log(Real(0.5) * dz / z0);
 }
 
 // Expected wind of fire cell (i_f, j_f): nearest column, or the bilinear blend of four;
 // lo is the atmospheric corner of the fire grid
-void expected (int i_f, int j_f, int wind_interp, Real z_sample, const IntVect& lo, Real& u, Real& v)
+void expected (int i_f, int j_f, int wind_interp, Real z_sample, const IntVect& lo, bool periodic,
+               Real& u, Real& v)
 {
     if (wind_interp == 0) {
         const int i = i_f / C + lo[0];
         const int j = j_f / C + lo[1];
-        const Real f = column_factor(i, j, z_sample);
+        const Real f = column_factor(i, j, z_sample, lo, periodic);
         u = f * u_of(i);
         v = f * v_c;
         return;
@@ -146,7 +169,7 @@ void expected (int i_f, int j_f, int wind_interp, Real z_sample, const IntVect& 
     for (int dj = 0; dj <= 1; ++dj) {
         for (int di = 0; di <= 1; ++di) {
             const Real w = (di ? wx : Real(1.0) - wx) * (dj ? wy : Real(1.0) - wy);
-            const Real f = column_factor(i0 + di, j0 + dj, z_sample);
+            const Real f = column_factor(i0 + di, j0 + dj, z_sample, lo, periodic);
             u += w * f * u_of(i0 + di);
             v += w * f * v_c;
         }
@@ -163,7 +186,7 @@ void check_against_closed_form (Sampler& s, int wind_interp, Real z_sample)
         for (int j = bx.smallEnd(1); j <= bx.bigEnd(1); ++j) {
         for (int i = bx.smallEnd(0); i <= bx.bigEnd(0); ++i) {
             Real u_ex, v_ex;
-            expected(i, j, wind_interp, z_sample, lo, u_ex, v_ex);
+            expected(i, j, wind_interp, z_sample, lo, s.periodic, u_ex, v_ex);
             EXPECT_NEAR(fw(i, j, 0, 0), u_ex, rel_tol * std::abs(u_ex))
                 << "u, fire cell (" << i << ", " << j << ")";
             EXPECT_NEAR(fw(i, j, 0, 1), v_ex, rel_tol * std::abs(v_ex))
@@ -279,4 +302,57 @@ TEST(FireWindColumnZ0, RangeCheck)
         if (mfi.validbox().contains(IntVect(1, 2, 0))) { s.z0col[mfi](IntVect(1, 2, 0)) = Real(0.0); }
     }
     EXPECT_FALSE(fire_column_z0_range_error(s.z0col, z_ref).empty());
+}
+
+// Non-periodic edges: the outer ghost ring of the roughness is left unfilled (NaN), as
+// FillBoundary leaves it outside a non-periodic face. Bilinear edge cells reach that ring;
+// the sampler must take the edge column's roughness and never read the ring
+TEST(FireWindColumnZ0, NonPeriodicEdgeIgnoresGhostRing)
+{
+    for (const IntVect lo : {IntVect(0, 0, 0), IntVect(2, 1, 0)}) {
+        Sampler s(lo);
+        const Real qnan = std::numeric_limits<Real>::quiet_NaN();
+        for (MFIter mfi(s.z0col); mfi.isValid(); ++mfi) {
+            const auto z0 = s.z0col.array(mfi);
+            const Box gb = mfi.fabbox();
+            const Box vb = mfi.validbox();
+            for (int j = gb.smallEnd(1); j <= gb.bigEnd(1); ++j) {
+            for (int i = gb.smallEnd(0); i <= gb.bigEnd(0); ++i) {
+                if (!vb.contains(IntVect(i, j, 0))) { z0(i, j, 0) = qnan; }
+            }}
+        }
+        for (const Real z_sample : {Real(0.0), Real(30.0)}) {
+            s.run(1, z_sample, z_sample == Real(0.0), &s.z0col);
+            check_against_closed_form(s, 1, z_sample);
+        }
+    }
+}
+
+// Periodic in x and y: the ghost ring holds the periodic images (as FillBoundary fills it),
+// and an edge column's neighbour across the face uses the image's roughness
+TEST(FireWindColumnZ0, PeriodicEdgeUsesImageRoughness)
+{
+    Sampler s(IntVect(0, 0, 0), true);
+    for (const Real z_sample : {Real(0.0), Real(30.0)}) {
+        s.run(1, z_sample, z_sample == Real(0.0), &s.z0col);
+        check_against_closed_form(s, 1, z_sample);
+    }
+}
+
+// No log profile (clamp below the first center, no resampling): the answer does not depend on
+// the roughness, so a field that fails the range check must not abort the run
+TEST(FireWindColumnZ0, RangeCheckSkippedWithoutLogProfile)
+{
+    Sampler s;
+    s.z0col.setVal(Real(50.0));
+    ASSERT_FALSE(fire_column_z0_range_error(s.z0col, z_ref).empty());
+    s.run(0, Real(0.0), false, &s.z0col);
+    for (MFIter mfi(s.fire_wind); mfi.isValid(); ++mfi) {
+        const auto fw = s.fire_wind.const_array(mfi);
+        const Box bx = mfi.validbox();
+        for (int j = bx.smallEnd(1); j <= bx.bigEnd(1); ++j) {
+        for (int i = bx.smallEnd(0); i <= bx.bigEnd(0); ++i) {
+            EXPECT_NEAR(fw(i, j, 0, 0), u_of(i / C), rel_tol * u_of(i / C));
+        }}
+    }
 }

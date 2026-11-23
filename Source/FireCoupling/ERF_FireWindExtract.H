@@ -110,13 +110,17 @@
  * layer's z_0 (SurfaceLayer::get_z0) onto the level's k = 0 slabs, the layout
  * of col_open, works; z_0 itself does not where the fire grid covers a cropped
  * region or the terrain is EB (z_0 is then 3D). Its ghost cell must be filled
- * (FillBoundary) before the call; a column outside the fab is clamped to its
- * edge. Where the sea roughness varies in time
+ * with FillBoundary before the call (interior and periodic ghosts). Across a
+ * non-periodic face of the fire grid's region (fg.geom) a column outside the
+ * region takes the edge column's roughness, so ghost cells there are never
+ * read and need no fill. Where the sea roughness varies in time
  * (SurfaceLayer::have_variable_sea_roughness) the copy is refreshed before
- * every call. The call aborts unless every valid value is positive and e
+ * every call. When a log profile is evaluated (below_first_log, or
+ * z_sample > 0) the call aborts unless every valid value is positive and e
  * times the largest does not exceed the lowest height a log profile is
  * evaluated at (z_ref or the smallest z_ref_cell, and z_sample when
- * resampling), the bound fire_column_z0_range_error checks.
+ * resampling), the bound fire_column_z0_range_error checks; otherwise the
+ * field is not used and not checked.
  *
  * The per-column log law from z_sample assumes each column is in equilibrium
  * with its own roughness up to z_sample. Across a sharp roughness change the
