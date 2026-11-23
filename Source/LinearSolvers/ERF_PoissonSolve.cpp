@@ -351,20 +351,13 @@ void ERF::project_momenta (int lev, double l_time, double l_dt_d, Vector<MultiFa
     // ****************************************************************************
     const bool l_pi = (solverChoice.compressibility_type[lev] == CompressibilityType::PseudoIncompressible);
     Array<MultiFab,AMREX_SPACEDIM> pi_beta;
-    if (l_pi) {
-        // With erf.if_implicit_projection the momenta, the area factors and the correction
-        // carry sigma as well as beta (below): m = sigma (m* - beta grad phi) and
-        // div(sigma beta grad phi) = div(sigma m*) - S, phi the pressure correction times dt;
-        // S is not multiplied by sigma (erf-model/ERF#4887)
-        if (lev > 0 && solverChoice.mesh_type == MeshType::VariableDz &&
-            !cf_zface_layout(lev).slab_box.empty()) {
-            amrex::Abort("erf.compressibility_type = PseudoIncompressible: a refined level that stops "
-                         "inside the domain in z is not yet supported on a terrain-fitted mesh");
-        }
-    }
+    // With erf.if_implicit_projection on a pseudo-incompressible level, the momenta, the area
+    // factors and the correction carry sigma as well as beta (below): m = sigma (m* - beta grad phi)
+    // and div(sigma beta grad phi) = div(sigma m*) - S, phi the pressure correction times dt;
+    // S is not multiplied by sigma (erf-model/ERF#4887)
     // If !fixed_density, we must convert (rho u) which came in
     // to (rho0 u) which is what we will project
-    else if (!solverChoice.fixed_density[lev]) {
+    if (!l_pi && !solverChoice.fixed_density[lev]) {
         ConvertForProjection(mom_mf[Vars::cons], r_hse,
                              mom_mf[IntVars::xmom],
                              mom_mf[IntVars::ymom],
@@ -715,7 +708,9 @@ void ERF::project_momenta (int lev, double l_time, double l_dt_d, Vector<MultiFa
     {
         const BoxArray& region = regions[ireg];
         const bool wraps = (region_wraps[ireg] != 0);
+#ifdef ERF_USE_FFT
         const int isub = first_sub[ireg];
+#endif
 
         BoxList bl_sub;
         Vector<int> dm_sub;

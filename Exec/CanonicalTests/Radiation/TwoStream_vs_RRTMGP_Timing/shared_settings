@@ -9,7 +9,7 @@
 #     concentrations and running two-stream without it would compare
 #     different physics configurations;
 #   - radiation called on every slow step for both, so the comparison is
-#     per call and not an artifact of update frequency;
+#     per step and not an artifact of update frequency;
 #   - the same sun and surface temperature, through the inputs the two
 #     solvers share (erf.fixed_solar_zenith_angle, erf.fixed_total_solar_irradiance,
 #     erf.rad_t_sfc);
