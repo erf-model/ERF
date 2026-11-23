@@ -1915,9 +1915,17 @@ public:
   amrex::MultiFab* get_z0 (const int& lev) { return &z_0[lev]; }
 
   /**
+   * Return the roughness-height field, read-only (for a caller that holds a
+   * const SurfaceLayer, such as a fire engine).
+   *
+   * @param[in] lev level index
+   */
+  const amrex::MultiFab* get_z0 (const int& lev) const { return &z_0[lev]; }
+
+  /**
    * Return whether variable sea roughness is active.
    */
-  bool have_variable_sea_roughness () { return m_var_z0; }
+  bool have_variable_sea_roughness () const { return m_var_z0; }
 
   /**
    * Return the land-mask field.
