@@ -16,8 +16,6 @@
 
 # Energy Research and Forecasting (ERF): An atmospheric modeling code
 
-`ERF` is built upon the [AMReX](https://amrex-codes.github.io/amrex/) 
-
 ## Getting Started
 
 See [Getting Started](https://erf.readthedocs.io/en/latest/GettingStarted.html) for instructions as to how to clone the ERF
