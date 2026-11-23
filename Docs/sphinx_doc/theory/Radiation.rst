@@ -1347,7 +1347,7 @@ keys are written in full.
      - Optional single snow bucket on bare ground (``seb_snow_enable``, default false). No
        frozen soil.
      - No snow. No latent heat of soil freezing; no water moves between a frozen layer and its
-       neighbour. Stops if the canopy of a vegetated cell is at or below 273.15 K.
+       neighbor. Stops if the canopy of a vegetated cell is at or below 273.15 K.
      - Several snow layers (``NSNOW``); frozen soil and supercooled water.
      - Force-restore snow has no density, heat capacity or aging and no vegetation masking.
    * - Water and sea ice
