@@ -1861,6 +1861,16 @@ set_tests_properties(SHOC_Unstable_Cloud_SatAdj_vs_NoCond
 # execute_process needs mpiexec, and does not expand the executable globs used on Windows
 if(NOT WIN32)
 add_test_at_rest_terrain_outflow(AtRestTerrainOutflow "plt00400" 1.0e-8 0.1)
+# Implicit Rayleigh damping of w, the default on an anelastic level: anelastic flow over the Schar
+# mountain with Rayleigh damping of w at rayleigh_dampcoef * dt = 3.  Damped implicitly, w stays at
+# the mountain-wave value (max |w| 1.68 m/s); with erf.rayleigh_damping_type = SlowExplicit it
+# blows up (floating-point exception by step 60).
+add_test_field_bounds(AnelasticRayleighSlowImplicit "plt00060" z_velocity -3.0 3.0)
+# SlowImplicit is for levels without acoustic substeps; one with them is refused
+add_test_abort(AnelasticRayleighSlowImplicit_SubstepAbort
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_files/AnelasticRayleighSlowImplicit AnelasticRayleighSlowImplicit.i
+    "SlowImplicit needs a level without acoustic"
+    "erf.rayleigh_damping_type=SlowImplicit erf.compressibility_type=FullyCompressible erf.fixed_fast_dt=0.5")
 add_test_field_bounds(InflowThetaDensity "plt00010" theta 299.999 300.001)
 add_test_field_bounds(InflowOutflowThetaFile "plt00010" theta 299.999 300.001)
 add_test_field_bounds(InflowThetaFileOtherFace "plt00010" theta 299.999 300.001)
