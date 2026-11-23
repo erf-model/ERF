@@ -414,9 +414,10 @@ from the solid fraction :math:`\beta_f` of the drag rate. The two coefficients m
 
 with :math:`\phi` as above (the pressure correction times :math:`\Delta t`) and :math:`S` the
 source term of the pseudo-incompressible constraint, which :math:`\sigma` does not multiply. The
-solid faces are not zeroed afterwards, so :math:`\rho\theta` stays at :math:`\rho_0\theta_0` in the cells next to the
-solid as it does elsewhere. The ``ImmersedBuildingHeatBalance_PseudoIncompressible`` tests check
-this: after 20 steps :math:`\max|\rho\theta - \rho_0\theta_0| / (\rho_0\theta_0)` is
+solid faces are not zeroed afterwards, so :math:`\rho\theta` stays at :math:`\rho_0\theta_0` in
+the cells next to the solid as it does elsewhere. The
+``ImmersedBuildingHeatBalance_PseudoIncompressible`` tests check this: after 20 steps
+:math:`\max|\rho\theta - \rho_0\theta_0| / (\rho_0\theta_0)` is
 :math:`6 \times 10^{-11}` with the drag in the projection and :math:`4 \times 10^{-2}` with the
 solid faces zeroed after it. With a stratified sounding and no LES closure the same measure is
 :math:`10^{-8}` (:math:`3 \times 10^{-2}` with the solid faces zeroed). That value follows the
