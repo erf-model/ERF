@@ -3215,13 +3215,24 @@ Rayleigh Damping
 +--------------------------------+----------------------------------------------------------+--------------------+------------------+
 | Parameter                      | Definition                                               | Acceptable Values  | Default          |
 +================================+==========================================================+====================+==================+
-| **erf.rayleigh_damping_type**  | how the Rayleigh damping terms are integrated in time:   | SlowExplicit,      | SlowExplicit     |
-|                                | ``SlowExplicit`` applies them explicitly in the slow     | FastExplicit,      |                  |
-|                                | (Runge-Kutta) update, while ``FastExplicit`` and         | FastImplicit       |                  |
-|                                | ``FastImplicit`` apply them explicitly or implicitly     |                    |                  |
-|                                | within the acoustic substeps.  A level that takes no     |                    |                  |
-|                                | acoustic substeps applies them in the slow update.  Case |                    |                  |
-|                                | sensitive; an unrecognized value aborts                  |                    |                  |
+| **erf.rayleigh_damping_type**  | how the Rayleigh damping terms are integrated in time:   | SlowExplicit,      | SlowExplicit;    |
+|                                | ``SlowExplicit`` applies them explicitly in the slow     | SlowImplicit,      | for w on         |
+|                                | (Runge-Kutta) update, while ``FastExplicit`` and         | FastExplicit,      | anelastic and    |
+|                                | ``FastImplicit`` apply them explicitly or implicitly     | FastImplicit       | pseudo-          |
+|                                | within the acoustic substeps.  A level that takes no     |                    | incompressible   |
+|                                | acoustic substeps applies them in the slow update.       |                    | levels,          |
+|                                | ``SlowImplicit`` damps w implicitly in the slow update   |                    | SlowImplicit     |
+|                                | (u, v and theta stay explicit), which is stable for any  |                    |                  |
+|                                | dt; the explicit w damping is not once                   |                    |                  |
+|                                | ``rayleigh_dampcoef`` times dt reaches 2 (RK2) or 2.5    |                    |                  |
+|                                | (RK3).  It needs levels without acoustic substeps        |                    |                  |
+|                                | (anelastic, pseudo-incompressible, RK3_NoSubstepping);   |                    |                  |
+|                                | with substeps use ``FastImplicit``.  When this input is  |                    |                  |
+|                                | not given, anelastic and pseudo-incompressible levels    |                    |                  |
+|                                | damp w implicitly and everything else as                 |                    |                  |
+|                                | ``SlowExplicit``; give ``SlowExplicit`` to keep the      |                    |                  |
+|                                | explicit w damping there.  Case sensitive; an            |                    |                  |
+|                                | unrecognized value aborts                                |                    |                  |
 +--------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.rayleigh_damp_U**        | Include explicit Rayleigh damping in the x-momentum      | Boolean            | false            |
 |                                | equation                                                 |                    |                  |

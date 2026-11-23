@@ -128,7 +128,7 @@ void write_deep (TwoStreamRadiation& radiation)
 // One step of the balance from a skin of 300 K with the deep temperatures of write_deep.
 StepResult one_step (bool t_deep_from_file)
 {
-    const Level L;
+    const Level L{};
     const RadChoice rad = balance(t_deep_from_file);
 
     MultiFab state(L.ba, L.dm, RhoQ2_comp + 1, 0);
@@ -167,7 +167,7 @@ StepResult one_step (bool t_deep_from_file)
 
 TEST(SEBDeepInit, DefaultIsOff)
 {
-    const RadChoice rad;
+    const RadChoice rad{};
     EXPECT_FALSE(rad.seb_init_t_deep_from_file);
 }
 
@@ -175,7 +175,7 @@ TEST(SEBDeepInit, DefaultIsOff)
 // parent, the two-way coupling averages down and RemakeLevel carries over.
 TEST(SEBDeepInit, DeepTemperatureIsCarriedStateOnlyWithTheInput)
 {
-    const Level L;
+    const Level L{};
     for (const bool on : {false, true}) {
         const RadChoice rad = balance(on);
         TwoStreamRadiation radiation;
@@ -223,7 +223,7 @@ TEST(SEBDeepInit, BalanceKeepsThePerColumnDeepTemperatureAndRestoresTowardIt)
 // input, is not read and the run says so.
 TEST(SEBDeepInit, CheckpointHoldsTheDeepTemperatureWithTheInput)
 {
-    const Level L;
+    const Level L{};
     const Periodicity period = L.geom.periodicity();
     const std::string with = "unit_seb_deep_init_chk_with";
     const std::string without = "unit_seb_deep_init_chk_without";

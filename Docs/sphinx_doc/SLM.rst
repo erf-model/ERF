@@ -10,6 +10,9 @@ of Advances in Modeling Earth Systems, 7, 1368--1392,
 `doi:10.1002/2014MS000419 <https://doi.org/10.1002/2014MS000419>`_. Readers
 should consult that publication for the complete original model formulation.
 
+:ref:`sec:ForceRestoreVsSLMNoahMP` compares SLM with Noah-MP and the force-restore surface
+energy balance of the two-stream radiation model.
+
 This page documents only the recent changes made to improve SLM and make its
 behavior more comparable to other contemporary land-surface models. These
 changes include selected formulations adapted from NoahMP, updates inherited
