@@ -16,8 +16,7 @@
 
 # Energy Research and Forecasting (ERF): An atmospheric modeling code
 
-`ERF` is built upon the [AMReX](https://amrex-codes.github.io/amrex/) software framework
-for massively parallel block-structured applications.
+`ERF` is built upon the [AMReX](https://amrex-codes.github.io/amrex/) 
 
 ## Getting Started
 
@@ -41,7 +40,8 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for how to contribute to ERF development.
 The development of the Energy Research and Forecasting (ERF) code is funded by the
 U.S. Department of Energy (DOE).
 
-ERF is built on the [AMReX](https://github.com/AMReX-codes/AMReX) library.
+ERF is built on the [AMReX](https://github.com/AMReX-codes/AMReX) software framework
+for massively parallel block-structured applications.
 
 ## License
 
