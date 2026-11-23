@@ -4058,6 +4058,15 @@ List of Parameters
 |                                   | from ``wrfinput`` and ``wrfbdy``.  Forced to true if     |                              |                    |
 |                                   | ``avg_grid_faces_to_nodes`` is false                     |                              |                    |
 +-----------------------------------+----------------------------------------------------------+------------------------------+--------------------+
+| **erf.check_wrfbdy_invariant**    | diagnostic: at the first ``wrfbdy`` time of a fresh      | Boolean                      | false              |
+|                                   | start, print for each side the largest difference        |                              |                    |
+|                                   | between the decoupled, interpolated boundary u, v,       |                              |                    |
+|                                   | theta, qv and density and the initial state built from   |                              |                    |
+|                                   | ``wrfinput`` (points whose height lies inside the WRF    |                              |                    |
+|                                   | column).  The two should agree when the files come from  |                              |                    |
+|                                   | the same real.exe run; the initial density matches only  |                              |                    |
+|                                   | without the rebalance                                    |                              |                    |
++-----------------------------------+----------------------------------------------------------+------------------------------+--------------------+
 | **erf.interp_atmos_from_coarse**  | For fine levels (lev > 0) with ``WRFInput``              | Boolean                      | false              |
 |                                   | initialization, interpolate atmospheric state (U, V, W,  |                              |                    |
 |                                   | theta, density, moisture) from coarse level via          |                              |                    |
