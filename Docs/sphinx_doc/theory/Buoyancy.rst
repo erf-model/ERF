@@ -14,6 +14,9 @@ ERF offers several definitions of this force in **compressible** simulations.
 Some use the full density departure from a hydrostatic reference state;
 others approximate that departure using temperature or potential
 temperature. The **anelastic** equations use separate buoyancy expressions.
+The **pseudo-incompressible** equations evolve the density as the compressible
+equations do, and use the compressible type-1 expression, the full density
+departure.
 
 Choosing a formulation
 ----------------------
@@ -51,10 +54,12 @@ different gravitational source terms for the same compressible state.
 Unless an approximation is part of the intended model formulation, the
 default type 1 retains the more complete density response.
 
-For ``erf.compressibility_type`` not ``FullyCompressible``, ERF selects its dry or moist **anelastic** kernel
+At ``Anelastic`` levels, ERF selects its dry or moist **anelastic** kernel
 irrespective of ``erf.buoyancy_type``. Internally, the option is stored as
 ``3`` at anelastic levels, but this does **not** select the compressible
-type-3 formula. The input accepts values 1--4 only; there is no type 5.
+type-3 formula.  At ``PseudoIncompressible`` levels, which evolve the density,
+ERF always uses the compressible type-1 expression :math:`-(\rho - \rho_0)\,g`;
+any other ``erf.buoyancy_type`` there is replaced by 1 with a warning. The input accepts values 1--4 only; there is no type 5.
 See :ref:`sec:Inputs` for related configuration options.
 
 Reference state, moisture, and sign convention
@@ -116,12 +121,13 @@ buoyancy to the dry vertical-momentum tendency is
    =\frac{-G_{p,z}+B_z}{1+q_{t,f}},\qquad
    q_{t,f}=\frac{q_t(k-1)+q_t(k)}{2},
 
-where :math:`\rho_*` denotes :math:`\rho_d` in compressible mode and the
-fixed reference dry density :math:`\rho_0` in anelastic mode. The quantity
+where :math:`\rho_*` denotes :math:`\rho_d` in compressible and
+pseudo-incompressible mode and the fixed reference dry density :math:`\rho_0`
+in anelastic mode. The quantity
 :math:`G_{p,z}` is ERF's vertical pressure-gradient term. For compressible
 flow it is calculated from the EOS pressure perturbation
-:math:`p'=p-p_0`; for anelastic flow it is maintained through the
-pressure projection. Anelastic projection also applies a separate
+:math:`p'=p-p_0`; for anelastic and pseudo-incompressible flow it is
+maintained through the pressure projection. The projection also applies a separate
 momentum correction, which is not represented by this isolated slow-RHS
 expression. Terrain metrics and other forcings enter elsewhere in the
 momentum update. In dry flow, :math:`q_{t,f}=0`.
@@ -324,7 +330,8 @@ Supported configurations and further reading
 
 Embedded-boundary buoyancy has a separate implementation. With gravity
 enabled, its established choices are **dry compressible type 1** and
-**dry anelastic**; the other embedded-boundary combinations should not
+**dry anelastic** (a dry pseudo-incompressible level uses the dry
+compressible type-1 path); the other embedded-boundary combinations should not
 be treated as supported buoyancy configurations. Compressible
 ``Kessler_NoRain``, ``SAM``, and ``SAM_NoPrecip_NoIce`` require type 1 in
 the current source. These restrictions do not change the meaning of the

@@ -4933,7 +4933,7 @@ ERF::ParameterSanityChecks ()
             Abort("erf.use_wrf_bdy_density requires nc_bdy_file");
         }
         if (!solverChoice.compressibility_type.empty() && solverChoice.compressibility_type[0] != CompressibilityType::FullyCompressible) {
-            Abort("erf.use_wrf_bdy_density is not supported for anelastic simulations");
+            Abort("erf.use_wrf_bdy_density is not supported for anelastic or pseudo-incompressible simulations");
         }
         if (input_bndry_planes) {
             Abort("erf.use_wrf_bdy_density is not supported with generic boundary-plane input");

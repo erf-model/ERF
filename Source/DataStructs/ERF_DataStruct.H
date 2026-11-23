@@ -146,7 +146,7 @@ AMREX_ENUM(MeshType,
 );
 
 /**
- * @brief Linear solver for the anelastic projection on a terrain-fitted mesh.
+ * @brief Linear solver for the anelastic or pseudo-incompressible projection on a terrain-fitted mesh.
  *
  * gmres_fft is GMRES with ERF's TerrainPoisson operator and an FFT preconditioner (needs the
  * FFT build).  mlmg and gmres_mlmg use amrex::MLTerrainPoisson (AMReX-Codes/amrex#6030), the
@@ -1284,9 +1284,11 @@ struct SolverChoice {
             }
         }
 
-        // Want to have different immersed forcing defaults depending on anelastic or fully compressible.
+        // Want to have different immersed forcing defaults depending on anelastic / pseudo-incompressible
+        // (any_anelastic is true for either) or fully compressible.
         // We should have different starting values because the stability of the method is dependent on dt.
-        // dt is coarser for anelastic --> need to loosen stiffness of immersed forcing.
+        // dt is coarser when the pressure comes from the projection (no acoustic substeps)
+        // --> need to loosen stiffness of immersed forcing.
         if (any_anelastic) {
             immersed_forcing_substep  = false;
             if_Cd_momentum            = amrex::Real(50.0);
@@ -1573,8 +1575,8 @@ struct SolverChoice {
                 amrex::Abort("erf.if_wall_form = fraction_stress runs with the anelastic model (erf.compressibility_type not FullyCompressible on "
                              "every level); it does not support erf.immersed_forcing_substep = true");
             }
-            // ... and the solid cells are held (rho, theta, the moisture species) by the anelastic
-            // update only
+            // ... and the solid cells are held (rho, theta, the moisture species) by the update of an
+            // anelastic or pseudo-incompressible level only
             for (int lev = 0; lev <= max_level; ++lev) {
                 if (compressibility_type[lev] == CompressibilityType::FullyCompressible) {
                     amrex::Abort("erf.if_wall_form = fraction_stress needs erf.compressibility_type not FullyCompressible on every level (level " +
@@ -2222,7 +2224,8 @@ struct SolverChoice {
             }
         }
 
-        // The implicit vertical diffusion is only second order in an anelastic run when
+        // The implicit vertical diffusion is only second order at an anelastic or
+        // pseudo-incompressible level (the RK2 / MidPoint integrators) when
         // the two stages are the midpoint method and the solve is done in the first stage
         // alone: S^* = S^n + (dt/2) F(S^*) and S^{n+1} = S^n + dt F(S^*) give
         // S^* = (S^n + S^{n+1})/2, i.e. the implicit midpoint rule.  Solving again in the
@@ -2246,7 +2249,7 @@ struct SolverChoice {
                                        << " because anelastic with MidPoint solves in the first stage only."
                                        << std::endl;
                     }
-                    // The anelastic integrator only takes two stages, so [2] is never used
+                    // The anelastic / pseudo-incompressible integrator only takes two stages, so [2] is never used
                     vert_implicit_fac[lev][1] = zero;
                     vert_implicit_fac[lev][2] = zero;
                 }
@@ -2293,7 +2296,8 @@ struct SolverChoice {
         coupling_type = CouplingType::TwoWay; // Default
         pp.query_enum_case_insensitive("coupling_type",coupling_type);
 
-        // Test for hybrid (compressible + anelastic) -- in this case we must use one-way coupling
+        // Test for hybrid (compressible + anelastic or pseudo-incompressible) -- in this case we must
+        // use one-way coupling
         if (any_anelastic && any_compress) {
             coupling_type = CouplingType::OneWay;
         }

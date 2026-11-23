@@ -215,7 +215,7 @@ void ERF::init_phys_bcs (bool& read_prim_theta)
             }
 
             // A value given on this face: conserved with <face>.density when compressible;
-            // primitive when anelastic, made conserved with the interior
+            // primitive when anelastic or pseudo-incompressible (no <face>.density), made conserved with the interior
             // density as the ghost cells are filled (ext_dir_prim, or ext_dir_upwind with
             // Rho not prescribed)
             auto set_inflow_value = [&] (int bccomp, Real value) {
@@ -305,7 +305,7 @@ void ERF::init_phys_bcs (bool& read_prim_theta)
                 }
             }
 
-            // An anelastic face that gives any of these values brings in zero of every other
+            // An anelastic or pseudo-incompressible face that gives any of these values brings in zero of every other
             // component it does not give, as a compressible face with <face>.density does;
             // a face that gives none takes them all from the interior.  Theta is never set to
             // zero: when it is not given it is extrapolated from the interior
@@ -790,7 +790,7 @@ void ERF::init_bcs ()
                             domain_bcs_type[BCVars::cons_bc+i].setLo(dir, ERFBCType::ext_dir_ingested);
                         }
                         else if (m_bc_prim_given[BCVars::cons_bc+i][ori]) {
-                            // anelastic: the given primitive value times the interior density
+                            // anelastic or pseudo-incompressible: the given primitive value times the interior density
                             domain_bcs_type[BCVars::cons_bc+i].setLo(dir, ERFBCType::ext_dir_prim);
                         }
                         else if (m_bc_extdir_vals[BCVars::Rho_bc_comp][ori] == 0) {
@@ -821,7 +821,7 @@ void ERF::init_bcs ()
                             domain_bcs_type[BCVars::cons_bc+i].setHi(dir, ERFBCType::ext_dir_ingested);
                         }
                         else if (m_bc_prim_given[BCVars::cons_bc+i][ori]) {
-                            // anelastic: the given primitive value times the interior density
+                            // anelastic or pseudo-incompressible: the given primitive value times the interior density
                             domain_bcs_type[BCVars::cons_bc+i].setHi(dir, ERFBCType::ext_dir_prim);
                         }
                         else if (m_bc_extdir_vals[BCVars::Rho_bc_comp][ori] == 0) {

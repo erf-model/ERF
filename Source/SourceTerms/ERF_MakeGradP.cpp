@@ -138,7 +138,7 @@ void make_gradp_pert (int level,
     const bool l_use_pert_pres = (solverChoice.use_pert_pres_gradient);
     //
     // Note that we only recompute gradp if compressible;
-    //      if anelastic then we have computed gradp in the projection
+    //      if anelastic or pseudo-incompressible then we have computed gradp in the projection
     //      and we can reuse it, no need to recompute it
     //
     if (solverChoice.compressibility_type[level] == CompressibilityType::FullyCompressible)
@@ -233,7 +233,7 @@ void make_gradp_pert (int level,
 
         compute_gradp_z(p,geom,z_phys_nd,ebfact,gradp,solverChoice);
 
-    } // not anelastic
+    } // FullyCompressible
 }
 
 /**

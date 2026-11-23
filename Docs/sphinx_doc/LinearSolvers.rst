@@ -7,10 +7,13 @@
 Linear Solvers
 ==============
 
-Evolving the anelastic equation set requires solution of a Poisson equation in which we solve for the update to the perturbational pressure at cell centers.
+Evolving the anelastic or pseudo-incompressible equation set requires solution of a Poisson equation in which we solve for the update to the perturbational pressure at cell centers;
+the projection that solves it is how these equation sets get their pressure and pressure gradient.
 ERF uses several solver options available through AMReX: geometric multigrid, Fast Fourier Transforms (FFTs) and preconditioned GMRES.
-For simulations without terrain-fitted coordinates or grid stretching, one of the FFT options is generally the fastest solver,
-followed by multigrid.  We note that the multigrid solver has the option to "ignore" a coordinate direction
+For anelastic simulations without terrain-fitted coordinates or grid stretching, one of the FFT options is generally the fastest solver,
+followed by multigrid.  Because a pseudo-incompressible level lets the density vary, its Poisson equation has a
+variable coefficient and never uses the constant-coefficient FFT or multigrid solvers; see
+:ref:`PseudoIncompressibleEquations` for the solvers it uses.  We note that the multigrid solver has the option to "ignore" a coordinate direction
 if the domain is only one cell wide in that direction; this allows for efficient solution of effectively 2D problems.
 Multigrid can also be used when the union of grids at a level is not in itself rectangular (except on terrain-fitted meshes); the FFT solvers do not work in that general case.
 A refined level is solved region by region, a region being a set of connected patches.  Patches that
@@ -112,7 +115,7 @@ Multigrid on terrain-fitted meshes
 ----------------------------------
 
 ``erf.terrain_poisson_solver`` chooses the solver for the projection on a terrain-fitted mesh
-(the anelastic projection every step, and the projection of the initial velocity):
+(the anelastic or pseudo-incompressible projection every step, and the projection of the initial velocity):
 
 - ``gmres_fft`` (default): GMRES applying ERF's own terrain operator, preconditioned by the
   hybrid FFT solver of the flat stretched mesh.  It needs the FFT build.

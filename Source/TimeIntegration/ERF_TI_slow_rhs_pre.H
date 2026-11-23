@@ -45,7 +45,8 @@
         if (solverChoice.coupling_type == CouplingType::TwoWay && finest_level > 0) {
             if (level < finest_level) {
                 fr_as_crse = getAdvFluxReg(level+1);
-                // Once per step: the anelastic RK2 integrator registers fluxes at both stages
+                // Once per step: the RK2 integrator of anelastic and pseudo-incompressible levels
+                // registers fluxes at both stages
                 // (RefluxStageWeight)
                 if (nrk == 0) { fr_as_crse->reset(); }
             }
@@ -229,7 +230,7 @@
 
         // Accumulate fixed-leaf-temperature canopy exchange in the staged
         // source storage.  The existing slow-pre and slow-post paths then
-        // apply rho-theta and rho-qv with their normal RK/anelastic weighting.
+        // apply rho-theta and rho-qv with their normal RK3 or RK2/MidPoint weighting.
         if (solverChoice.do_forest_drag && solverChoice.forest_biophysics &&
             solverChoice.forest_biophysics_heat && frontal_area) {
             AddCanopyBiophysicsHeatSources(cc_src,
@@ -368,7 +369,7 @@
                          ib_wall_face33[level].get(), ib_wall_hfx[level].get(),
                          walldist[level].get());
 
-        // Anelastic coarse/fine faces in time (ERF_CoarseFineFaces.cpp): a coarse level adds
+        // Anelastic and pseudo-incompressible coarse/fine faces in time (ERF_CoarseFineFaces.cpp): a coarse level adds
         // this stage's mass fluxes to those of its step, a fine level registers the coarse
         // momenta its coarse/fine faces are filled from in this stage
         if (solverChoice.compressibility_type[level] != CompressibilityType::FullyCompressible) {
@@ -423,8 +424,9 @@
 #include "ERF_ImplicitPre.H"
 
             // NOTE: the implicit part of the vertical (rho theta) diffusion is not added to the flux
-            //       registers.  (rho theta) is refluxed only on anelastic levels, and there no stage
-            //       whose fluxes are registered solves implicitly: RK2 turns the solve off, and
+            //       registers.  (rho theta) is refluxed only on anelastic and pseudo-incompressible
+            //       levels, and there no stage whose fluxes are registered solves implicitly: RK2
+            //       turns the solve off, and
             //       MidPoint solves in stage 0 but registers stage 1 (see SolverChoice and
             //       StageFluxWeight).
 

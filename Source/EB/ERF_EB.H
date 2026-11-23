@@ -37,7 +37,7 @@ class eb_ {
      * \param a_geom Geometry used to place the terrain EB.
      * \param terrain_fab Terrain height data.
      * \param a_dz_stretched Device vector containing stretched vertical spacing.
-     * \param is_anelastic Whether the owning level is using anelastic dynamics.
+     * \param is_anelastic Whether the owning level is not FullyCompressible (anelastic or pseudo-incompressible).
      */
     eb_ (amrex::Geometry const& a_geom,
          amrex::FArrayBox const& terrain_fab,
@@ -51,7 +51,7 @@ class eb_ {
      * \param level AMR level index.
      * \param a_geom Geometry for the level.
      * \param a_eb_level AMReX EB level owned by the global EB index space.
-     * \param is_anelastic Whether the owning level is using anelastic dynamics.
+     * \param is_anelastic Whether the owning level is not FullyCompressible (anelastic or pseudo-incompressible).
      */
     void define (int level,
                  amrex::Geometry const& a_geom,

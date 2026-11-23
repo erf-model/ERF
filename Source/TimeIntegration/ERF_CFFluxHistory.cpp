@@ -40,8 +40,8 @@ using namespace amrex;
 
 /**
  * Whether the coarse/fine faces take the coarse level's fluxes over its step (erf.cf_flux_history,
- * true by default): the compressible flux history here, and its anelastic counterpart
- * (cf_anelastic_flux_match).  erf.cf_flux_history = false keeps the coarse/fine faces
+ * true by default): the compressible flux history here, and its counterpart for anelastic and
+ * pseudo-incompressible levels (cf_anelastic_flux_match).  erf.cf_flux_history = false keeps the coarse/fine faces
  * interpolated linearly in time, for comparison.
  */
 bool

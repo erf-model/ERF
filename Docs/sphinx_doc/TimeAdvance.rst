@@ -36,11 +36,13 @@ where :math:`\mathbf{S}` is the solution vector, in the following three steps:
 
 .. _AnelasticTimeAdvance:
 
-Anelastic Advance
----------------------
+Anelastic and Pseudo-Incompressible Advance
+-------------------------------------------
 
-When solving the anelastic rather than fully compressible equations, ERF supports
-a 2nd order Runge-Kutta method and the 2nd order midpoint method (both with no substepping).
+When solving the anelastic or pseudo-incompressible rather than fully compressible equations,
+ERF supports a 2nd order Runge-Kutta method and the 2nd order midpoint method (both with no
+substepping).  Both equation sets get their pressure from a projection at the end of each
+stage rather than from an equation of state, so neither needs the acoustic substeps.
 The midpoint method is the default; set ``erf.timestepping_type = RK2`` for the Runge-Kutta method.
 
 The 2nd order Runge-Kutta method solves
@@ -85,16 +87,21 @@ integrator:
   average over the acoustic substeps of the perturbation momenta, with the vertical
   off-centering :math:`\beta_1, \beta_2` described below.  This is the mass flux that
   advances :math:`\rho` over the stage.
-- **Anelastic, RK2:** :math:`(\rho \mathbf{u})^n` in the first stage and
+- **Anelastic or pseudo-incompressible, RK2:** :math:`(\rho \mathbf{u})^n` in the first stage and
   :math:`(\rho \mathbf{u})^{*}` in the second, the same momenta that advect
   :math:`\rho \theta`.  Each pairs a scalar with momenta from the same state, as the averaged
   update :math:`\frac{\Delta t}{2} ( f(\mathbf{S}^{n}) + f(\mathbf{S}^{*}) )` requires.
-- **Anelastic, MidPoint:** :math:`(\rho \mathbf{u})^n` in the first (half) stage and
+- **Anelastic or pseudo-incompressible, MidPoint:** :math:`(\rho \mathbf{u})^n` in the first (half) stage and
   :math:`(\rho \mathbf{u})^{*} = (\rho \mathbf{u})^{n+1/2}` in the second, again the same
   momenta that advect :math:`\rho \theta`.
 
-In the anelastic cases the momenta are projected at the end of each stage, so the momenta at
-the start of the next stage or step are divergence-free and a uniform scalar stays uniform.
+In these cases the momenta are projected at the end of each stage.  At an anelastic level the
+density is fixed, so the projected momenta at the start of the next stage or step are
+divergence-free and a uniform scalar stays uniform.  A pseudo-incompressible level evolves the
+density, as a compressible level does, so the projection makes
+:math:`\beta \, \rho \mathbf{u}` divergence-free instead (see
+:ref:`PseudoIncompressibleEquations`); a uniform mixing ratio stays uniform because it is
+advected with the same mass fluxes as :math:`\rho`.
 The pairing is the same with and without an embedded boundary.  With an embedded boundary the
 state redistribution in the cut cells is added to this update as a change to the stage's
 right-hand side, with the stage's weight (one half in the second RK2 stage), so the averaged RK2

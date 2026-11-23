@@ -283,8 +283,10 @@ Supported wall inputs are specified in primitive form. On compressible
 ``slipwall`` and ``noslipwall`` faces, same-face ``density`` may
 be supplied so ERF stores the corresponding conserved value. ``density_grad``
 is supported only on compressible ``slipwall`` faces; supplying it on a
-``noslipwall`` face is an input error. Anelastic solid walls must omit both
-``density`` and ``density_grad``.
+``noslipwall`` face is an input error. Anelastic and pseudo-incompressible solid
+walls must omit both ``density`` and ``density_grad``: at an anelastic level the
+density is held at the base state, and a pseudo-incompressible level, which evolves
+the density as a compressible level does, does not support a wall density yet.
 
 For every supported variable, a fixed value and its corresponding gradient on
 the same face are mutually exclusive.
@@ -333,7 +335,8 @@ Couette regression test example, in which we specify
 Density may be prescribed at a solid wall in the same two ways as potential
 temperature: ``<face>.density`` sets a Dirichlet value and ``<face>.density_grad``
 sets a Neumann gradient.  Only one of the two may be given on a face, and neither
-is accepted for an anelastic run, where the density is not a free variable.
+is accepted for an anelastic run, where the density is not a free variable, or (not yet)
+for a pseudo-incompressible run.
 
 For a ``noslipwall`` face in a simulation with an active moisture model, the
 water-vapor mixing ratio may likewise be prescribed with ``<face>.qv``.  It is
@@ -362,7 +365,8 @@ neither read from ``wrfbdy`` nor nudged toward WRF values. For compressible ``WR
 density as the target for ``rho``, ``rho*theta``, and ``rho*qv`` and relaxes
 ``rho`` in the Davies zone. Pressure is still diagnosed from the ERF equation
 of state rather than directly nudged. This option is not supported for
-MetGrid-only boundaries, generic boundary-plane input, or anelastic runs.
+MetGrid-only boundaries, generic boundary-plane input, or anelastic or
+pseudo-incompressible runs (ERF stops if level 0 is not FullyCompressible).
 
 .. |wrfbdy| image:: figures/wrfbdy_BCs.png
            :width: 600

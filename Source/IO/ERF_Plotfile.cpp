@@ -812,10 +812,11 @@ ERF::FillPlot3DVars (int lev,
            } // mfi
            pressure.FillBoundary(geom[lev].periodicity());
         } // compute compressible pressure
-    } // not anelastic
+    } // FullyCompressible
     else {
         if (needs_pressure) {
-            // Copy p_hse into pressure if using anelastic
+            // Copy p_hse into pressure if anelastic or pseudo-incompressible, whose pressure
+            // comes from the projection rather than the EOS
             pressure.define(ba,dm,1,0);
             MultiFab::Copy(pressure,p_hse,0,0,1,0);
         }

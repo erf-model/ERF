@@ -70,7 +70,7 @@ void fill_sampled_level_component (amrex::MultiFab& dst,
                                    int khi,
                                    const SampledWindSources& wind_sources = {},
                                    // Base state pressure -- pass this only for an anelastic
-                                   //    run, in which case it is used in place of the
+                                   //    or pseudo-incompressible run, in which case it is used in place of the
                                    //    compressible EOS for the pressure field
                                    const amrex::MultiFab* p_hse = nullptr);
 
