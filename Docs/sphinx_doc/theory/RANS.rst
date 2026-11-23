@@ -440,10 +440,13 @@ Limitations
 * All levels must use the closure; a hybrid RANS-LES set-up is refused.
 * Embedded and thin-body boundaries are not supported by the Poisson wall
   distance.
-* Under the anelastic integrator all vertical diffusion is explicit, so
-  the time step is bounded by :math:`\Delta z^2 / (2 K)`; with the eddy
-  viscosities a convective boundary layer produces (tens of m\ :sup:`2`/s)
-  this is the binding constraint, not the closure.
+* With ``erf.timestepping_type = RK2`` at an anelastic or
+  pseudo-incompressible level the implicit vertical solve is turned off,
+  so all vertical diffusion is explicit and the time step is bounded by
+  :math:`\Delta z^2 / (2 K)`; with the eddy viscosities a convective
+  boundary layer produces (tens of m\ :sup:`2`/s) this is the binding
+  constraint, not the closure.  The default ``MidPoint`` integrator keeps
+  the implicit solve in its first stage and is not bounded this way.
 * The closure is local: a convective layer keeps a superadiabatic lapse
   of order :math:`-F/K_h` through its depth where a countergradient
   scheme or LES would mix it out.

@@ -82,7 +82,7 @@ In these momentum equations :math:`B_z` is an upward-positive
 vertical **force density**, with units of :math:`\mathrm{N\,m^{-3}}`.
 The explicit slow-momentum source divides the stored pressure-gradient
 and buoyancy terms by :math:`1+q_t`, with water mixing ratio averaged
-from the two neighboring cells to the face. Anelastic projection also
+from the two neighboring cells to the face. The anelastic projection also
 adds a separate correction to the momenta; the equation here is a
 continuum summary, not a complete specification of the projection step.
 
@@ -109,9 +109,9 @@ height, the continuum horizontal derivatives of :math:`p` and
 :math:`p'` agree at fixed height; the discrete choices can nevertheless
 differ on terrain-following grids. See :ref:`sec:Inputs`.
 
-For **anelastic** flow, the :math:`p'` appearing in the schematic
-momentum equation denotes a pressure-like contribution enforced by
-projection. Its gradient is maintained by the projection solver, not
+For **anelastic** and **pseudo-incompressible** flow, the :math:`p'`
+appearing in the schematic momentum equation denotes a pressure-like
+contribution enforced by projection. Its gradient is maintained by the projection solver, not
 recomputed as an independently diagnosed compressible EOS pressure
 perturbation. The projection also updates the momenta separately.
 See :ref:`Buoyancy` for the gravitational source definitions and
@@ -338,7 +338,7 @@ the drift correction acts on it.
 
 We supplement the above equations with the following equations for advected scalars (:math:`\phi`) and
 precipitating (:math:`\mathbf{q_{p}}`) and non-precipitating (:math:`\mathbf{q_{n}}`)
-moisture variables (identical for compressible and anelastic)
+moisture variables (identical for compressible, anelastic and pseudo-incompressible)
 
 .. math::
    \frac{\partial (\rho_d \boldsymbol{\phi})}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u} \boldsymbol{\phi}) + \nabla \cdot ( \rho_d \alpha_{\phi}\ \nabla \boldsymbol{\phi}) + \mathbf{F}_{\phi},
@@ -417,7 +417,10 @@ and gravity magnitude :math:`g>0`, hydrostatic balance is
 
 The same reference density and hydrostatic pressure are used by the
 anelastic formulation, which fixes dry density at :math:`\rho_0` and
-obtains its momentum pressure-gradient term from projection. The fixed
+obtains its momentum pressure-gradient term from projection, and by the
+pseudo-incompressible formulation, which evolves the density as the
+compressible formulation does but, like the anelastic one, obtains its
+pressure-gradient term from projection. The fixed
 thermodynamic reference pressure :math:`P_{00}=10^5\,\mathrm{Pa}` used in
 potential-temperature and EOS definitions is **not** the varying
 hydrostatic profile :math:`p_0(z)`.
@@ -552,7 +555,8 @@ with :math:`\sigma_{ij} = S_{ij} -D_{ij}` being the deviatoric part of the strai
 
   \theta_d = T \left( \frac{P_{00}}{p} \right)^{R_d / c_p}.
 
-(In the anelastic case, :math:`p` is replaced by :math:`p_0` in the relationship between :math:`\theta_d` and :math:`T`.)
+(In the anelastic and pseudo-incompressible cases, :math:`p` is replaced by :math:`p_0` in the relationship between :math:`\theta_d` and :math:`T`,
+since neither diagnoses the pressure from the equation of state.)
 
 
 Assumptions

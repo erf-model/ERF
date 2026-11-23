@@ -19,11 +19,11 @@ the same way here.
 
 .. _superdroplets-anelastic-compatibility:
 
-Anelastic compatibility
------------------------
+Anelastic and pseudo-incompressible compatibility
+-------------------------------------------------
 
 ``SuperDroplets`` uses a thermodynamic pressure source selected independently
-on each AMR level. On a level with ``erf.compressibility_type`` not ``FullyCompressible``, the pressure supplied
+on each AMR level. On a level with ``erf.compressibility_type`` not ``FullyCompressible`` (Anelastic or PseudoIncompressible), the pressure supplied
 to the super-droplet microphysics is the hydrostatic base-state pressure at
 each cell, rather than a pressure diagnosed from the compressible equation of
 state. ERF diagnoses the temperature from dry potential temperature using
@@ -40,7 +40,7 @@ the fixed reference pressure used to define potential temperature, and
 :math:`c_p` is the configured ``erf.c_p``. These pressures are in pascals.
 No additional pressure or Exner-function input is required.
 
-During an anelastic SDM microphysics source step, the pressure remains the
+During an SDM microphysics source step on such a level, the pressure remains the
 base-state pressure while the temperature is refreshed from the updated
 potential temperature after each phase-change substep. Latent heating uses
 the fixed inverse Exner factor for every process, including sequential
@@ -72,7 +72,7 @@ analysis.
 
 .. warning::
 
-   Anelastic ``SuperDroplets`` execution has not been validated on CUDA or HIP
+   Anelastic and pseudo-incompressible ``SuperDroplets`` execution has not been validated on CUDA or HIP
    GPUs. Check the selected particle processes, restart behavior, and AMR
    configuration before using GPU results for scientific analysis; do not
    assume reproducibility between CPU and GPU runs.

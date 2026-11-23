@@ -349,8 +349,8 @@ immersed-forcing scalar relaxation, radiative heating or Rayleigh damping;
 ``"add"`` accumulates the fire tendency into the freshly rebuilt source, once
 per stage, so nothing is lost and nothing is double counted. Use ``"add"``
 whenever another source writes into those slots: immersed forcing applied on
-the slow step (``erf.immersed_forcing_substep = false``, the anelastic
-default), radiative heating, Rayleigh damping. With immersed forcing on the
+the slow step (``erf.immersed_forcing_substep = false``, the default when any
+level is anelastic or pseudo-incompressible), radiative heating, Rayleigh damping. With immersed forcing on the
 acoustic substeps (the compressible default) the scalar relaxation never
 meets the slow-step source and the two modes are identical, as they are with
 no other source. Because the default would silently drop such a source, a run

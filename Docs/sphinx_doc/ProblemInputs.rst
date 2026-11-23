@@ -127,7 +127,7 @@ so that the plane lies at zero. Cells with :math:`r > 1` are not changed, and th
 wrapped across periodic boundaries (WRF's is not either): a bubble that crosses a periodic
 boundary is cut there.
 
-- **Compressible:** the bubble is made at constant pressure, as WRF makes it: :math:`\rho\theta`
+- **Evolving density (compressible or pseudo-incompressible):** the bubble is made at constant pressure, as WRF makes it: :math:`\rho\theta`
   and the mixing ratio :math:`q_v` are kept and the density drops to
   :math:`\rho\theta / (\theta + \theta')`, so the bubble starts buoyant and with no pressure
   pulse. Other moisture species are not rescaled. WRF also re-integrates the geopotential of

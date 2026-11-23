@@ -341,7 +341,7 @@ a moisture condition is given; a given ``erf.if_Olen`` sets :math:`\theta_{v*}`,
 :math:`B = -g u_* \theta_{v*}/\theta_v`, as ``erf.dirichlet_k`` does on flat ground. With the k-equation closure, ``erf.rans_moist_buoyancy`` makes the
 TKE buoyancy production read the water-vapor flux too (see :ref:`RANS <RANS>`), so a heated, evaporating
 surface on a cell face reproduces flat ground. The option needs ``erf.if_use_most = true``, a
-constant-:math:`\Delta z` mesh and the anelastic model (the compressible fast substep does not carry the wall
+constant-:math:`\Delta z` mesh and the anelastic or pseudo-incompressible model on every level (the compressible fast substep does not carry the wall
 heat flux and the wall TKE); ``erf.if_stability_correction`` belongs to the legacy law. With a RANS closure the
 geometric length scale over the immersed surface is :math:`\kappa (d + z_0)` with ``erf.if_z0``, as it is
 :math:`\kappa (d + z_0)` with the surface layer's roughness on flat ground.
@@ -357,7 +357,7 @@ TKE with the length scale of flat ground's first cell (``erf.if_flat_wall_dissip
 this law): its own length, at :math:`d_1`, would make a nearly solid wall cell dissipate several times faster
 than the wall value restores it. See `erf-model/ERF#4134 <https://github.com/erf-model/ERF/issues/4134>`_.
 
-With the anelastic model the solid cells are also held by the projection. By default the drag of the
+With the anelastic or pseudo-incompressible model the solid cells are also held by the projection. By default the drag of the
 solid is a source term, the projection (which treats the solid as fluid) then adds a pressure
 correction there, and the faces between two fully solid cells are set to zero after it. The face
 between a solid and a fluid cell keeps its projected flux, so the solid cell under it is left with a
@@ -503,7 +503,8 @@ the fine cells are weighted by their fluid mass,
 
 with :math:`V_f` the fine cell volume (:math:`\det J / (m_x m_y)`, the weight the plain average carries) and
 :math:`\rho_c` the coarse density: the coarse cell's own base-state density when the density is not averaged
-(anelastic), and the fluid-volume-weighted mean of the fine density when it is (compressible). Coarse cells that
+(anelastic), and the fluid-volume-weighted mean of the fine density when it is (compressible or
+pseudo-incompressible, which both evolve the density). Coarse cells that
 are solid on their own level, or with no fluid fine cell under them, keep their value. The coarse value is the
 fluid mean over the whole coarse cell, so the integral of :math:`\rho\phi` over a covered partial cell is
 :math:`1/(1-\beta_c)` times the fine fluid integral: this average is not conservative over the covered region,
@@ -517,7 +518,7 @@ treatment of the solid (``erf.if_implicit_projection = false``, the default) the
 divergence free and the solid is frozen afterwards, so the partial cells at the patch edges keep a divergence of
 their own, which advects a uniform :math:`\theta` into a spurious source. With ``erf.if_implicit_projection = true``
 the drag is applied inside the projection and the solid is not frozen, and the momenta stay divergence free in the
-partial cells: multi-level anelastic runs with immersed forcing should use it. The ``ImmersedLES2LevHeatBalance``
+partial cells: multi-level anelastic and pseudo-incompressible runs with immersed forcing should use it. The ``ImmersedLES2LevHeatBalance``
 test (a plane at 45 m, a two-level patch, 20 steps) requires the fluid-mass-weighted mean :math:`\theta` of the
 domain to stay within 1e-6 K of its uniform start with the implicit projection, and checks that the explicit
 freeze exceeds that. Where the surface lies on the mid-plane of a coarse cell, the two levels describe different
@@ -603,7 +604,7 @@ Inputs that can be used with immersed forcing for buildings are as follows:
 
 .. _sec:IFBuildingsImplicitProjection:
 
-With the anelastic solver the building faces are held by the projection as the terrain faces are
+With the anelastic or pseudo-incompressible solver the building faces are held by the projection as the terrain faces are
 (see above). By default the drag is a source term and the faces between two solid cells are set to
 zero after the projection, so the partial cells at the walls and the roof (and, when a box edge is
 not on a cell mid-plane, the solid cells next to them) keep a divergence that advects a uniform
@@ -639,11 +640,14 @@ value. Dropping the cap also makes the drag on a partial face in a slow wake (:m
 stronger than the source term's. See
 `erf-model/ERF#4887 <https://github.com/erf-model/ERF/issues/4887>`_.
 
-The default drag coefficients are different when using the fully compressible solver compared to the anelastic solver.
-This is because the timestep used for the anelastic solver is typically much coarser compared to the substep timestep for the fully compressible solver.
+The default drag coefficients are different when using the fully compressible solver compared to the anelastic or
+pseudo-incompressible solver (the latter defaults apply if any level is anelastic or pseudo-incompressible).
+This is because the timestep of these two solvers, which get their pressure from a projection and so take no acoustic
+substeps, is typically much coarser than the substep timestep of the fully compressible solver.
 A larger drag coefficient will more quickly force a cell to the desired value; however, there is a stability limit related to the timestep due to the explicit form of the drag term.
 The recommended values are ``erf.if_Cd_scalar = 50.0`` and ``erf.if_Cd_momentum = 500.0`` for the fully compressible solver and
-``erf.if_Cd_scalar = 5.0`` and ``erf.if_Cd_momentum = 50.0`` (note that these are the default values).
+``erf.if_Cd_scalar = 5.0`` and ``erf.if_Cd_momentum = 50.0`` for the anelastic and pseudo-incompressible solvers
+(note that these are the default values).
 The immersed forcing formulation for buildings has been rigorously tested at grid spacings of 5.0 m and less.
 Caution is needed when using immersed forcing at coarser grid spacings.
 If immersed forcing is causing your simulations to become unstable, the first recommendation is to reduce the drag coefficients.

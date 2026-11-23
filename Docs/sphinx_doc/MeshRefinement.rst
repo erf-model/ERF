@@ -70,9 +70,11 @@ fluxes, the momentum sources on these faces, the tangential momenta and :math:`\
 not refluxed. This is done only for fully compressible levels without terrain or EB, and takes the
 map factors to be one.
 
-When using the anelastic approximation, this ensures that the computation of the updates to the
-fine momentum do not use any values of the perturbational pressure from the coarser level since
-the perturbational pressure is not synchronized between levels.
+When using the anelastic or pseudo-incompressible approximation, interpolating the source term for
+the normal momentum on the coarse-fine interface (described above) also ensures that the computation of
+the updates to the fine momentum does not use any values of the perturbational pressure from the coarser
+level.  At these levels each level's projection gives its own perturbational pressure, which is not
+synchronized between levels.
 
 Note that any tagged region will be covered by one or more boxes.  The user may
 specify the refinement criteria and/or region to be covered, but not the decomposition of the region into
