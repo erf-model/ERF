@@ -12,7 +12,7 @@
  * @brief Time integration treatment used for Rayleigh damping.
  */
 enum struct RayleighDampingType {
-    None, SlowExplicit, FastExplicit, FastImplicit
+    None, SlowExplicit, SlowImplicit, FastExplicit, FastImplicit
 };
 
 /**
@@ -30,10 +30,15 @@ struct DampingChoice {
         amrex::ParmParse pp(pp_prefix);
 
         static std::string rayleigh_type_string = "SlowExplicit";
+        // Whether the type was given: anelastic and pseudo-incompressible levels default to
+        // SlowImplicit for w, compressible levels to SlowExplicit (rayleigh_slow_implicit_w)
+        rayleigh_damping_type_given = pp.contains("rayleigh_damping_type");
         pp.queryAdd("rayleigh_damping_type",rayleigh_type_string);
 
         if (!rayleigh_type_string.compare("SlowExplicit")) {
             rayleigh_damping_type = RayleighDampingType::SlowExplicit;
+        } else if (!rayleigh_type_string.compare("SlowImplicit")) {
+            rayleigh_damping_type = RayleighDampingType::SlowImplicit;
         } else if (!rayleigh_type_string.compare("FastExplicit")) {
             rayleigh_damping_type = RayleighDampingType::FastExplicit;
         } else if (!rayleigh_type_string.compare("FastImplicit")) {
@@ -109,6 +114,7 @@ struct DampingChoice {
 
     // Molecular transport model
     RayleighDampingType rayleigh_damping_type = RayleighDampingType::SlowExplicit;
+    bool rayleigh_damping_type_given = false;
 };
 
 /**
