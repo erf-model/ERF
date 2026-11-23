@@ -1364,4 +1364,67 @@ TEST_F(SLMInterfaceTest, WRFInputRequiresParameterFile)
     }
 }
 
+// Motivation: ISLTYP 17-19 used to fall into the default case, which set sand = clay = -100%
+// and made the thermal soil properties wrong.  Categories 8 and 9 follow the STAS table.
+TEST_F(SLMInterfaceTest, SoilCategoriesSetSandAndClay)
+{
+    ScopedSLMParameterFile parameter_file;
+    struct SoilCase { int type; amrex::Real sand; amrex::Real clay; };
+    const std::vector<SoilCase> cases{
+        {1, 92.0, 3.0}, {8, 20.0, 40.0}, {9, 32.0, 34.0}, {16, 0.1, 0.1},
+        {17, 20.0, 60.0}, {18, 0.1, 0.1}, {19, 92.0, 3.0}};
+
+    for (const auto& c : cases) {
+        initialize_multilevel(2, InitType::WRFInput);
+        seed_transfer_state(0, amrex::Real(290.0), amrex::Real(290.0),
+                            amrex::Real(0.4), amrex::Real(0.0));
+        get_slm_data(land_surface, 0, "soiltype")->setVal(c.type);
+        land_surface.Initialize_From_Source(1, 0, amrex::IntVect(2),
+                                             LSMTransferMode::ProcessedState);
+
+        for (const char* name : {"sand", "clay"}) {
+            const amrex::Real expected = (std::string(name) == "sand") ? c.sand : c.clay;
+            const auto* mf = get_slm_data(land_surface, 1, name);
+            EXPECT_NEAR(mf->min(0), expected, amrex::Real(1.0e-4))
+                << name << " min for soil type " << c.type;
+            EXPECT_NEAR(mf->max(0), expected, amrex::Real(1.0e-4))
+                << name << " max for soil type " << c.type;
+        }
+    }
+}
+
+TEST_F(SLMInterfaceTest, SoilCategoriesOutsideRangeAbortOnLandOnly)
+{
+    ScopedSLMParameterFile parameter_file;
+    ScopedThrowOnAbort throw_on_abort;
+
+    for (const int bad : {0, 20}) {
+        initialize_multilevel(2, InitType::WRFInput);
+        seed_transfer_state(0, amrex::Real(290.0), amrex::Real(290.0),
+                            amrex::Real(0.4), amrex::Real(0.0));
+        get_slm_data(land_surface, 0, "soiltype")->setVal(bad);
+        try {
+            land_surface.Initialize_From_Source(1, 0, amrex::IntVect(2),
+                                                 LSMTransferMode::ProcessedState);
+            ADD_FAILURE() << "expected an abort for soil category " << bad;
+        } catch (const amrex::RuntimeError& e) {
+            const std::string msg(e.what());
+            EXPECT_NE(msg.find("[1, 19]"), std::string::npos) << msg;
+            EXPECT_NE(msg.find("min = " + std::to_string(bad)), std::string::npos) << msg;
+        }
+    }
+
+    // Water cells (vegetation type 17) with soil type 14 or 0 must not abort
+    for (const int water_soil : {14, 0}) {
+        initialize_multilevel(2, InitType::WRFInput);
+        seed_transfer_state(0, amrex::Real(290.0), amrex::Real(290.0),
+                            amrex::Real(0.4), amrex::Real(0.0));
+        get_slm_data(land_surface, 0, "vegtype")->setVal(17);
+        get_slm_data(land_surface, 0, "soiltype")->setVal(water_soil);
+        EXPECT_NO_THROW(land_surface.Initialize_From_Source(
+            1, 0, amrex::IntVect(2), LSMTransferMode::ProcessedState))
+            << "water cell with soil type " << water_soil;
+    }
+}
+
 } // namespace

@@ -967,16 +967,48 @@ void SLM::slm_init ()
                      " is outside the LAI/SAI table range [1, " +
                      std::to_string(num_landtypes) + "]");
     }
-    if (use_param_file) {
-        const auto& soiltype = *lsm_fab_vars[LsmVar_SLM::soiltype];
-        const int soiltype_min = static_cast<int>(soiltype.min(0));
-        const int soiltype_max = static_cast<int>(soiltype.max(0));
-        if (soiltype_min < 0 || soiltype_max > num_soil_params)
-        {
-            amrex::Abort("SLM: soil categories are outside the selected parameter table range [1, " +
-                         std::to_string(num_soil_params) + "]! min = " +
-                         std::to_string(soiltype_min) + ", max = " +
-                         std::to_string(soiltype_max));
+    // validate the soil categories on land cells only: water cells often carry ISLTYP 14 or 0
+    {
+        const int d_khi_lsm_soil = khi_lsm;
+        ReduceOps<ReduceOpMin, ReduceOpMax, ReduceOpSum> reduce_op;
+        ReduceData<int, int, int> reduce_data(reduce_op);
+        using ReduceTuple = typename decltype(reduce_data)::Type;
+
+        for (MFIter mfi(landtype, TileNoZ()); mfi.isValid(); ++mfi) {
+            const Box& bx = mfi.tilebox();
+            auto landmask_arr = landmask.const_array(mfi);
+            auto soiltype_arr = lsm_fab_vars[LsmVar_SLM::soiltype]->const_array(mfi);
+            reduce_op.eval(bx, reduce_data,
+            [=] AMREX_GPU_DEVICE (int i, int j, int) -> ReduceTuple
+            {
+                if (landmask_arr(i, j, 0) == 1) {
+                    const int stype = static_cast<int>(soiltype_arr(i, j, d_khi_lsm_soil));
+                    return {stype, stype, 1};
+                }
+                return {std::numeric_limits<int>::max(), std::numeric_limits<int>::lowest(), 0};
+            });
+        }
+
+        auto reduced = reduce_data.value(reduce_op);
+        int soiltype_min = amrex::get<0>(reduced);
+        int soiltype_max = amrex::get<1>(reduced);
+        int num_land = amrex::get<2>(reduced);
+        ParallelDescriptor::ReduceIntMin(soiltype_min);
+        ParallelDescriptor::ReduceIntMax(soiltype_max);
+        ParallelDescriptor::ReduceIntSum(num_land);
+
+        if (num_land > 0) {
+            if (soiltype_min < 1 || soiltype_max > 19) {
+                amrex::Abort("SLM: soil categories on land cells must be in the supported range [1, 19]! min = " +
+                             std::to_string(soiltype_min) + ", max = " +
+                             std::to_string(soiltype_max));
+            }
+            if (use_param_file && soiltype_max > num_soil_params) {
+                amrex::Abort("SLM: soil categories on land cells are outside the selected parameter table range [1, " +
+                             std::to_string(num_soil_params) + "]! min = " +
+                             std::to_string(soiltype_min) + ", max = " +
+                             std::to_string(soiltype_max));
+            }
         }
     }
 
@@ -2055,13 +2087,13 @@ void SLM::init_soil_tw ()
                             sand_arr(i,j,k) = 0.60;
                             clay_arr(i,j,k) = 0.30;
                             break;
-                        case 8: // clay loam
-                            sand_arr(i,j,k) = 0.32;
-                            clay_arr(i,j,k) = 0.34;
-                            break;
-                        case 9: // silty clay loam
+                        case 8: // silty clay loam
                             sand_arr(i,j,k) = 0.20;
                             clay_arr(i,j,k) = 0.40;
+                            break;
+                        case 9: // clay loam
+                            sand_arr(i,j,k) = 0.32;
+                            clay_arr(i,j,k) = 0.34;
                             break;
                         case 10: // sandy clay
                             sand_arr(i,j,k) = 0.52;
@@ -2093,9 +2125,20 @@ void SLM::init_soil_tw ()
                             sand_arr(i,j,k) = 0.001;
                             clay_arr(i,j,k) = 0.001;
                             break;
+                        case 17: // playa, same as clay in the Noah-MP table
+                            sand_arr(i,j,k) = 0.20;
+                            clay_arr(i,j,k) = 0.60;
+                            break;
+                        case 18: // lava, bedrock-like
+                            sand_arr(i,j,k) = 0.001;
+                            clay_arr(i,j,k) = 0.001;
+                            break;
+                        case 19: // white sand, same as sand in the Noah-MP table
+                            sand_arr(i,j,k) = 0.92;
+                            clay_arr(i,j,k) = 0.03;
+                            break;
                         default:
-                            sand_arr(i,j,k) = -1.0;
-                            clay_arr(i,j,k) = -1.0;
+                            // soil categories on land cells are validated to be in [1, 19] in slm_init
                             break;
                     }
 

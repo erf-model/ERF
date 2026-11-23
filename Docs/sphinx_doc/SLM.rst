@@ -227,7 +227,7 @@ For each horizontal cell, SLM performs the following operations:
   value is a normalized wetness fraction, with saturation represented relative to
   ``poro_soil``.
 
-For WRF ``ISLTYP`` values 1--16, SLM assigns the following sand and clay
+For WRF ``ISLTYP`` values 1--19, SLM assigns the following sand and clay
 contents to every soil layer in the cell.
 
 +----------+-----------------------+----------+----------+
@@ -247,9 +247,9 @@ contents to every soil layer in the cell.
 +----------+-----------------------+----------+----------+
 | 7        | Sandy clay loam       | 60.0     | 30.0     |
 +----------+-----------------------+----------+----------+
-| 8        | Clay loam             | 32.0     | 34.0     |
+| 8        | Silty clay loam       | 20.0     | 40.0     |
 +----------+-----------------------+----------+----------+
-| 9        | Silty clay loam       | 20.0     | 40.0     |
+| 9        | Clay loam             | 32.0     | 34.0     |
 +----------+-----------------------+----------+----------+
 | 10       | Sandy clay            | 52.0     | 42.0     |
 +----------+-----------------------+----------+----------+
@@ -265,6 +265,18 @@ contents to every soil layer in the cell.
 +----------+-----------------------+----------+----------+
 | 16       | Other/urban           | 0.1      | 0.1      |
 +----------+-----------------------+----------+----------+
+| 17       | Playa                 | 20.0     | 60.0     |
++----------+-----------------------+----------+----------+
+| 18       | Lava                  | 0.1      | 0.1      |
++----------+-----------------------+----------+----------+
+| 19       | White sand            | 92.0     | 3.0      |
++----------+-----------------------+----------+----------+
+
+Categories 8 and 9 follow the STAS table in ``NoahmpTable.TBL`` (8 is silty clay
+loam, 9 is clay loam). Categories 17--19 take the sand and clay of the STAS
+class whose hydraulic parameters they match (playa = clay, white sand = sand,
+lava = bedrock-like). SLM aborts if a land cell has a soil category outside
+[1, 19]. Water cells are not checked, since they often carry ISLTYP 14 or 0.
 
 The category constants and their WRFInput treatment are:
 
