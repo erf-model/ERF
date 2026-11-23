@@ -90,11 +90,13 @@ TEST(FillPatcherRelaxBand, TopCoarseFineFaceOfZFacesKeepsTheSetRegion)
     int set_val = 0, relax_val = 0;
     const iMultiFab m = relax_mask(fk_hi, IntVect(0,0,1), set_val, relax_val);
     const int i = (fi_lo + fi_hi) / 2;   // away from the lateral band
-    // w is set on the coarse/fine face itself and relaxed on the other faces of the cf_width
-    // cells below it; the domain bottom has no band
+    // w is set on the coarse/fine face itself and relaxed on the cf_width - 1 faces below it,
+    // as on the lateral coarse/fine faces of face-centered data; the domain bottom has no band.
+    // (Before #5339 the periodic images in y lost their top z face, which widened this band by
+    // one face; the lateral faces of a face box were lopsided the same way.)
     EXPECT_EQ(at(m, i, 1, fk_hi+1), set_val);
     for (int k = 0; k <= fk_hi; ++k) {
-        const bool band = k >= fk_hi + 1 - cf_width;
+        const bool band = k >= fk_hi + 2 - cf_width;
         EXPECT_EQ(at(m, i, 1, k), band ? relax_val : 0) << "k=" << k;
     }
 }

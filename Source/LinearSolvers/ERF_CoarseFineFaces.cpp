@@ -474,10 +474,13 @@ void ERF::set_cf_zghost_projection (int lev, double time_d, MultiFab& xmom, Mult
 {
     BL_PROFILE("ERF::set_cf_zghost_projection()");
     MultiFab rhou_g, rhov_g;
-    // The scaling is (rho u) with a fixed density and (rho0 u) otherwise; neither is the
-    // beta (rho u) of a pseudo-incompressible projection, which therefore stops before here
-    // on a level with coarse/fine faces in z (project_momenta)
-    if (!cf_zface_coarse_data(lev, time_d, solverChoice.fixed_density[lev],
+    // The scaling is that of the level's momenta at this point: (rho u) with a fixed density,
+    // and on a pseudo-incompressible level, which projects beta (rho u) and multiplies by beta
+    // only after Omega is formed (as on its coarse/fine faces in x and y, which the fill sets to
+    // the coarse (rho u)); (rho0 u) otherwise
+    const bool conserved_rho = solverChoice.fixed_density[lev] ||
+        (solverChoice.compressibility_type[lev] == CompressibilityType::PseudoIncompressible);
+    if (!cf_zface_coarse_data(lev, time_d, conserved_rho,
                               omega_t, rhou_g, rhov_g, slab_box)) {
         return;
     }

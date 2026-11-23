@@ -8,7 +8,7 @@ forgetting the other, and the resulting numbers still look plausible. This
 check fails when the two configurations drift apart.
 
 It verifies that:
-  1. both inputs pull in the same shared block via FILE = inputs_common;
+  1. both inputs pull in the same shared block via FILE = shared_settings;
   2. neither input redefines anything the shared block already sets;
   3. the settings each input adds on its own are confined to its solver;
   4. radiation is called every step in both;
@@ -137,17 +137,17 @@ def main():
             rows = list(csv.DictReader(f))
         print("  results present: %d resolutions" % len(rows))
         for r in rows:
-            for col in ("twostream_ms_per_call", "twostream_calls"):
+            for col in ("twostream_ms_per_step", "twostream_calls"):
                 if not r.get(col):
                     note("results row missing %s" % col)
-            val = r.get("twostream_ms_per_call")
+            val = r.get("twostream_ms_per_step")
             if val and float(val) <= 0.0:
                 note("non-positive two-stream cost in the results")
         # Cost must grow with problem size; a flat or falling curve means the
         # measurement captured something other than the solver.
         sized = sorted(rows, key=lambda r: int(r["cells"]))
-        costs = [float(r["twostream_ms_per_call"]) for r in sized
-                 if r.get("twostream_ms_per_call")]
+        costs = [float(r["twostream_ms_per_step"]) for r in sized
+                 if r.get("twostream_ms_per_step")]
         if len(costs) > 1 and costs[-1] <= costs[0]:
             note("two-stream cost does not increase with problem size "
                  "(%.3f -> %.3f ms); the timing looks wrong" % (costs[0], costs[-1]))

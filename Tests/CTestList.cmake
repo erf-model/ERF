@@ -7435,11 +7435,15 @@ if(NOT WIN32 AND ERF_TEST_PYTHON AND ERF_PRECISION STREQUAL "DOUBLE")
         RUNTIME_OPTIONS "${_pi} erf.terrain_poisson_solver=gmres_fft"
         CHECK check_uniform_scalar.py PLOTFILES ${_hill_tol})
   endif()
-  # Not yet supported: a refined level that stops inside the domain in z on a terrain-fitted mesh
-  add_test_abort(PseudoIncompressible_Hill_PartialDepth_Abort
-      ${PROJECT_SOURCE_DIR}/Exec/RegTests/AnelasticScalarAdvection inputs_hill
-      "a refined level that stops inside the domain in z is not yet supported"
-      "${_pi} ${_hill_amr} ${_hill_part}")
+  # A refined level over the hill that stops inside the domain in z: its top and bottom faces take
+  # the coarse Omega(rho u), which beta multiplies as on its side faces.  These stopped at the
+  # first projection before.
+  add_test_anelastic_scalar_advection(PseudoIncompressibleScalarAdvection_Hill_PartialDepth inputs_hill 30
+      RUNTIME_OPTIONS "${_pi} ${_hill_amr} ${_hill_part} erf.coupling_type=OneWay"
+      CHECK check_uniform_scalar.py PLOTFILES ${_hill_amr_tol} --require-level --density)
+  add_test_anelastic_scalar_advection(PseudoIncompressibleScalarAdvection_Hill_PartialDepth_TwoWay inputs_hill 30
+      RUNTIME_OPTIONS "${_pi} ${_hill_amr} ${_hill_part}"
+      CHECK check_uniform_scalar.py PLOTFILES ${_hill_amr_tol} --require-level --density)
 endif()
 
 #=============================================================================
