@@ -1932,6 +1932,18 @@ struct SolverChoice {
         }
         ebChoice.init_params(pp_prefix, any_projection);
 
+        // SlowImplicit damps w implicitly in the update of a level without acoustic substeps; a
+        // level with substeps has FastImplicit for that
+        if (dampingChoice.rayleigh_damping_type == RayleighDampingType::SlowImplicit) {
+            for (int lev = 0; lev <= max_level; ++lev) {
+                if (level_substeps(lev)) {
+                    amrex::Abort("erf.rayleigh_damping_type = SlowImplicit needs a level without acoustic"
+                                 " substeps (anelastic, pseudo-incompressible or RK3_NoSubstepping); level " +
+                                 std::to_string(lev) + " takes them: use FastImplicit");
+                }
+            }
+        }
+
         // A level that takes no acoustic substeps applies these terms on the slow step instead
         // (level_substeps); say so when they were asked for
         for (int lev = 0; lev <= max_level; ++lev) {
@@ -3227,6 +3239,19 @@ struct SolverChoice {
     {
         return level_substeps(lev) && dampingChoice.rayleigh_damp_W &&
                dampingChoice.rayleigh_damping_type == RayleighDampingType::FastImplicit;
+    }
+
+    // Implicit Rayleigh damping of w on the slow step (with erf.rayleigh_damp_W), on a level without
+    // acoustic substeps: with SlowImplicit, and by default (erf.rayleigh_damping_type not given) on
+    // an anelastic or pseudo-incompressible level, whose dt is not limited by the sound speed.  It
+    // replaces the explicit w damping of SlowExplicit, which is unstable once
+    // rayleigh_dampcoef * dt reaches 2 (RK2) or 2.5 (RK3).
+    [[nodiscard]] bool rayleigh_slow_implicit_w (int lev) const noexcept
+    {
+        if (level_substeps(lev) || !dampingChoice.rayleigh_damp_W) { return false; }
+        if (dampingChoice.rayleigh_damping_type == RayleighDampingType::SlowImplicit) { return true; }
+        return !dampingChoice.rayleigh_damping_type_given &&
+               compressibility_type[lev] != CompressibilityType::FullyCompressible;
     }
 
     // Canopy drag in the substeps (erf.forest_substep)

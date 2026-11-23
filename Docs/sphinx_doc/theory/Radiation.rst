@@ -1240,6 +1240,172 @@ it takes its land state from level 0 (see :doc:`../CouplingToNoahMP`). Without a
 stores nothing extra and its results are unchanged. The case
 ``Exec/RegTests/NoahMP_Ideal/inputs_noahmp_twostream`` exercises the coupling.
 
+.. _sec:ForceRestoreVsSLMNoahMP:
+
+Comparison with SLM and Noah-MP
+-------------------------------------------------
+
+ERF has three ways to evolve the land surface: the force-restore balance described above, the
+Simplified Land Model (:doc:`../SLM`) and Noah-MP (:doc:`../CouplingToNoahMP`). The table lists
+what each represents in ERF today. The last column states what the simpler models leave out.
+Force-restore keys carry the ``erf.radiation.`` prefix and SLM keys the ``slm.`` prefix; other
+keys are written in full.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 13 22 22 22 21
+
+   * - Aspect
+     - Force-restore
+     - SLM
+     - Noah-MP
+     - Limitation
+   * - Selection and build
+     - ``seb_prognostic_enable`` (it also turns on ``seb_enable`` and ``seb_diagnostic_enable``),
+       with ``erf.radiation_model = TwoStream``. ``seb_enable`` or ``seb_diagnostic_enable``
+       alone only reports the balance; the skin does not evolve. Part of the standard build.
+     - ``erf.land_surface_model = SLM``. Part of the standard build; needs a moisture model.
+     - ``erf.land_surface_model = NOAHMP``. Needs ``-DERF_ENABLE_NOAHMP=ON`` (Fortran, NetCDF,
+       parallel NetCDF) and, in the run directory, ``namelist.erf``, ``NoahmpTable.TBL`` and a
+       land setup file.
+     - The ``seb_*`` keys are read only with the two-stream radiation model. With any other
+       model they are ignored without a message, except ``seb_init_*_from_file``, which abort.
+       Force-restore is an alternative to a land model, not an addition: with SLM or Noah-MP the
+       balance's skin does not evolve, and its hydrology and file initialization abort.
+   * - Soil column
+     - One surface layer (``seb_moisture_layer_depth_m``, 0.1 m), restored toward a deep
+       temperature. An optional deep water reservoir (``seb_deep_prognostic_enable``,
+       ``seb_deep_layer_depth_m``, 1.0 m).
+     - ``slm.nsoil`` layers (default 7) with temperature and soil wetness in each.
+       ``slm.soil_dz`` is required for an idealized run; real cases take the file's layers.
+     - ``erf.lsm_nsoil`` layers (default 4, must equal ``NSOIL`` in ``namelist.erf``) with
+       temperature, total water and liquid water in each.
+     - Force-restore has no soil temperature profile. The deep temperature is
+       ``seb_t_deep_default`` (300 K), reset every step, unless the deep reservoir is on or
+       ``seb_init_t_deep_from_file`` reads ``TMN``.
+   * - Surface temperature
+     - Force-restore equation, explicit, one step per ERF step, with one bulk heat capacity
+       (``seb_surface_heat_capacity``, 2.0e4 J/m²/K, or from ``seb_soil_type``). With
+       ``seb_prognostic_enable``, clamped after each step to [``seb_prognostic_t_min_k``,
+       ``seb_prognostic_t_max_k``] = [200, 340] K without a message; the upper bound is not applied
+       under snow.
+     - Ground-skin energy balance solved by Newton iteration (at most 5 iterations, each change
+       capped at 5 K, tolerance 0.01 K), with a separate canopy temperature. Running out of
+       iterations does not stop the run; a non-finite residual does.
+     - Noah-MP's energy balance over vegetated and bare parts of the cell, every
+       ``NOAH_TIMESTEP`` (required in ``namelist.erf``).
+     - No check that the explicit force-restore step is stable. With skin coupling, a wet surface
+       and the default heat capacity, the step must stay below about 80 s; usual ERF steps are far
+       below that.
+   * - Sensible and latent heat
+     - From the surface layer (``seb_turbulent_flux_source = surface_layer``, default) or from
+       ``seb_hfx_default`` / ``seb_lh_default`` (``defaults``). The skin temperature reaches the
+       surface layer only with ``seb_surface_layer_uses_skin``; the skin moisture only with
+       ``seb_surface_layer_uses_moisture``.
+     - SLM's own bulk Monin-Obukhov fluxes. On land the surface layer rebuilds
+       :math:`u_*`, :math:`\theta_*` and :math:`q_*` from them. SLM's surface temperature always
+       reaches the surface layer.
+     - Noah-MP's fluxes, used by the surface layer in the same way. Noah-MP's skin temperature
+       sets the surface-layer temperature only with
+       ``erf.most.use_lsm_skin_temperature = true`` (default false).
+     - With ``seb_surface_layer_uses_skin = false`` (default) the balance does not change the
+       atmosphere; it only reports a skin temperature.
+   * - Radiation
+     - Broadband. The two-stream fluxes enter only with ``seb_use_radiation_fluxes = true``;
+       otherwise ``seb_sw_flux_default`` and ``seb_lw_flux_default`` (both 0). Broadband
+       albedo and emissivity.
+     - Visible and near-infrared, direct and diffuse, from RRTMGP only, or from
+       ``slm.rad_input_file``. The two-stream model does not feed SLM.
+     - ``SWDOWN``, ``GLW`` and ``COSZEN`` from RRTMGP or the two-stream model.
+     - With the defaults the force-restore balance gets no radiation. SLM run without RRTMGP or
+       a radiation file gets zero radiation and no warning.
+   * - Soil water and evaporation
+     - One surface water content with a soil-water factor between wilting point and field
+       capacity. With ``seb_vegetation_type`` and ``seb_soil_type``, Jarvis canopy and soil
+       resistances from Noah-MP's tables.
+     - Water in each layer, moved by an implicit (Thomas algorithm) diffusion and gravity solve.
+       The bottom is closed except for water above saturation.
+     - Noah-MP's soil water, runoff and groundwater options, set in ``namelist.erf``.
+     - Force-restore has one water bucket and the Jarvis form only. SLM has no gravity drainage
+       out of the bottom layer below saturation.
+   * - Precipitation and runoff
+     - ``seb_precipitation_source = microphysics`` (default ``none``). Runoff above saturation;
+       optional drainage (``seb_drainage_enable``).
+     - Microphysics surface precipitation, canopy interception, infiltration, and pond runoff
+       above ``slm.mws_mx0``.
+     - Microphysics surface precipitation. Runoff is computed but not routed in ERF.
+     - Without microphysics none of the three gets precipitation.
+   * - Vegetation
+     - Optional ``seb_vegetation_type`` (MODIS 1-20 except 15-17), ``seb_vegetation_fraction``
+       and ``seb_leaf_area_index``. No canopy temperature or interception.
+     - ``slm.landtype0`` (MODIS 0-16) and ``slm.LAI0``, or the file's land use and ``LAI``.
+       Jarvis stomata, canopy temperature, interception.
+     - Canopy from ``NoahmpTable.TBL``. Stomata Ball-Berry (option 1, default) or Jarvis
+       (option 2); optional dynamic vegetation.
+     - SLM's defaults (``slm.landtype0 = 16``, ``slm.LAI0 = 0``) give bare soil.
+   * - Snow and frozen soil
+     - Optional single snow bucket on bare ground (``seb_snow_enable``, default false). No
+       frozen soil.
+     - No snow. No latent heat of soil freezing; no water moves between a frozen layer and its
+       neighbor. Stops if the canopy of a vegetated cell is at or below 273.15 K.
+     - Several snow layers (``NSNOW``); frozen soil and supercooled water.
+     - Force-restore snow has no density, heat capacity or aging and no vegetation masking.
+   * - Water and sea ice
+     - Columns with land mask 0 (``LANDMASK`` or ``erf.is_land``) and building footprints are
+       skipped. No sea-ice test.
+     - Cells whose land-use category is water (0, 17 or lake) are skipped; SLM sets this mask
+       itself.
+     - Cells the driver does not process (open water, sea ice) are skipped.
+     - None of the three models a lake, ocean or sea-ice surface; the surface layer's own
+       values apply there.
+   * - Initial state
+     - ``erf.rad_t_sfc`` and the ``seb_*_default`` values, or ``TSK`` / ``SKINTEMP``
+       (``seb_init_skin_from_file``) and ``TMN`` (``seb_init_t_deep_from_file``, WRFInput only).
+       Both need ``seb_prognostic_enable``; a restart uses the checkpoint.
+     - Uniform ``slm.*`` values, WRFInput or metgrid.
+     - A wrfinput-format setup file per level, named in ``namelist.erf``.
+     - --
+   * - Mesh refinement
+     - Runs on every level whose boxes span the domain in z; a level that does not keeps the
+       values it was built with. New and regridded levels are filled from the coarser level, and
+       kept cells retain their values. With two-way coupling a fine level is averaged down (land
+       columns only when water is present).
+     - Runs on every level. New and regridded levels are interpolated from the coarser level
+       (land and water separately), and kept cells retain their state. No average-down.
+       Restart and regrid are tested on two levels.
+     - Levels 0 to 2 can run their own driver with their own setup file; other levels take
+       level 0's fields. No average-down. Level 0 cannot be remade (this stops a restart with
+       ``erf.regrid_level_0_on_restart``, or with more ranks than level-0 boxes), and a level with
+       its own driver cannot be regridded.
+     - --
+   * - GPU
+     - Runs on the device.
+     - Runs on the device.
+     - Runs on the host (Fortran); fields are copied through pinned memory.
+     - --
+   * - Tests
+     - Unit tests against closed forms (Noilhan and Planton 1989, Mahfouf and Noilhan 1996,
+       Douville et al. 1995). CTests for soil moisture, hydrology, snow and the land mask; the
+       multi-level, regrid, restart and surface-layer-flux CTests are registered but disabled.
+     - Restart, regrid, two-level and new-level CTests (bitwise), and a frozen-canopy abort test.
+       The gold-file cases need ``ERF_TEST_ENABLE_EXTRA_LSM_TESTS`` and files from
+       ``ERF_TEST_EXTRA_FILES_DIRECTORY``.
+     - ``Exec/RegTests/NoahMP_Ideal`` (not a CTest). ``TwoStream_NoahMPLevels`` is registered
+       only when built with ``ERF_ENABLE_NOAHMP`` (no CI job has parallel NetCDF), and is
+       disabled with the other two-stream CTests.
+     - None of the three is compared with observations in ERF.
+
+The case ``Exec/CanonicalTests/Radiation/TwoStream_NoahMP_vs_ForceRestore`` runs the
+force-restore balance and Noah-MP side by side under the same two-stream radiation, on
+grassland, dry bare soil and moist bare soil. Against Noah-MP with Jarvis stomata (option 2),
+the force-restore skin temperature is within about 2 K, its sensible heat within about 11 %, its
+latent heat within about 5 %, and the boundary-layer depth within about 6 %. Against Noah-MP's
+default Ball-Berry stomata (option 1), the force-restore latent heat over grass near its peak
+(3.8 h) is 2.4 times higher. Over the dry bare soil both latent heat fluxes are below
+5 W/m². The case uses a soil-derived heat capacity (about 1.2e5 J/m²/K), not
+the 2.0e4 J/m²/K default. No case
+compares SLM with either model.
+
 Cloud Fraction Diagnosis
 --------------------------------
 
