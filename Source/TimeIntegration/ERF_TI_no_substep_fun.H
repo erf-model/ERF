@@ -257,6 +257,40 @@
             } // MFIter
         } // EB
 
+        // Implicit Rayleigh damping of w (erf.rayleigh_damping_type = SlowImplicit).  The slow
+        // source leaves it out (make_mom_sources), and with (rho w)* the update above
+        //     (rho w)^new = ( (rho w)* + dt c s^2 rho wbar ) / ( 1 + dt c s^2 ),
+        // which is stable for any dt; the explicit term is not once c s^2 dt reaches 2 (RK2).
+        // The ground and the top keep the values the boundary conditions set.
+        if (solverChoice.rayleigh_slow_implicit_w(level))
+        {
+            const Real dampcoef = solverChoice.dampingChoice.rayleigh_dampcoef;
+            const Real* sinesq_stag = d_sinesq_stag_at_lev;
+            const Real* wbar        = d_rayleigh_ptrs_at_lev[Rayleigh::wbar];
+            const int klo = fine_geom.Domain().smallEnd(2);
+            const int khi = fine_geom.Domain().bigEnd(2);
+            const bool is_eb = (solverChoice.terrain_type == TerrainType::EB);
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
+            for (MFIter mfi(S_sum[IntVars::zmom],TilingIfNotGPU()); mfi.isValid(); ++mfi)
+            {
+                const Box tbz = mfi.tilebox();
+                const Array4<Real      >& rho_w = S_sum[IntVars::zmom].array(mfi);
+                const Array4<const Real>& cons  = S_old[IntVars::cons].const_array(mfi);
+                const Array4<const Real>  vfrac = is_eb ?
+                    (get_eb(level).get_w_const_factory())->getVolFrac().const_array(mfi) : Array4<const Real>{};
+                ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                {
+                    if (k <= klo || k > khi) { return; }
+                    if (is_eb && vfrac(i,j,k) <= zero) { return; }
+                    const Real a = slow_dt * dampcoef * sinesq_stag[k];
+                    const Real rho_on_w_face = myhalf * (cons(i,j,k,Rho_comp) + cons(i,j,k-1,Rho_comp));
+                    rho_w(i,j,k) = (rho_w(i,j,k) + a * rho_on_w_face * wbar[k]) / (one + a);
+                });
+            }
+        }
+
         // Even if we update all the conserved variables we don't need
         // to fillpatch the slow ones every acoustic substep
         apply_bcs(S_sum, time_for_fp, S_sum[IntVars::cons].nGrow(), S_sum[IntVars::xmom].nGrow(),
