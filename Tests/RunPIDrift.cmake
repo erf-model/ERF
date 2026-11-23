@@ -2,6 +2,9 @@
 # "PI DRIFT = <value>", the maximum of |rho theta - rho0 theta0| / (rho0 theta0) over the
 # pseudo-incompressible levels, every erf.sum_interval steps (with erf.v >= 1).  The last value
 # printed must be below 10^MAX_EXP: zero, or a number whose decimal exponent is below MAX_EXP.
+# With EXPECT_ABOVE ON the last value must not be below 10^MAX_EXP instead: the run must still
+# end normally and print the drift, so the test shows that the check sees a treatment that does
+# not keep rho theta at rho0 theta0.
 include("${CMAKE_CURRENT_LIST_DIR}/MPILauncher.cmake")
 include("${CMAKE_CURRENT_LIST_DIR}/ResolveExecutable.cmake")
 
@@ -52,12 +55,36 @@ endif()
 set(drift "${CMAKE_MATCH_1}")
 message(STATUS "RunPIDrift: PI DRIFT = ${drift} after ${nlines} values (limit 1e${MAX_EXP})")
 
+# below: zero, or a number whose decimal exponent is below MAX_EXP.  The exponent is read from
+# scientific notation, or, for a number printed without one (1e-5 or more), from the zeros
+# after the decimal point or the digits before it: 0.036 has exponent -2, 12.5 has exponent 1.
+set(below FALSE)
 if(drift MATCHES "^0(\\.0*)?$")
-    return()
+    set(below TRUE)
+elseif(drift MATCHES "^[0-9.]+[eE]([-+]?[0-9]+)$")
+    if(CMAKE_MATCH_1 LESS MAX_EXP)
+        set(below TRUE)
+    endif()
+elseif(drift MATCHES "^0?\\.(0*)[1-9][0-9]*$")
+    string(LENGTH "${CMAKE_MATCH_1}" nzeros)
+    math(EXPR plain_exp "-1 - ${nzeros}")
+    if(plain_exp LESS MAX_EXP)
+        set(below TRUE)
+    endif()
+elseif(drift MATCHES "^([1-9][0-9]*)(\\.[0-9]*)?$")
+    string(LENGTH "${CMAKE_MATCH_1}" ndigits)
+    math(EXPR plain_exp "${ndigits} - 1")
+    if(plain_exp LESS MAX_EXP)
+        set(below TRUE)
+    endif()
+else()
+    message(FATAL_ERROR "RunPIDrift.cmake: PI DRIFT = ${drift} is not a number")
 endif()
-if(NOT drift MATCHES "^[0-9.]+[eE]([-+]?[0-9]+)$")
-    message(FATAL_ERROR "RunPIDrift.cmake: PI DRIFT = ${drift} is not below 1e${MAX_EXP}")
-endif()
-if(NOT CMAKE_MATCH_1 LESS MAX_EXP)
+if(EXPECT_ABOVE)
+    if(below)
+        message(FATAL_ERROR "RunPIDrift.cmake: PI DRIFT = ${drift} is below 1e${MAX_EXP}, "
+                            "and this case must not keep it there")
+    endif()
+elseif(NOT below)
     message(FATAL_ERROR "RunPIDrift.cmake: PI DRIFT = ${drift} is not below 1e${MAX_EXP}")
 endif()

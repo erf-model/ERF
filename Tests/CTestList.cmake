@@ -818,8 +818,17 @@ endfunction(add_test_conservation)
 # Run the pseudo-incompressible deck in test_files/<TEST_FILES_DIR> and require the last
 # "PI DRIFT" it prints, max |rho theta - rho0 theta0| / (rho0 theta0), to be below 10^MAX_EXP
 function(add_test_pi_drift TEST_NAME TEST_FILES_DIR MAX_EXP)
+    # EXPECT_ABOVE: the drift must not be below 10^MAX_EXP; LABELS: CTest labels added to regression
+    # LABELS is a list ("immersed;multilevel"), so it is a multi-value argument; as a one-value
+    # argument only its first label would be kept
     set(oneValueArgs "OPTIONS")
-    cmake_parse_arguments(ADD_TEST_PID "" "${oneValueArgs}" "" ${ARGN})
+    set(multiValueArgs "LABELS")
+    cmake_parse_arguments(ADD_TEST_PID "EXPECT_ABOVE" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
+    if(ADD_TEST_PID_UNPARSED_ARGUMENTS)
+        message(FATAL_ERROR "add_test_pi_drift(${TEST_NAME}): unknown argument: ${ADD_TEST_PID_UNPARSED_ARGUMENTS}")
+    endif()
+    set(_pid_labels "regression")
+    list(APPEND _pid_labels ${ADD_TEST_PID_LABELS})
     setup_test()
     resolve_test_exe("" "erf_exec" TEST_EXE)
 
@@ -833,6 +842,7 @@ function(add_test_pi_drift TEST_NAME TEST_FILES_DIR MAX_EXP)
         "-DINPUT=${CURRENT_TEST_BINARY_DIR}/${TEST_FILES_DIR}.i"
         "-DWORKING_DIRECTORY=${CURRENT_TEST_BINARY_DIR}"
         "-DMAX_EXP=${MAX_EXP}"
+        "-DEXPECT_ABOVE=${ADD_TEST_PID_EXPECT_ABOVE}"
         "-DOPTIONS=${ADD_TEST_PID_OPTIONS}"
         -P ${PROJECT_SOURCE_DIR}/Tests/RunPIDrift.cmake)
     set_tests_properties(${TEST_NAME}
@@ -840,7 +850,7 @@ function(add_test_pi_drift TEST_NAME TEST_FILES_DIR MAX_EXP)
         TIMEOUT 600
         PROCESSORS ${NP}
         WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
-        LABELS "regression"
+        LABELS "${_pid_labels}"
         ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/simulation.log")
 endfunction(add_test_pi_drift)
 
@@ -2831,6 +2841,78 @@ if(ERF_ENABLE_MPI AND NOT WIN32)
                                     "${if_hb_mapfac}" "")
   add_test_immersed_cf_heat_balance(ImmersedBuildingHeatBalance_MapFactor_Freeze ImmersedBuildingHeatBalance 300.0 1.0e-6 ON OFF
                                     "${if_hb_mapfac} erf.if_implicit_projection=false" "")
+  # A refined level with map factors that vary in x and y on level 0 (erf.test_mapfactor_amp, the
+  # fine level interpolates them): each level is projected with the multigrid of the terrain
+  # Poisson solver, sigma in its face area factors (erf-model/ERF#4887; refused on a refined level
+  # before). Measured: 4e-9 K implicit and 0.032 K with the freeze; the L-shaped region -3e-7 K;
+  # the stretched mesh 9e-9 K; two fine regions that meet across the periodic boundary in x
+  # (solved as one region with solve_with_flat_mlmg) 2e-8 K, and 0.032 K with the freeze.
+  set(if_hb_2lev_mapfac "erf.test_mapfactor_amp=0.1 amrex.fpe_trap_overflow=0")
+  set(if_hb_wrap "erf.refinement_indicators='box1 box2' erf.box1.in_box_lo_indices_crse='0 0 0' erf.box1.in_box_hi_indices_crse='3 7 4' erf.box2.max_level=1 erf.box2.in_box_lo_indices_crse='12 0 0' erf.box2.in_box_hi_indices_crse='15 7 4' amr.grid_eff=1.0 amr.n_error_buf=0")
+  # Double precision only: in single precision the round-off of the mean of theta = 300 K is
+  # 1e-5 K, above the tolerance.
+  if(ERF_PRECISION STREQUAL "DOUBLE")
+    add_test_immersed_cf_heat_balance(ImmersedLES2LevHeatBalance_MapFactor ImmersedLES2LevHeatBalance 300.0 1.0e-6 OFF OFF
+                                      "${if_hb_2lev_mapfac}" multilevel)
+    add_test_immersed_cf_heat_balance(ImmersedLES2LevHeatBalance_MapFactor_Freeze ImmersedLES2LevHeatBalance 300.0 1.0e-6 ON OFF
+                                      "${if_hb_2lev_mapfac} erf.if_implicit_projection=false" multilevel)
+    add_test_immersed_cf_heat_balance(ImmersedLES2LevHeatBalance_LShape_MapFactor ImmersedLES2LevHeatBalance 300.0 1.0e-6 OFF OFF
+                                      "${if_hb_lshape} ${if_hb_2lev_mapfac}" multilevel)
+    add_test_immersed_cf_heat_balance(ImmersedLES2LevHeatBalance_Stretched_MapFactor ImmersedLES2LevHeatBalance 300.0 1.0e-6 OFF OFF
+                                      "${if_hb_stretched} ${if_hb_2lev_mapfac}" multilevel)
+    add_test_immersed_cf_heat_balance(ImmersedLES2LevHeatBalance_Wrap_MapFactor ImmersedLES2LevHeatBalance 300.0 1.0e-6 OFF OFF
+                                      "${if_hb_wrap} ${if_hb_2lev_mapfac}" multilevel)
+    add_test_immersed_cf_heat_balance(ImmersedLES2LevHeatBalance_Wrap_MapFactor_Freeze ImmersedLES2LevHeatBalance 300.0 1.0e-6 ON OFF
+                                      "${if_hb_wrap} ${if_hb_2lev_mapfac} erf.if_implicit_projection=false" multilevel)
+  endif()
+  # A pseudo-incompressible level with the drag in the projection (erf-model/ERF#4887; refused
+  # before): the projection acts on beta (rho u) and solves div(sigma beta grad phi), so
+  # rho theta must stay at rho0 theta0 next to the solid. The mean theta of the checker above
+  # does not see the difference on such a level, so these legs read the PI DRIFT the run prints,
+  # max |rho theta - rho0 theta0| / (rho0 theta0); a _Freeze leg must not stay below its limit.
+  # Measured after 20 steps (the value with the freeze in brackets).
+  # Building, one level: 6e-11 (4e-2); with a stratified sounding and no LES closure, so that
+  # beta varies with height, 1e-8 (3e-2), and 1e-8 with map factors too. That 1e-8 is a quarter
+  # at half the time step and half without the scalar drag of the solid (erf.if_Cd_scalar), and
+  # does not change with the tolerance of the solve.
+  # Terrain, two levels, one-way: 8e-12; the L-shaped region 1e-9; two regions that meet across
+  # the periodic boundary 2e-11 (1e-3); level 0 anelastic under a pseudo-incompressible level 1
+  # 1e-8. Two-way: 3e-8 (1e-3), and 3e-8 with map factors; there the reflux and the average-down
+  # leave a drift of their own (5e-8 in the same case without immersed forcing).
+  # Double precision only, as the other drift tests. The overflow trap of the decks is off: a
+  # pseudo-incompressible level is projected with the terrain Poisson multigrid (see
+  # if_hb_stretched above).
+  if(ERF_PRECISION STREQUAL "DOUBLE")
+    set(if_pi "erf.compressibility_type=PseudoIncompressible erf.sum_interval=1 amrex.fpe_trap_overflow=0")
+    set(if_pi_strat "${if_pi} erf.input_sounding_file=input_sounding_stratified erf.les_type=None")
+    add_test_pi_drift(ImmersedBuildingHeatBalance_PseudoIncompressible ImmersedBuildingHeatBalance -8
+        OPTIONS "${if_pi} ${if_hb_fft_option}" LABELS "immersed")
+    add_test_pi_drift(ImmersedBuildingHeatBalance_PseudoIncompressible_Freeze ImmersedBuildingHeatBalance -3
+        OPTIONS "${if_pi} ${if_hb_fft_option} erf.if_implicit_projection=false" LABELS "immersed" EXPECT_ABOVE)
+    add_test_pi_drift(ImmersedBuildingHeatBalance_PseudoIncompressible_Stratified ImmersedBuildingHeatBalance -6
+        OPTIONS "${if_pi_strat} ${if_hb_fft_option}" LABELS "immersed")
+    add_test_pi_drift(ImmersedBuildingHeatBalance_PseudoIncompressible_Stratified_Freeze ImmersedBuildingHeatBalance -3
+        OPTIONS "${if_pi_strat} ${if_hb_fft_option} erf.if_implicit_projection=false" LABELS "immersed" EXPECT_ABOVE)
+    add_test_pi_drift(ImmersedBuildingHeatBalance_PseudoIncompressible_Stratified_MapFactor ImmersedBuildingHeatBalance -6
+        OPTIONS "${if_pi_strat} ${if_hb_mapfac}" LABELS "immersed")
+    set(if_pi_2lev_labels "immersed;multilevel")
+    add_test_pi_drift(ImmersedLES2LevHeatBalance_PseudoIncompressible_OneWay ImmersedLES2LevHeatBalance -9
+        OPTIONS "${if_pi} erf.coupling_type=OneWay" LABELS "${if_pi_2lev_labels}")
+    add_test_pi_drift(ImmersedLES2LevHeatBalance_PseudoIncompressible_LShape_OneWay ImmersedLES2LevHeatBalance -7
+        OPTIONS "${if_pi} ${if_hb_lshape} erf.coupling_type=OneWay" LABELS "${if_pi_2lev_labels}")
+    add_test_pi_drift(ImmersedLES2LevHeatBalance_PseudoIncompressible_Wrap_OneWay ImmersedLES2LevHeatBalance -9
+        OPTIONS "${if_pi} ${if_hb_wrap} erf.coupling_type=OneWay" LABELS "${if_pi_2lev_labels}")
+    add_test_pi_drift(ImmersedLES2LevHeatBalance_PseudoIncompressible_Wrap_OneWay_Freeze ImmersedLES2LevHeatBalance -4
+        OPTIONS "${if_pi} ${if_hb_wrap} erf.coupling_type=OneWay erf.if_implicit_projection=false" LABELS "${if_pi_2lev_labels}" EXPECT_ABOVE)
+    add_test_pi_drift(ImmersedLES2LevHeatBalance_AnelasticPseudoIncompressible_OneWay ImmersedLES2LevHeatBalance -7
+        OPTIONS "erf.compressibility_type='Anelastic PseudoIncompressible' erf.sum_interval=1 amrex.fpe_trap_overflow=0 erf.coupling_type=OneWay" LABELS "${if_pi_2lev_labels}")
+    add_test_pi_drift(ImmersedLES2LevHeatBalance_PseudoIncompressible ImmersedLES2LevHeatBalance -6
+        OPTIONS "${if_pi}" LABELS "${if_pi_2lev_labels}")
+    add_test_pi_drift(ImmersedLES2LevHeatBalance_PseudoIncompressible_Freeze ImmersedLES2LevHeatBalance -4
+        OPTIONS "${if_pi} erf.if_implicit_projection=false" LABELS "${if_pi_2lev_labels}" EXPECT_ABOVE)
+    add_test_pi_drift(ImmersedLES2LevHeatBalance_PseudoIncompressible_MapFactor ImmersedLES2LevHeatBalance -6
+        OPTIONS "${if_pi} ${if_hb_2lev_mapfac}" LABELS "${if_pi_2lev_labels}")
+  endif()
   # Thin immersed bodies are projected without the drag coefficient, so the option is refused
   # with them when the inputs are read (found in the audit after erf-model/ERF#5324)
   if(ERF_ENABLE_MPI AND NOT WIN32)

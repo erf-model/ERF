@@ -19,6 +19,11 @@
 # projection with erf.if_snap_partial_cells. The implicit projection uses FFT-preconditioned
 # GMRES in a build with FFT and multigrid in a build without.
 #
+# The _PseudoIncompressible legs override erf.compressibility_type and read the PI DRIFT the run
+# prints, max |rho theta - rho0 theta0| / (rho0 theta0), instead of the mean theta (which does not
+# see the difference on such a level); the _Stratified legs use input_sounding_stratified, so
+# that beta = rho0 theta0 / rho varies with height.
+#
 erf.prob_name = "ABL"
 
 max_step = 20

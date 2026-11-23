@@ -4499,15 +4499,16 @@ building combinations.
 |                                   | forward-Euler source                                     |                    |                  |
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.if_implicit_projection**    | terrain or buildings immersed forcing (not both), a      | Boolean            | false            |
-|                                   | mesh without terrain-fitted coordinates, no              |                    |                  |
-|                                   | PseudoIncompressible level, at least one level not       |                    |                  |
-|                                   | FullyCompressible: apply the drag of the solid inside    |                    |                  |
+|                                   | mesh without terrain-fitted coordinates, at least one    |                    |                  |
+|                                   | level Anelastic or PseudoIncompressible (not             |                    |                  |
+|                                   | FullyCompressible): apply the drag of the solid inside   |                    |                  |
 |                                   | the projection, m = (m* - grad phi) / (1 + dt rate) on   |                    |                  |
 |                                   | each face, and do not zero the solid faces afterwards,   |                    |                  |
 |                                   | so the projected momenta are divergence free in the      |                    |                  |
 |                                   | solid too. Solver: FFT-preconditioned GMRES (constant    |                    |                  |
-|                                   | dz, map factors of one, FFT build, rectangular refined   |                    |                  |
-|                                   | regions), otherwise multigrid. A FullyCompressible       |                    |                  |
+|                                   | dz, map factors of one, an Anelastic level,              |                    |                  |
+|                                   | FFT build, rectangular refined regions), otherwise       |                    |                  |
+|                                   | multigrid. A FullyCompressible                           |                    |                  |
 |                                   | level keeps the drag in the momentum source.             |                    |                  |
 |                                   | Refused with thin immersed bodies (zero-flux faces)      |                    |                  |
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------+
