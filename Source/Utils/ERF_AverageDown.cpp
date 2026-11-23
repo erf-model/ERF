@@ -11,6 +11,80 @@
 
 using namespace amrex;
 
+namespace {
+/**
+ * Average the face momenta of a fine level down onto the coarse faces it covers, weighted by
+ * the inverse map factor of the face: (rho u)/m_y, (rho v)/m_x or (rho w)/(m_x m_y), the mass
+ * flux of a face up to its area, is averaged and multiplied by the coarse map factor.  With
+ * map factors other than one, the plain average of (rho u) is not the coarse momentum whose flux
+ * is the mean of the fine fluxes.  Faces the fine level does not cover are left as they are.
+ *
+ * @param fine   Fine face momenta
+ * @param crse   Coarse face momenta
+ * @param rr     Refinement ratio
+ * @param cper   Periodicity of the coarse level
+ * @param mf_f   Map factor of the fine faces (no extent in z)
+ * @param mf_c   Map factor of the coarse faces (no extent in z)
+ * @param mf2_f  Second map factor of the fine faces (the product m_x m_y on w-faces), or null
+ * @param mf2_c  Second map factor of the coarse faces, or null
+ */
+void
+average_down_faces_mapfac (const MultiFab& fine, MultiFab& crse, const IntVect& rr,
+                           const Periodicity& cper,
+                           const MultiFab& mf_f, const MultiFab& mf_c,
+                           const MultiFab* mf2_f, const MultiFab* mf2_c)
+{
+    const bool two = (mf2_f != nullptr);
+    MultiFab wf(fine.boxArray(), fine.DistributionMap(), 1, 0);
+    for (MFIter mfi(wf, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+        const Box bx = mfi.tilebox();
+        const auto w_arr = wf.array(mfi);
+        const auto m_arr = fine.const_array(mfi);
+        const auto f_arr = mf_f.const_array(mfi);
+        const auto g_arr = (two) ? mf2_f->const_array(mfi) : Array4<const Real>{};
+        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            const Real mf = (two) ? f_arr(i,j,0) * g_arr(i,j,0) : f_arr(i,j,0);
+            w_arr(i,j,k) = m_arr(i,j,k) / mf;
+        });
+    }
+
+    // The coarse faces under the fine level, on the fine level's distribution
+    const BoxArray cba = amrex::coarsen(fine.boxArray(), rr);
+    const DistributionMapping& dm = fine.DistributionMap();
+    MultiFab wc(cba, dm, 1, 0);
+    amrex::average_down_faces(wf, wc, rr);
+
+    // The coarse map factors on those faces (cell-centered in z, with no extent in z)
+    BoxList bl2d = cba.boxList();
+    for (auto& b : bl2d) {
+        b.setType(IndexType(IntVect(b.type(0), b.type(1), 0)));
+        b.setRange(2, 0);
+    }
+    const BoxArray ba2d(std::move(bl2d));
+    MultiFab fc(ba2d, dm, 1, 0);
+    fc.ParallelCopy(mf_c, 0, 0, 1, IntVect(0), IntVect(0), cper);
+    MultiFab gc;
+    if (two) {
+        gc.define(ba2d, dm, 1, 0);
+        gc.ParallelCopy(*mf2_c, 0, 0, 1, IntVect(0), IntVect(0), cper);
+    }
+
+    for (MFIter mfi(wc, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+        const Box bx = mfi.tilebox();
+        const auto w_arr = wc.array(mfi);
+        const auto f_arr = fc.const_array(mfi);
+        const auto g_arr = (two) ? gc.const_array(mfi) : Array4<const Real>{};
+        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            const Real mf = (two) ? f_arr(i,j,0) * g_arr(i,j,0) : f_arr(i,j,0);
+            w_arr(i,j,k) *= mf;
+        });
+    }
+    crse.ParallelCopy(wc, 0, 0, 1, IntVect(0), IntVect(0), cper);
+}
+} // namespace
+
 // Set covered coarse cells to be the average of overlying fine cells for all levels
 void
 ERF::AverageDown ()
@@ -315,6 +389,20 @@ ERF::AverageDownTo (int crse_lev, int scomp, int ncomp, bool do_full_state_and_m
         // than one: the momenta as mass fluxes (see average_down_mass_flux)
         if (solverChoice.compressibility_type[crse_lev] != CompressibilityType::FullyCompressible && cf_interp_mass_flux(crse_lev+1)) {
             average_down_mass_flux(crse_lev);
+        } else if (has_nonunit_mapfac(crse_lev+1)) {
+            // The momenta weighted by the inverse map factor of the face, as mass fluxes
+            const int fl = crse_lev+1;
+            const IntVect rr = refRatio(crse_lev);
+            const Periodicity cper = geom[crse_lev].periodicity();
+            average_down_faces_mapfac(rU_new[fl], rU_new[crse_lev], rr, cper,
+                                      *mapfac[fl][MapFacType::u_y], *mapfac[crse_lev][MapFacType::u_y],
+                                      nullptr, nullptr);
+            average_down_faces_mapfac(rV_new[fl], rV_new[crse_lev], rr, cper,
+                                      *mapfac[fl][MapFacType::v_x], *mapfac[crse_lev][MapFacType::v_x],
+                                      nullptr, nullptr);
+            average_down_faces_mapfac(rW_new[fl], rW_new[crse_lev], rr, cper,
+                                      *mapfac[fl][MapFacType::m_x], *mapfac[crse_lev][MapFacType::m_x],
+                                      mapfac[fl][MapFacType::m_y].get(), mapfac[crse_lev][MapFacType::m_y].get());
         } else {
             average_down_faces(rU_new[crse_lev+1], rU_new[crse_lev], refRatio(crse_lev), geom[crse_lev]);
             average_down_faces(rV_new[crse_lev+1], rV_new[crse_lev], refRatio(crse_lev), geom[crse_lev]);

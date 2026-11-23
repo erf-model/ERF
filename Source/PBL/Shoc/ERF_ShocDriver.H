@@ -52,7 +52,9 @@ public:
                   amrex::MultiFab* eddy_diffs,
                   amrex::MultiFab& z_phys_nd,
                   const amrex::Geometry& geom,
-                  double dt);
+                  double dt,
+                  const amrex::MultiFab* mf_m_x = nullptr,
+                  const amrex::MultiFab* mf_m_y = nullptr);
 
     void set_eddy_diffs () const;
     void set_diff_stresses () const;

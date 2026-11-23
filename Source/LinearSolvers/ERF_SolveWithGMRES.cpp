@@ -21,6 +21,8 @@ using namespace amrex;
  * @param ay_sub Terrain metric coefficient on y-faces
  * @param az_sub Terrain metric coefficient on z-faces
  * @param znd_sub Node-centered physical height field
+ * @param mfux_sub Map factor m_x on x-faces
+ * @param mfvy_sub Map factor m_y on y-faces
  *
  * The unnamed metric argument in the class declaration is the cell-centered
  * Jacobian determinant.
@@ -28,7 +30,8 @@ using namespace amrex;
 void ERF::solve_with_gmres (int lev, const Box& subdomain, MultiFab& rhs, MultiFab& phi,
                             Array<MultiFab,AMREX_SPACEDIM>& fluxes,
                             MultiFab& ax_sub, MultiFab& ay_sub, MultiFab& az_sub,
-                            MultiFab& dJ_sub, MultiFab& znd_sub)
+                            MultiFab& dJ_sub, MultiFab& znd_sub,
+                            const MultiFab& mfux_sub, const MultiFab& mfvy_sub)
 {
 #ifdef ERF_USE_FFT
     BL_PROFILE("ERF::solve_with_gmres()");
@@ -76,7 +79,7 @@ void ERF::solve_with_gmres (int lev, const Box& subdomain, MultiFab& rhs, MultiF
 
     TerrainPoisson tp(my_geom, Geom(lev), rhs.boxArray(), rhs.DistributionMap(), domain_bc_type,
                       dz_region, ax_sub, ay_sub, az_sub, dJ_sub, &znd_sub,
-                      solverChoice.use_real_bcs);
+                      solverChoice.use_real_bcs, &mfux_sub, &mfvy_sub);
 
     gmsolver.define(tp);
 
@@ -91,7 +94,7 @@ void ERF::solve_with_gmres (int lev, const Box& subdomain, MultiFab& rhs, MultiF
     // The caller (project_momenta) multiplies the lateral fluxes by the map factor
     tp.getFluxes(phi, fluxes);
 #else
-    amrex::ignore_unused(lev, rhs, phi, fluxes, ax_sub, ay_sub, az_sub, dJ_sub, znd_sub);
+    amrex::ignore_unused(lev, rhs, phi, fluxes, ax_sub, ay_sub, az_sub, dJ_sub, znd_sub, mfux_sub, mfvy_sub);
 #endif
 
     // ****************************************************************************

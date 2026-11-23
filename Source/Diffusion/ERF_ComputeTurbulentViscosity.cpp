@@ -99,8 +99,8 @@ void ComputeTurbulentViscosityLES (Vector<std::unique_ptr<MultiFab>>& Tau_lev,
             const StrainArrays tau = strain_arrays(Tau_lev, mfi);
             const Array4<Real const> tau11 = tau.tau11, tau22 = tau.tau22, tau33 = tau.tau33;
             const Array4<Real const> tau12 = tau.tau12, tau13 = tau.tau13, tau23 = tau.tau23;
-            Array4<Real const> mf_u = mapfac[MapFacType::u_x]->const_array(mfi);
-            Array4<Real const> mf_v = mapfac[MapFacType::v_y]->const_array(mfi);
+            Array4<Real const> mf_mx = mapfac[MapFacType::m_x]->const_array(mfi);
+            Array4<Real const> mf_my = mapfac[MapFacType::m_y]->const_array(mfi);
             Array4<Real const> z_nd_arr = z_phys_nd->const_array(mfi);
 
             Array4<Real const> u_arr = (l_has_xvel) ? xvel->const_array(mfi) : Array4<Real const>{};
@@ -132,12 +132,12 @@ void ComputeTurbulentViscosityLES (Vector<std::unique_ptr<MultiFab>>& Tau_lev,
                 Real Delta;
                 Real DeltaH;
                 if (isotropic) {
-                    Real cellVolMsf = one / (dxInv * mf_u(i,j,0) * dyInv * mf_v(i,j,0) * dzInv);
+                    Real cellVolMsf = one / (dxInv * mf_mx(i,j,0) * dyInv * mf_my(i,j,0) * dzInv);
                     Delta = std::cbrt(cellVolMsf);
                     DeltaH = Delta;
                 } else {
                     Delta = one / dzInv;
-                    DeltaH = std::sqrt(one / (dxInv * mf_u(i,j,0) * dyInv * mf_v(i,j,0)));
+                    DeltaH = std::sqrt(one / (dxInv * mf_mx(i,j,0) * dyInv * mf_my(i,j,0)));
                 }
 
                 Real rho = cell_data(i, j, k, Rho_comp);
@@ -211,8 +211,8 @@ void ComputeTurbulentViscosityLES (Vector<std::unique_ptr<MultiFab>>& Tau_lev,
 
             const Array4<Real const > &cell_data = cons_in.array(mfi);
 
-            Array4<Real const> mf_u = mapfac[MapFacType::u_x]->const_array(mfi);
-            Array4<Real const> mf_v = mapfac[MapFacType::v_y]->const_array(mfi);
+            Array4<Real const> mf_mx = mapfac[MapFacType::m_x]->const_array(mfi);
+            Array4<Real const> mf_my = mapfac[MapFacType::m_y]->const_array(mfi);
 
             Array4<Real const> z_nd_arr = z_phys_nd->const_array(mfi);
 
@@ -227,7 +227,7 @@ void ComputeTurbulentViscosityLES (Vector<std::unique_ptr<MultiFab>>& Tau_lev,
                 }
                 Real Delta;
                 if (isotropic) {
-                    Real cellVolMsf = one / (dxInv * mf_u(i,j,0) * dyInv * mf_v(i,j,0) * dzInv);
+                    Real cellVolMsf = one / (dxInv * mf_mx(i,j,0) * dyInv * mf_my(i,j,0) * dzInv);
                     Delta = std::cbrt(cellVolMsf);
                 } else {
                     Delta = one / dzInv;
@@ -268,7 +268,7 @@ void ComputeTurbulentViscosityLES (Vector<std::unique_ptr<MultiFab>>& Tau_lev,
                     length = amrex::max(length, Real(0.001) * Delta);
                 }
 
-                Real DeltaH = (isotropic) ? length : std::sqrt(one / (dxInv * mf_u(i,j,0) * dyInv * mf_v(i,j,0)));
+                Real DeltaH = (isotropic) ? length : std::sqrt(one / (dxInv * mf_mx(i,j,0) * dyInv * mf_my(i,j,0)));
 
                 Real Pr_inv_v = (one + two*length/Delta);
                 Real Pr_inv_h  = (isotropic) ? Pr_inv_v : inv_Pr_t;
@@ -416,8 +416,8 @@ void ComputeTurbulentViscosityLES_EB (Vector<std::unique_ptr<MultiFab>>& Tau_lev
             const StrainArrays tau = strain_arrays(Tau_lev, mfi);
             const Array4<Real const> tau11 = tau.tau11, tau22 = tau.tau22, tau33 = tau.tau33;
             const Array4<Real const> tau12 = tau.tau12, tau13 = tau.tau13, tau23 = tau.tau23;
-            Array4<Real const> mf_u = mapfac[MapFacType::u_x]->const_array(mfi);
-            Array4<Real const> mf_v = mapfac[MapFacType::v_y]->const_array(mfi);
+            Array4<Real const> mf_mx = mapfac[MapFacType::m_x]->const_array(mfi);
+            Array4<Real const> mf_my = mapfac[MapFacType::m_y]->const_array(mfi);
 
             Array4<Real const> u_arr = (l_has_xvel) ? xvel->const_array(mfi) : Array4<Real const>{};
             Array4<Real const> v_arr = (l_has_yvel) ? yvel->const_array(mfi) : Array4<Real const>{};
@@ -449,12 +449,12 @@ void ComputeTurbulentViscosityLES_EB (Vector<std::unique_ptr<MultiFab>>& Tau_lev
                     Real Delta;
                     Real DeltaH;
                     if (isotropic) {
-                        Real cellVolMsf = one / (dxInv * mf_u(i,j,0) * dyInv * mf_v(i,j,0) * dzInv);
+                        Real cellVolMsf = one / (dxInv * mf_mx(i,j,0) * dyInv * mf_my(i,j,0) * dzInv);
                         Delta = std::cbrt(cellVolMsf);
                         DeltaH = Delta;
                     } else {
                         Delta = one / dzInv;
-                        DeltaH = std::sqrt(one / (dxInv * mf_u(i,j,0) * dyInv * mf_v(i,j,0)));
+                        DeltaH = std::sqrt(one / (dxInv * mf_mx(i,j,0) * dyInv * mf_my(i,j,0)));
                     }
 
                     Real rho = cell_data(i, j, k, Rho_comp);
@@ -1065,7 +1065,8 @@ void ComputeTurbulentViscosity (double dt,
                               geom, turbChoice, SurfLayer,
                               use_terrain_fitted_coords, use_moisture,
                               level, bc_ptr, vert_only, z_phys_nd, z_sfc_nd, z_phys_cc,
-                              solverChoice.moisture_indices, terrain_blank, Q_fire_atm);
+                              solverChoice.moisture_indices, terrain_blank, Q_fire_atm,
+                              {{mapfac[MapFacType::m_x].get(), mapfac[MapFacType::m_y].get()}});
     } else if (turbChoice.pbl_type == PBLType::YSU) {
         ComputeDiffusivityYSU(xvel, yvel, cons_in, eddyViscosity,
                               geom, turbChoice, SurfLayer,

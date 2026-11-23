@@ -1405,6 +1405,20 @@ ERF::InitData_post ()
         restart();
     }
 
+    // The EB strain, stress and diffusion kernels (ComputeStrain_EB, ComputeStress_EB,
+    //    DiffusionSrcForMom_EB, DiffusionSrcForState_EB) do not carry the map factors,
+    //    so reject EB with diffusion when any map factor differs from one.
+    if (solverChoice.terrain_type == TerrainType::EB) {
+        for (int lev = 0; lev <= finest_level; ++lev) {
+            const DiffChoice& dc = solverChoice.diffChoice;
+            const TurbChoice& tc = solverChoice.turbChoice[lev];
+            const bool l_use_diff = (dc.molec_diff_type != MolecDiffType::None) || tc.use_kturb;
+            if (l_use_diff && has_nonunit_mapfac(lev)) {
+                Abort("EB terrain with diffusion does not support map factors other than one");
+            }
+        }
+    }
+
     // Faces of the resolved buildings, from the blanking both paths have built.
     init_ibseb();
 
@@ -2248,7 +2262,7 @@ ERF::InitData_post ()
                                                                 Qr_prim[lev], z_phys_nd[lev],
                                                                 Hwave[lev].get(),Lwave[lev].get(),eddyDiffs_lev[lev].get(),
                                                                 lsm_data[lev], lsm_data_name, lsm_flux[lev], lsm_flux_name,
-                                                                sst_lev[lev], tsk_lev[lev], lmask_lev[lev]);
+                                                                sst_lev[lev], tsk_lev[lev], lmask_lev[lev], &mapfac[lev]);
             }
 
             // The custom and rico flux types prescribe u*, T* and q* directly: these are

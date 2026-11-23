@@ -36,6 +36,9 @@ public:
      * @param dJ Cell-centered Jacobian determinant
      * @param z_phys_nd Node-centered physical height field
      * @param use_real_bcs Whether real lateral boundary conditions are active
+     * @param mf_ux Map factor m_x on x-faces, for the slope terms of the z-face fluxes
+     *        (null: one)
+     * @param mf_vy Map factor m_y on y-faces (null: one)
      */
     TerrainPoisson (amrex::Geometry const& geom, amrex::Geometry const& lev_geom,
                     amrex::BoxArray const& ba,
@@ -45,7 +48,9 @@ public:
                     const amrex::MultiFab& ax, const amrex::MultiFab& ay,
                     const amrex::MultiFab& az, const amrex::MultiFab& dJ,
                     amrex::MultiFab const* z_phys_nd,
-                    bool use_real_bcs);
+                    bool use_real_bcs,
+                    amrex::MultiFab const* mf_ux = nullptr,
+                    amrex::MultiFab const* mf_vy = nullptr);
 
     /**
      * Apply the terrain Poisson operator.
@@ -180,6 +185,8 @@ private:
     const amrex::MultiFab& m_az;
     const amrex::MultiFab& m_dJ;
     const amrex::MultiFab* m_zphys;
+    const amrex::MultiFab* m_mf_ux;
+    const amrex::MultiFab* m_mf_vy;
 
     std::unique_ptr<amrex::FFT::PoissonHybrid<amrex::MultiFab>> m_2D_fft_precond;
     amrex::Array<std::pair<amrex::FFT::Boundary,amrex::FFT::Boundary>,AMREX_SPACEDIM> bc_fft;

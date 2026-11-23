@@ -316,7 +316,7 @@ compute_gradp_xy (const MultiFab& p,
             ParallelFor(tbx, tby,
             [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
             {
-                //Note : mx/my == 1, so no map factor needed here
+                // Gradient in computational coordinates; the map factor is applied below
                 Real gpx = dxInv[0] * (p_arr(i,j,k) - p_arr(i-1,j,k));
 
                 if (l_use_terrain_fitted_coords) {
@@ -355,12 +355,12 @@ compute_gradp_xy (const MultiFab& p,
                 }
                 gpx_arr(i,j,k) = gpx;
 
-                // NOTE that the gradp array now carries the map factor!
+                // Correct gradient with map factor
                 gpx_arr(i,j,k) *= mf_ux_arr(i,j,0);
             },
             [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
             {
-                //Note : mx/my == 1, so no map factor needed here
+                // Gradient in computational coordinates; the map factor is applied below
                 Real gpy = dxInv[1] * (p_arr(i,j,k) - p_arr(i,j-1,k));
 
                 if (l_use_terrain_fitted_coords) {
@@ -399,7 +399,7 @@ compute_gradp_xy (const MultiFab& p,
                 }
                 gpy_arr(i,j,k) = gpy;
 
-                // NOTE that the gradp array now carries the map factor!
+                // Correct gradient with map factor
                 gpy_arr(i,j,k) *= mf_vy_arr(i,j,0);
             });
 
@@ -538,6 +538,17 @@ compute_gradp_xy (const MultiFab& p,
                 });
 
             } // l_fitting
+
+            // Correct gradient with map factor, as in the non-EB branch
+            ParallelFor(tbx, tby,
+            [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+            {
+                gpx_arr(i,j,k) *= mf_ux_arr(i,j,0);
+            },
+            [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+            {
+                gpy_arr(i,j,k) *= mf_vy_arr(i,j,0);
+            });
 
         } // TerrainType::EB
 
@@ -770,7 +781,7 @@ compute_gradp_hse (const MultiFab& p,
         ParallelFor(tbx, tby,
         [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
-            //Note : mx/my == 1, so no map factor needed here
+            // Gradient in computational coordinates; the map factor is applied below
             Real gpx = dxInv[0] * (p_arr(i,j,k) - p_arr(i-1,j,k));
 
             if (l_use_terrain_fitted_coords) {
@@ -794,7 +805,7 @@ compute_gradp_hse (const MultiFab& p,
         },
         [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
-            //Note : mx/my == 1, so no map factor needed here
+            // Gradient in computational coordinates; the map factor is applied below
             Real gpy = dxInv[1] * (p_arr(i,j,k) - p_arr(i,j-1,k));
 
             if (l_use_terrain_fitted_coords) {

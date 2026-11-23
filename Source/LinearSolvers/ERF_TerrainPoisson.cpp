@@ -23,6 +23,8 @@ using namespace amrex;
  * @param[in] dJ Jacobian of the coordinate transformation.
  * @param[in] z_phys_nd Nodal physical height field.
  * @param[in] use_real_bcs Flag to use real boundary conditions.
+ * @param[in] mf_ux Map factor m_x on x-faces (null: one).
+ * @param[in] mf_vy Map factor m_y on y-faces (null: one).
  */
 TerrainPoisson::TerrainPoisson (Geometry const& geom, Geometry const& lev_geom,
                                 BoxArray const& ba,
@@ -32,7 +34,9 @@ TerrainPoisson::TerrainPoisson (Geometry const& geom, Geometry const& lev_geom,
                                 const MultiFab& ax, const MultiFab& ay,
                                 const MultiFab& az, const MultiFab& dJ,
                                 MultiFab const* z_phys_nd,
-                                bool use_real_bcs)
+                                bool use_real_bcs,
+                                MultiFab const* mf_ux,
+                                MultiFab const* mf_vy)
     : m_geom(geom),
       m_grids(ba),
       m_dmap(dm),
@@ -42,7 +46,9 @@ TerrainPoisson::TerrainPoisson (Geometry const& geom, Geometry const& lev_geom,
       m_ay(ay),
       m_az(az),
       m_dJ(dJ),
-      m_zphys(z_phys_nd)
+      m_zphys(z_phys_nd),
+      m_mf_ux(mf_ux),
+      m_mf_vy(mf_vy)
 {
     if (!m_2D_fft_precond) {
         Box bounding_box = ba.minimalBox();
@@ -85,6 +91,8 @@ void TerrainPoisson::apply (MultiFab& lhs, MultiFab const& rhs)
     auto const& aya = m_ay.const_arrays();
     auto const& aza = m_az.const_arrays();
     auto const& dJa = m_dJ.const_arrays();
+    auto const& mfu = (m_mf_ux) ? m_mf_ux->const_arrays() : MultiArray4<Real const>{};
+    auto const& mfv = (m_mf_vy) ? m_mf_vy->const_arrays() : MultiArray4<Real const>{};
 
     apply_bcs(xx);
 
@@ -96,7 +104,9 @@ void TerrainPoisson::apply (MultiFab& lhs, MultiFab const& rhs)
     {
         // no flux through the zero-flux faces of the region
         terrpoisson_adotx(i, j, k, y[b], xc[b], axa[b], aya[b], aza[b], dJa[b], zpa[b],
-                          dxinv[0], dxinv[1], dxinv[2], dlo, dhi, zf);
+                          dxinv[0], dxinv[1], dxinv[2], dlo, dhi, zf,
+                          (mfu) ? mfu[b] : Array4<Real const>{},
+                          (mfv) ? mfv[b] : Array4<Real const>{});
     });
 }
 
@@ -232,9 +242,13 @@ void TerrainPoisson::getFluxes (MultiFab& phi,
     });
 
     auto const& fz = fluxes[2].arrays();
+    auto const& mfu = (m_mf_ux) ? m_mf_ux->const_arrays() : MultiArray4<Real const>{};
+    auto const& mfv = (m_mf_vy) ? m_mf_vy->const_arrays() : MultiArray4<Real const>{};
     ParallelFor(fluxes[2], [=] AMREX_GPU_DEVICE (int b, int i, int j, int k)
     {
-        fz[b](i,j,k) = terrpoisson_flux_z(i,j,k,x[b],zpa[b],dxinv[0],dxinv[1]);
+        fz[b](i,j,k) = terrpoisson_flux_z(i,j,k,x[b],zpa[b],dxinv[0],dxinv[1],
+                                          (mfu) ? mfu[b] : Array4<Real const>{},
+                                          (mfv) ? mfv[b] : Array4<Real const>{});
     });
 
     // No flux through the zero-flux faces, as in apply

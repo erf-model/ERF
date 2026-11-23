@@ -486,7 +486,9 @@ ShocDriver::advance (MultiFab& cons,
                      MultiFab* eddy_diffs,
                      MultiFab& z_phys_nd,
                      const Geometry& geom,
-                     double dt)
+                     double dt,
+                     const MultiFab* mf_m_x,
+                     const MultiFab* mf_m_y)
 {
     BL_PROFILE("SHOC::advance");
 
@@ -552,6 +554,17 @@ ShocDriver::advance (MultiFab& cons,
             ShocPreprocess::fill_columns(col, mfi, cons, xvel, yvel, zvel,
                                          hfx3, qfx3, tau13, tau23, z_phys_nd, geom,
                                          m_moisture_indices);
+        }
+        if (mf_m_x && mf_m_y) {
+            // m_x m_y of each column, for the physical cell size of the mixing-length cap
+            const auto mx = mf_m_x->const_array(mfi);
+            const auto my = mf_m_y->const_array(mfi);
+            auto mf_area = col.mf_area.array();
+            const auto layout = col.layout;
+            ParallelFor(makeSlab(vbx, 2, vbx.smallEnd(2)), [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept
+            {
+                mf_area(shoc_column_index(layout, i, j),0,0) = mx(i,j,0) * my(i,j,0);
+            });
         }
         {
             BL_PROFILE("SHOC::advance::seed_carried_buoyancy_flux");
