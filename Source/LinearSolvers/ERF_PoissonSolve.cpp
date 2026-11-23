@@ -717,7 +717,9 @@ void ERF::project_momenta (int lev, double l_time, double l_dt_d, Vector<MultiFa
     {
         const BoxArray& region = regions[ireg];
         const bool wraps = (region_wraps[ireg] != 0);
+#ifdef ERF_USE_FFT
         const int isub = first_sub[ireg];
+#endif
 
         BoxList bl_sub;
         Vector<int> dm_sub;
