@@ -165,8 +165,9 @@ Parameter tables and external forcing
 +----------------------------------+----------------------------------------------------------+----------------------+------------------+
 
 When ``use_parameter_file`` is false, SLM uses built-in typical MODIS/STAS
-values for vegetation optical properties, canopy parameters, and soil albedos.
+values for canopy parameters and soil properties.
 When it is true, values from the parameter file are used directly.
+Initializing from WRFInput or Metgrid requires ``use_parameter_file = true``.
 
 ``use_parameter_file`` and ``use_param_tbl`` are mutually exclusive.  When
 ``use_param_tbl`` is true, SLM reads the ``slm.vegparam`` table for
@@ -289,9 +290,10 @@ The category-specific defaults applied by this branch are:
 |                      | ``= 273.16 K``; surface emissivity ``= 0.98``; and all   |
 |                      | visible/NIR direct and diffuse albedos ``= 0.06``.       |
 +----------------------+----------------------------------------------------------+
-| Urban (land type     | ``landtype`` is changed to ``isnature`` (14); when       |
-| greater than 16)     | ``use_param_tbl`` is enabled, the nature-category        |
-|                      | vegetation fraction from ``vegparam`` is used.           |
+| Land type 1--16 and  | The WRF land type is used as is. Types 1--12, 14 and     |
+| 18--20               | 18--20 take ``ztop``, ``z0_sfc``, ``Khai_L``, ``Rc_min``,|
+|                      | ``Rgl`` and ``hs_rc`` from the MODIS block of            |
+|                      | ``NoahmpTable.TBL``.                                     |
 +----------------------+----------------------------------------------------------+
 | Other land           | WRF land type and LAI are retained; the cell remains     |
 |                      | eligible for land-mask and porosity-based soil-moisture  |
@@ -584,10 +586,9 @@ Vegetation emissivity is now based on the leaf-angle extinction coefficients
       \exp\left(-\left(\phi_1+\phi_2\right)LAI\right)\right].
 
 The canopy water-storage capacity includes contributions from foliage and
-woody area. In addition to the original LAI-dependent storage, the update uses
-canopy height and basal area to represent water retained on trunks. Initial
-surface albedos and emissivity are weighted by vegetation fraction so that
-partially vegetated cells do not initially behave as closed canopy.
+woody area: the maximum canopy water storage is ``0.1 * (LAI + SAI)``. Initial
+surface emissivity is weighted by vegetation fraction, and the initial surface
+albedos are set to 0.2 until the radiation scheme updates them.
 
 7. Aerodynamic and surface resistances
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

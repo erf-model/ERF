@@ -886,7 +886,6 @@ private:
     amrex::MultiFab precip_sfc; // precipitation reaching to soil top through canopy
     amrex::MultiFab mw_mx; // max of mw
     amrex::MultiFab mws_mx; // max of mws
-    amrex::MultiFab BAI; // Basal area index, sq.feet/acre
     amrex::MultiFab IMPERV;
 
     // Packed MF containing 1D arrays of variables used in soil temperature and soil water
@@ -913,10 +912,6 @@ private:
     amrex::MultiFab evp_canop;
     amrex::MultiFab evp_soil;
     amrex::MultiFab evp_air;
-
-    // Albedos
-    amrex::MultiFab albedovis_v, albedonir_v; // visible and NIR albedos for vegetation
-    amrex::MultiFab albedovis_s, albedonir_s; // visible and NIR albedos for soil
 
 
     // Resistances
