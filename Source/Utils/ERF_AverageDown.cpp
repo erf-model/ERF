@@ -19,7 +19,7 @@ average_down_faces_mapfac (const MultiFab& fine, MultiFab& crse, const IntVect& 
                            const MultiFab* mf2_f, const MultiFab* mf2_c,
                            const MultiFab* area_f, const MultiFab* area_c)
 {
-    const bool two = (mf2_f != nullptr);
+    const bool has_mf2 = (mf2_f != nullptr);
     const bool has_area = (area_f != nullptr);
     MultiFab wf(fine.boxArray(), fine.DistributionMap(), 1, 0);
     for (MFIter mfi(wf, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
@@ -27,11 +27,11 @@ average_down_faces_mapfac (const MultiFab& fine, MultiFab& crse, const IntVect& 
         const auto w_arr = wf.array(mfi);
         const auto m_arr = fine.const_array(mfi);
         const auto f_arr = mf_f.const_array(mfi);
-        const auto g_arr = (two) ? mf2_f->const_array(mfi) : Array4<const Real>{};
+        const auto g_arr = (has_mf2) ? mf2_f->const_array(mfi) : Array4<const Real>{};
         const auto a_arr = (has_area) ? area_f->const_array(mfi) : Array4<const Real>{};
         ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
-            const Real mf = (two) ? f_arr(i,j,0) * g_arr(i,j,0) : f_arr(i,j,0);
+            const Real mf = (has_mf2) ? f_arr(i,j,0) * g_arr(i,j,0) : f_arr(i,j,0);
             const Real a  = (has_area) ? a_arr(i,j,k) : one;
             w_arr(i,j,k) = m_arr(i,j,k) * a / mf;
         });
@@ -44,16 +44,18 @@ average_down_faces_mapfac (const MultiFab& fine, MultiFab& crse, const IntVect& 
     amrex::average_down_faces(wf, wc, rr);
 
     // The coarse map factors on those faces (cell-centered in z, with no extent in z)
+    //    Convert the list, not its boxes, so that it carries the type too; convert before
+    //    collapsing z, since a nodal box of one point in z would convert to an empty cell box
     BoxList bl2d = cba.boxList();
+    bl2d.convert(IndexType(IntVect(cba.ixType()[0], cba.ixType()[1], 0)));
     for (auto& b : bl2d) {
-        b.setType(IndexType(IntVect(b.type(0), b.type(1), 0)));
         b.setRange(2, 0);
     }
     const BoxArray ba2d(std::move(bl2d));
     MultiFab fc(ba2d, dm, 1, 0);
     fc.ParallelCopy(mf_c, 0, 0, 1, IntVect(0), IntVect(0), cper);
     MultiFab gc;
-    if (two) {
+    if (has_mf2) {
         gc.define(ba2d, dm, 1, 0);
         gc.ParallelCopy(*mf2_c, 0, 0, 1, IntVect(0), IntVect(0), cper);
     }
@@ -67,11 +69,11 @@ average_down_faces_mapfac (const MultiFab& fine, MultiFab& crse, const IntVect& 
         const Box bx = mfi.tilebox();
         const auto w_arr = wc.array(mfi);
         const auto f_arr = fc.const_array(mfi);
-        const auto g_arr = (two) ? gc.const_array(mfi) : Array4<const Real>{};
+        const auto g_arr = (has_mf2) ? gc.const_array(mfi) : Array4<const Real>{};
         const auto a_arr = (has_area) ? ac.const_array(mfi) : Array4<const Real>{};
         ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
-            const Real mf = (two) ? f_arr(i,j,0) * g_arr(i,j,0) : f_arr(i,j,0);
+            const Real mf = (has_mf2) ? f_arr(i,j,0) * g_arr(i,j,0) : f_arr(i,j,0);
             const Real a  = (has_area) ? a_arr(i,j,k) : one;
             w_arr(i,j,k) *= mf / a;
         });
