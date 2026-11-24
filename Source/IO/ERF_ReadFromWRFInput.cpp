@@ -68,7 +68,8 @@ wrfinput_dim_type (const std::string& NC_name)
         // Note: staggering is handled in `fill_fab_from_arrays`
         return NC_Data_Dims_Type::Time_SN_WE;
     }
-    else if (NC_name == "C1H" || NC_name == "C2H" || NC_name == "RDNW")
+    else if (NC_name == "C1H" || NC_name == "C2H" || NC_name == "RDNW" ||
+             NC_name == "C1F" || NC_name == "C2F")
     {
         return NC_Data_Dims_Type::Time_BT;
     }
@@ -249,7 +250,8 @@ wrfinput_var_box (const Box& subdomain_to_read,
             int khi = soil_layers ? ns1-1 : std::min(subdomain_to_read.bigEnd(2), ns1-1);
 
             var_box = Box(IntVect(0,0,0), IntVect(ns3-1,ns2-1,khi));
-            if (NC_name == "PH" || NC_name == "PHB" || NC_name == "W") {
+            if (NC_name == "PH" || NC_name == "PHB" || NC_name == "W" ||
+                NC_name == "C1F" || NC_name == "C2F") {
                 var_box.setType(IndexType(IntVect(0,0,1)));
                 var_box.setBig(2, khi+1);
             } else if (NC_name == "U" || NC_name == "MAPFAC_U") {

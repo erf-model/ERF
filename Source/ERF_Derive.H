@@ -96,6 +96,8 @@ void erf_derKE (
   const int* bcrec,
   const int level);
 
+// The vorticity and the quantities made from it take the cell-centered map factors m_x and
+// m_y (null: one) as well; their horizontal derivatives are taken at constant height
 void erf_dervortx (
   const amrex::Box& bx,
   amrex::FArrayBox& derfab,
@@ -106,7 +108,9 @@ void erf_dervortx (
   const amrex::Geometry& geomdata,
   amrex::Real time,
   const int* bcrec,
-  const int level);
+  const int level,
+  const amrex::FArrayBox* mfx_fab = nullptr,
+  const amrex::FArrayBox* mfy_fab = nullptr);
 
 void erf_dervorty (
   const amrex::Box& bx,
@@ -118,7 +122,9 @@ void erf_dervorty (
   const amrex::Geometry& geomdata,
   amrex::Real time,
   const int* bcrec,
-  const int level);
+  const int level,
+  const amrex::FArrayBox* mfx_fab = nullptr,
+  const amrex::FArrayBox* mfy_fab = nullptr);
 
 void erf_dervortz (
   const amrex::Box& bx,
@@ -130,7 +136,9 @@ void erf_dervortz (
   const amrex::Geometry& geomdata,
   amrex::Real time,
   const int* bcrec,
-  const int level);
+  const int level,
+  const amrex::FArrayBox* mfx_fab = nullptr,
+  const amrex::FArrayBox* mfy_fab = nullptr);
 
 void erf_derenstrophysq (
   const amrex::Box& bx,
@@ -142,7 +150,9 @@ void erf_derenstrophysq (
   const amrex::Geometry& geomdata,
   amrex::Real time,
   const int* bcrec,
-  const int level);
+  const int level,
+  const amrex::FArrayBox* mfx_fab = nullptr,
+  const amrex::FArrayBox* mfy_fab = nullptr);
 
 void erf_dermagvel (
   const amrex::Box& bx,
@@ -202,7 +212,9 @@ void erf_derhelicity (
   const amrex::Geometry& geomdata,
   amrex::Real time,
   const int* bcrec,
-  const int level);
+  const int level,
+  const amrex::FArrayBox* mfx_fab = nullptr,
+  const amrex::FArrayBox* mfy_fab = nullptr);
 
 void erf_derlocalhelicity (
   const amrex::Box& bx,
@@ -214,7 +226,9 @@ void erf_derlocalhelicity (
   const amrex::Geometry& geomdata,
   amrex::Real time,
   const int* bcrec,
-  const int level);
+  const int level,
+  const amrex::FArrayBox* mfx_fab = nullptr,
+  const amrex::FArrayBox* mfy_fab = nullptr);
 
 void erf_dervortstretching (
   const amrex::Box& bx,
@@ -226,7 +240,9 @@ void erf_dervortstretching (
   const amrex::Geometry& geomdata,
   amrex::Real time,
   const int* bcrec,
-  const int level);
+  const int level,
+  const amrex::FArrayBox* mfx_fab = nullptr,
+  const amrex::FArrayBox* mfy_fab = nullptr);
 
 void erf_derprecipitable (
   const amrex::Box& bx,
