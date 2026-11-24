@@ -355,7 +355,7 @@ compute_gradp_xy (const MultiFab& p,
                 }
                 gpx_arr(i,j,k) = gpx;
 
-                // Correct gradient with map factor
+                // Apply the map factor; the stored gradp carries it
                 gpx_arr(i,j,k) *= mf_ux_arr(i,j,0);
             },
             [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
@@ -399,7 +399,7 @@ compute_gradp_xy (const MultiFab& p,
                 }
                 gpy_arr(i,j,k) = gpy;
 
-                // Correct gradient with map factor
+                // Apply the map factor; the stored gradp carries it
                 gpy_arr(i,j,k) *= mf_vy_arr(i,j,0);
             });
 
@@ -789,7 +789,7 @@ compute_gradp_hse (const MultiFab& p,
             }
             gpx_arr(i,j,k) = gpx;
 
-            // NOTE that the gradp array now carries the map factor!
+            // Apply the map factor; the stored gradp carries it
             gpx_arr(i,j,k) *= mf_ux_arr(i,j,0);
         },
         [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
@@ -813,7 +813,7 @@ compute_gradp_hse (const MultiFab& p,
             }
             gpy_arr(i,j,k) = gpy;
 
-            // NOTE that the gradp array now carries the map factor!
+            // Apply the map factor; the stored gradp carries it
             gpy_arr(i,j,k) *= mf_vy_arr(i,j,0);
         });
     } // mfi
