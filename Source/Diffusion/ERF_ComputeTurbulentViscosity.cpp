@@ -1065,7 +1065,8 @@ void ComputeTurbulentViscosity (double dt,
                               geom, turbChoice, SurfLayer,
                               use_terrain_fitted_coords, use_moisture,
                               level, bc_ptr, vert_only, z_phys_nd, z_sfc_nd, z_phys_cc,
-                              solverChoice.moisture_indices, terrain_blank, Q_fire_atm);
+                              solverChoice.moisture_indices, terrain_blank, Q_fire_atm,
+                              {{mapfac[MapFacType::m_x].get(), mapfac[MapFacType::m_y].get()}});
     } else if (turbChoice.pbl_type == PBLType::YSU) {
         ComputeDiffusivityYSU(xvel, yvel, cons_in, eddyViscosity,
                               geom, turbChoice, SurfLayer,
