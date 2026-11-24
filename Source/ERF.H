@@ -1329,6 +1329,8 @@ public:
     void init_zphys            (int lev, double elapsed_time);
     void remake_zphys          (int lev, amrex::Real time, std::unique_ptr<amrex::MultiFab>& temp_zphys_nd);
     void update_terrain_arrays (int lev);
+    bool metrics_from_finest   (int lev);
+    void make_metrics_from_finest (int lev);
     void update_zsfc_nd        (int lev);
     void make_terrain_blanking (int lev);
 
@@ -1508,7 +1510,11 @@ private:
                              const amrex::Vector<amrex::MultiFab*>& mfs_vel,
                              const amrex::Vector<amrex::MultiFab*>& mfs_mom,
                              bool fillset=true, bool cons_only=false,
-                             bool allow_perturbational=true);
+                             bool allow_perturbational=true, bool volume_weighted=false);
+
+    // Whether the fills that make a level's grids (regrid, new level) interpolate the
+    //    conserved state weighted by detJ: on a terrain-fitted VariableDz mesh
+    bool volume_weighted_interp () const;
 
     // FillPatchTwoLevels for the cell-centered conserved state, perturbational in
     //    Rho_comp, RhoTheta_comp and RhoQ1_comp when perturbational_interp and perturbational
@@ -1519,12 +1525,12 @@ private:
                                  const amrex::Vector<amrex::MultiFab*>& fmf,
                                  const amrex::Vector<amrex::Real>& ftime,
                                  int scomp, int dcomp, int ncomp, int bccomp,
-                                 bool perturbational = true);
+                                 bool perturbational = true, bool volume_weighted = false);
 
     // InterpFromCoarseLevel for the whole cell-centered conserved state of a level made from
     //    the coarser one, perturbational in Rho_comp, RhoTheta_comp and RhoQ1_comp when perturbational_interp
     void InterpFromCoarseLevelCons (int lev, amrex::MultiFab& mf, const amrex::IntVect& nghost,
-                                    const amrex::MultiFab& cmf);
+                                    const amrex::MultiFab& cmf, bool volume_weighted = false);
 
 
     // Compute new multifabs by copying data from valid region and filling ghost cells.
