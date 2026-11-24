@@ -278,19 +278,9 @@ class whose hydraulic parameters they match (playa = clay, white sand = sand,
 lava = bedrock-like). SLM aborts if a land cell has a soil category outside
 [1, 19]. Water cells are not checked, since they often carry ISLTYP 14 or 0.
 
-The category constants and their WRFInput treatment are:
-
-+----------------------+----------------------+----------------------------------------------------------+
-| Constant             | Value                | Treatment                                                |
-+======================+======================+==========================================================+
-| ``isnature``         | 14                   | Urban-category cells are remapped to this nature         |
-|                      |                      | category for the non-building SLM treatment.             |
-+----------------------+----------------------+----------------------------------------------------------+
-| ``isurban``          | 13                   | The urban constant is retained; its assignment is        |
-|                      |                      | currently commented out.                                 |
-+----------------------+----------------------+----------------------------------------------------------+
-| ``islake``           | 21                   | Water category with WRF land type 17.                    |
-+----------------------+----------------------+----------------------------------------------------------+
+WRF land categories are read as MODIS categories and must be in [0, 21].
+Categories 0, 17 (water) and 21 (``islake``, lake) are water cells. Every other
+category is kept as is; in particular urban (13) stays urban and is not remapped.
 
 The category-specific defaults applied by this branch are:
 
@@ -306,10 +296,6 @@ The category-specific defaults applied by this branch are:
 | 18--20               | 18--20 take ``ztop``, ``z0_sfc``, ``Khai_L``, ``Rc_min``,|
 |                      | ``Rgl`` and ``hs_rc`` from the MODIS block of            |
 |                      | ``NoahmpTable.TBL``.                                     |
-+----------------------+----------------------------------------------------------+
-| Other land           | WRF land type and LAI are retained; the cell remains     |
-|                      | eligible for land-mask and porosity-based soil-moisture  |
-|                      | processing.                                              |
 +----------------------+----------------------------------------------------------+
 
 The local surface fields are initially allocated with vegetation fraction

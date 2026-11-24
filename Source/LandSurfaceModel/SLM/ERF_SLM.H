@@ -858,7 +858,7 @@ private:
 
     // TODO: placeholder landmask array - should probably use the one defined by ERF
     amrex::iMultiFab landmask;
-    amrex::iMultiFab landtype; // IGBP landtype (1 to 16)
+    amrex::iMultiFab landtype; // MODIS landtype (0 for water, 1 to 20 on land)
     amrex::iMultiFab nroot; // number of rooted soil layers used by the Noah BTR=1 stress factor
     amrex::MultiFab LAI; // leaf area index
     amrex::MultiFab SAI; // stem area index
