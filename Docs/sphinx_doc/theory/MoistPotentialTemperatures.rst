@@ -151,7 +151,8 @@ ascent. The terms are:
   factor is exactly 1 for dry air.
 
 :math:`\theta_e` is a diagnostic only. It is available as the plotfile
-variable ``eq_pot_temp``. In anelastic runs :math:`T` comes from :math:`p` and
+variable ``eq_pot_temp``. In anelastic and pseudo-incompressible runs, which do not
+diagnose the pressure from the equation of state, :math:`T` comes from :math:`p` and
 :math:`\theta`; in compressible runs it comes from the equation of state. The
 ``eq_pot_temp`` input of the squall-line, supercell and bubble problems sets
 an initial :math:`\theta_e` profile (see :ref:`sec:ProblemInputs`).

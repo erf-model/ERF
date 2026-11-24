@@ -1,15 +1,19 @@
 # erf.sample_point and its forms (#4978), on the wrfinput that make_wrfinput.py --hill writes:
 # a rotated lat/lon grid whose ground rises 20 m per cell in i, under a flat top at 800 m, with
-# 8 levels spaced evenly in each column, theta naming each column and qv = 0.001 (k+1) each
-# level. pt_a is in column (10,20), whose ground is at 210 m and cells 73.75 m deep; pt_b in
-# column (25,5), ground at 510 m and cells 36.25 m deep. The test gives the points as
+# theta naming each column and qv = 0.001 (k+1) each level. ERF builds its 8 levels from the
+# file's mean layer profile, stretched aloft, and follows the terrain with them. pt_a is in
+# column (10,20), whose ground is at 210 m and cell faces at
+#   210 254 307 368 438 516 602 697 800 m,
+# pt_b in column (25,5), whose ground is at 510 m and cell faces at
+#   510 532 558 588 622 660 703 749 800 m.
+# The test gives the points as
 #   erf.sample_point        = 10 20 3   25 5 6                               (k = 3, 6)
-#   erf.sample_point_real   = 10500 20500 560   25500 5500 700               (k = 4, 5)
-#   erf.sample_point_real   = 10500 20500 50    25500 5500 200, above ground (k = 0, 5)
-#   erf.sample_point_latlon = the two cell centres, 250 and 200 above ground (k = 3, 5)
+#   erf.sample_point_real   = 10500 20500 560   25500 5500 700               (k = 5, 5)
+#   erf.sample_point_real   = 10500 20500 50    25500 5500 200, above ground (k = 1, 6)
+#   erf.sample_point_latlon = the two cell centers, 250 and 200 above ground (k = 4, 6)
 # check_sample_point.py requires each point's log to hold the conserved state of the expected
 # cell of the full-depth columns col_a and col_b, placed by erf.sample_line_latlon at the same
-# cell centres. The boxes are 16 x 16, so the points are on different boxes.
+# cell centers. The boxes are 16 x 16, so the points are on different boxes.
 max_step = 2
 start_datetime = "2026-01-01 00:00:00"
 geometry.prob_extent = 32000.0 32000.0 800.0

@@ -141,13 +141,9 @@ ERF::FillIntermediatePatch (int lev, double time_d,
         Vector<MultiFab*> fmf = {mfs_vel[Vars::cons],mfs_vel[Vars::cons]};
         Vector<MultiFab*> cmf = select_time_data(csel, vars_old[lev-1][Vars::cons], vars_new[lev-1][Vars::cons]);
 
-        // Call FillPatchTwoLevels which ASSUMES that all ghost cells at lev-1 have already been filled
-        mapper = &cell_cons_interp;
-        FillPatchTwoLevels(mf, IntVect{ng_cons}, IntVect(0,0,0),
-                           time_rel, cmf, ctime, fmf, ftime,
-                           icomp_cons, icomp_cons, ncomp_cons, geom[lev-1], geom[lev],
-                           refRatio(lev-1), mapper, domain_bcs_type,
-                           icomp_cons);
+        // This ASSUMES that all ghost cells at lev-1 have already been filled
+        FillPatchTwoLevelsCons(lev, mf, IntVect{ng_cons}, time_rel, cmf, ctime, fmf, ftime,
+                               icomp_cons, icomp_cons, ncomp_cons, icomp_cons);
 
         // Impose physical bc's on fine data (note time and 0 are not used)
         // Note that we do this after the FillPatch because imposing physical bc's on fine ghost
@@ -311,8 +307,8 @@ ERF::FillIntermediatePatch (int lev, double time_d,
 
 /**
  * Mask of the coarse/fine ghost cells of level lev (1 there, 0 in the valid region, in ghost
- * cells covered by another grid at this level and outside the domain), for the cell-centred
- * (which = 0) or face-centred (which = 1 + dir) data of FillCoarseFineGhostsForImplicit.  It
+ * cells covered by another grid at this level and outside the domain), for the cell-centered
+ * (which = 0) or face-centered (which = 1 + dir) data of FillCoarseFineGhostsForImplicit.  It
  * depends only on the grids, so it is kept and rebuilt only when they change.
  */
 const iMultiFab&
@@ -348,7 +344,7 @@ ERF::get_cf_implicit_mask (int lev, int which, const BoxArray& ba,
  * its valid region only, and apply_bcs fills all the ghost cells of S_new at the end of
  * slow_rhs_post).  Every column is closed in z, so a solved component is read at the cell above
  * and below the column, but not at its sides; the same holds for the momenta.  Density is read
- * at those cells too, and also by the face averages: at the neighbouring cell in x (y) all the
+ * at those cells too, and also by the face averages: at the neighboring cell in x (y) all the
  * way up the column for the x- (y-) momentum, and at two cells above and below for the
  * z-momentum.
  *

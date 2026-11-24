@@ -5,6 +5,9 @@
 #include "ERF_Kessler.H"
 #include "ERF_KesslerUtils.H"
 
+#include <cmath>
+#include <sstream>
+
 using namespace amrex;
 
 /**
@@ -28,10 +31,8 @@ void Kessler::AdvanceKessler (const SolverChoice &solverChoice)
         Real dtn  = dt;
         // NOTE: coef carries only the reference vertical spacing. The physical
         //       spacing is supplied by the inverse Jacobian in the tendency below,
-        //       since detJ = dz_phys/CellSize(2). Dividing by m_dzmin here as well
-        //       would apply the vertical metric twice. m_dzmin is still the correct
-        //       length scale for the substep (CFL) count, which must bound the
-        //       thinnest cell in the domain.
+        //       since detJ = dz_phys/CellSize(2). Dividing by dz_phys here as well
+        //       would apply the vertical metric twice.
         Real coef = dtn * m_geom.InvCellSize(2);
 
         for ( MFIter mfi(*tabs,TilingIfNotGPU()); mfi.isValid(); ++mfi) {
@@ -117,8 +118,24 @@ void Kessler::AdvanceKessler (const SolverChoice &solverChoice)
         auto const& ma_qp_arr = mic_fab_vars[MicVar_Kess::qp]->const_arrays();
         // The sedimentation CFL uses fall speed, not precipitating mass flux.
         // fz stores rho * Vt * qp for the flux divergence below, so the reduction
-        // recomputes Vt from the same face state used for the flux.
-        GpuTuple<Real> max_terminal_velocity = ParReduce(TypeList<ReduceOpMax>{},
+        // recomputes Vt from the same face state used for the flux. Each face is checked
+        // against the physical height of the cell it drains, as the limiter below is, so
+        // fast rain aloft in tall cells is not sized by the thinnest cell near the ground.
+        // A face inside the domain is also checked against the cell below it, the one its
+        // rain falls into (kessler_sizing_detJ): the count is fixed here, at the start of
+        // the step, while the cells below the rain front are still dry, and this covers the
+        // first cell the front enters.  Beyond that the donor cap in the substep loop
+        // (kessler_limit_precip_flux) is the backstop and keeps qp non-negative.  At the
+        // bottom of a box that does not touch the ground the cell below is a ghost cell;
+        // detJ_cc has one, filled by make_J.
+        // On an EB mesh detJ is the volume fraction, not a cell height, so the sizing uses
+        // the reference dz there (J = 1).  The limiter and the tendency below still use the
+        // volume fraction, so small cut cells can be donor-capped.
+        const auto ma_dJ = (m_detJ_cc && solverChoice.terrain_type != TerrainType::EB)
+                         ? m_detJ_cc->const_arrays() : MultiArray4<const Real>{};
+        const Real dz_ref = m_geom.CellSize(2);
+        const Real dt_full = dt;
+        GpuTuple<Real> max_courant_tuple = ParReduce(TypeList<ReduceOpMax>{},
                                                          TypeList<Real>{},
                                                          fz, IntVect(0),
                                                          [=] AMREX_GPU_DEVICE (int box_no, int i, int j, int k) noexcept
@@ -132,9 +149,15 @@ void Kessler::AdvanceKessler (const SolverChoice &solverChoice)
                                                              const Real qp_k = (k == k_hi+1) ? qp_arr(i,j,k-1) : qp_arr(i,j,k);
                                                              const KesslerFaceState face_state =
                                                                  kessler_face_state(k, k_hi, rho_km1, rho_k, qp_km1, qp_k);
-                                                             return { kessler_terminal_velocity(face_state.rho, face_state.qp) };
+                                                             const int donor_k = kessler_face_donor_k(k, k_hi);
+                                                             const Real detJ_donor = (ma_dJ) ? ma_dJ[box_no](i,j,donor_k) : Real(1);
+                                                             const Real detJ_below = (ma_dJ && k > k_lo) ? ma_dJ[box_no](i,j,k-1) : detJ_donor;
+                                                             return { kessler_fall_courant(
+                                                                 kessler_terminal_velocity(face_state.rho, face_state.qp),
+                                                                 dt_full, dz_ref,
+                                                                 kessler_sizing_detJ(k, k_lo, k_hi, detJ_donor, detJ_below)) };
                                                          });
-        Real max_vt = get<0>(max_terminal_velocity);
+        Real max_courant = get<0>(max_courant_tuple);
         //
         // ParReduce over a MultiFab gives the local rank maximum here.  Every rank must
         //    arrive at the SAME substep count: otherwise different parts of the domain
@@ -144,13 +167,26 @@ void Kessler::AdvanceKessler (const SolverChoice &solverChoice)
         //    ReduceOpMax's lowest() initial value here.  (SAM's PrecipFall does this same
         //    reduction for the same reasons.)
         //
-        ParallelDescriptor::ReduceRealMax(max_vt);
+        ParallelDescriptor::ReduceRealMax(max_courant);
 
-        // A zero minimum dz means Set_dzmin was never called (a restart path that
-        // skipped it): the substep count would be unbounded and the step never end.
-        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(m_dzmin > Real(0),
-            "Kessler: the minimum cell height was never set (Set_dzmin), so the sedimentation substeps cannot be sized");
-        int n_substep = kessler_num_sedimentation_substeps(max_vt, dt, m_dzmin);
+        //
+        // A NaN or infinite Courant number, or one that asks for more substeps than any
+        //    healthy state does, means the rain or density handed in is not usable; name
+        //    the cause here rather than casting it to an int.
+        //
+        if (!std::isfinite(max_courant) ||
+            max_courant > kessler_sedimentation_cfl_max * Real(kessler_max_sedimentation_substeps)) {
+            std::ostringstream message;
+            message.precision(17);
+            message << "Kessler: cannot size the rain sedimentation substeps: the largest fall"
+                    << " Courant number is " << max_courant << " (dt=" << dt
+                    << ", dz=" << dz_ref << "), which would need more than "
+                    << kessler_max_sedimentation_substeps << " substeps."
+                    << " The rain or density handed to the sedimentation is not usable.";
+            Abort(message.str());
+        }
+
+        int n_substep = kessler_num_sedimentation_substeps(max_courant);
         AMREX_ALWAYS_ASSERT_WITH_MESSAGE(n_substep >= 1,
                                          "Kessler: Number of precipitation substeps must be greater than 0!");
         coef /= Real(n_substep);
@@ -200,9 +236,9 @@ void Kessler::AdvanceKessler (const SolverChoice &solverChoice)
                     // Cap outgoing flux by the donor cell's detJ-weighted available rain water:
                     // F * dt / dz <= rho_donor * qp_donor * detJ_donor.
                     // This keeps compressed cells from losing more rain than they contain.
-                    const Real max_flux = donor_rho * donor_qp * donor_detJ / coef;
-                    fz_array(i,j,k) = amrex::min(
-                        kessler_precip_flux(face_state.rho, terminal_velocity, face_state.qp), max_flux);
+                    fz_array(i,j,k) = kessler_limit_precip_flux(
+                        kessler_precip_flux(face_state.rho, terminal_velocity, face_state.qp),
+                        donor_rho, donor_qp, donor_detJ, coef);
 
                     // At the top of a fine patch the rain coming in is the coarse level's
                     // flux through that face, not one built from interpolated ghost cells

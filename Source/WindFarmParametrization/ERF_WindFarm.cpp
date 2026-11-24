@@ -11,7 +11,7 @@ using namespace amrex;
 
 /**
  * Read in the turbine locations in latitude-longitude from windturbines.txt
- * and convert it into x and y coordinates in metres
+ * and convert it into x and y coordinates in meters
  *
  * @param lev Integer specifying the current level
  */
@@ -280,6 +280,9 @@ WindFarm::read_windfarm_spec_table (const std::string windfarm_spec_table)
 void
 WindFarm::read_windfarm_blade_table (const std::string windfarm_blade_table)
 {
+    // Re-reading the table must not append to a previous read (#5180)
+    bld_rad_loc.clear(); bld_twist.clear(); bld_chord.clear();
+
     std::ifstream filename(windfarm_blade_table);
     std::string line;
     Real temp, var1, var2, var3;
@@ -318,6 +321,9 @@ WindFarm::read_windfarm_blade_table (const std::string windfarm_blade_table)
 void
 WindFarm::read_windfarm_spec_table_extra (const std::string windfarm_spec_table_extra)
 {
+    // Re-reading the table must not append to a previous read (#5180)
+    velocity.clear(); C_P.clear(); C_T.clear(); rotor_RPM.clear(); blade_pitch.clear();
+
     // Open the file
     std::ifstream file(windfarm_spec_table_extra);
 
@@ -406,9 +412,10 @@ WindFarm::read_windfarm_airfoil_tables (const std::string windfarm_airfoil_table
 
     // Process each file
     int count = 0;
-    bld_airfoil_aoa.resize(n_bld_sections);
-    bld_airfoil_Cl.resize(n_bld_sections);
-    bld_airfoil_Cd.resize(n_bld_sections);
+    // assign, not resize, which would keep the inner vectors of a previous read (#5180)
+    bld_airfoil_aoa.assign(n_bld_sections, {});
+    bld_airfoil_Cl.assign(n_bld_sections, {});
+    bld_airfoil_Cd.assign(n_bld_sections, {});
     for (const auto& filePath : files) {
         std::ifstream filename(filePath.c_str());
 
@@ -453,10 +460,12 @@ WindFarm::read_windfarm_airfoil_tables (const std::string windfarm_airfoil_table
 void
 WindFarm::fill_Nturb_multifab (const Geometry& geom,
                                MultiFab& mf_Nturb,
-                               std::unique_ptr<MultiFab>& z_phys_nd)
+                               std::unique_ptr<MultiFab>& z_phys_nd,
+                               bool set_zloc)
 {
-
-    zloc.resize(xloc.size(),zero);
+    // zloc is set from level 0 only.  assign, not resize: resize keeps the previous values,
+    // which the sums below would then add to.
+    if (set_zloc) { zloc.assign(xloc.size(), zero); }
     Vector<int> is_counted;
     is_counted.resize(xloc.size(),0);
 
@@ -488,6 +497,7 @@ WindFarm::fill_Nturb_multifab (const Geometry& geom,
     int num_turb = xloc.size();
 
     bool is_terrain = z_phys_nd ? true: false;
+    const bool find_zloc = is_terrain && set_zloc;
 
     // The ground is at the bottom of the domain, not at the bottom of each box --
     //    these differ for every box that doesn't touch the ground, which happens
@@ -520,7 +530,7 @@ WindFarm::fill_Nturb_multifab (const Geometry& geom,
                     //    then a column spread over more than one rank (which happens when
                     //    the grids are decomposed in z) would be counted more than once.
                     //
-                    if (is_terrain and k == k0) {
+                    if (find_zloc and k == k0) {
                         int expected = 0;
                         int desired = 1;
                         // Atomic Compare-And-Swap: Increment only if d_is_counted_ptr[it] was 0
@@ -536,6 +546,8 @@ WindFarm::fill_Nturb_multifab (const Geometry& geom,
 
     mf_Nturb.FillBoundary(geom.periodicity());
 
+    if (!set_zloc) { return; }
+
     Gpu::copy(Gpu::deviceToHost, d_zloc.begin(), d_zloc.end(), zloc.begin());
     Gpu::copy(Gpu::deviceToHost, d_is_counted.begin(), d_is_counted.end(), is_counted.begin());
 
@@ -546,6 +558,8 @@ WindFarm::fill_Nturb_multifab (const Geometry& geom,
     amrex::ParallelAllReduce::Sum(is_counted.data(),
                                   is_counted.size(),
                                   amrex::ParallelContext::CommunicatorAll());
+
+    set_turb_zloc(zloc);
 
     for(int it=0;it<num_turb;it++) {
         if(is_terrain and

@@ -5,6 +5,7 @@
 #include "ERF_ImmersedWallStability.H"
 #include "ERF_ImmersedWallCell.H"
 #include "ERF_ImmersedBuildingMasks.H"
+#include "ERF_LengthScaleCellSize.H"
 
 using namespace amrex;
 
@@ -90,20 +91,24 @@ void ImmersedForcingTerrain_Xmom (const Box& tbx,
                                   const Array4<      Real>& xmom_src_arr,
                                   const Geometry& geom,
                                   const SolverChoice& solverChoice,
-                                  const Real fac)
+                                  const Real fac,
+                                  const bool l_drag_in_projection)
 {
     // geometric properties
     const auto dx_arr = geom.CellSizeArray();
-    const Real dx_x = dx_arr[0];
-    const Real dx_y = dx_arr[1];
+    // The drag rates take dx in place of a dy over one cell, and the reverse
+    const auto len_arr = LengthScaleCellSize(geom);
+    const Real len_x = len_arr[0];
+    const Real len_y = len_arr[1];
     const Real dt = fac;  // fac is actually dt in the calling code
 
     const Real alpha_m = solverChoice.if_Cd_momentum;
     const Real tiny = std::numeric_limits<amrex::Real>::epsilon();
     const Real U_s = one; // unit velocity scale
     const bool l_implicit_drag = solverChoice.if_implicit_drag;
-    // erf.if_implicit_projection: the drag of the solid is applied inside the anelastic projection
-    const bool l_drag = !solverChoice.if_implicit_projection;
+    // erf.if_implicit_projection: the drag of the solid is applied inside the projection
+    // (anelastic and pseudo-incompressible levels)
+    const bool l_drag = !l_drag_in_projection;
 
     // MOST parameters (the similarity functions from erf.most.stable_functions)
     const similarity_funs sfuns = solverChoice.most_sfuns;
@@ -141,7 +146,7 @@ void ImmersedForcingTerrain_Xmom (const Box& tbx,
         const Real t_blank_above = (t_blank_above_raw < small_volfrac) ? zero : t_blank_above_raw;
 
         const Real dx_z = (z_cc_arr) ? (z_cc_arr(i,j,k) - z_cc_arr(i,j,k-1)) : dx_arr[2];
-        const Real drag_coefficient = alpha_m / std::pow(dx_x*dx_y*dx_z, one/three);
+        const Real drag_coefficient = alpha_m / std::pow(len_x*len_y*dx_z, one/three);
         const Real CdM = std::min(drag_coefficient / (windspeed + tiny), drag_coefficient);
 
         const Real rho_xface = myhalf * ( cell_data(i,j,k,Rho_comp) + cell_data(i-1,j,k,Rho_comp) );
@@ -212,20 +217,24 @@ void ImmersedForcingTerrain_Ymom (const Box& tby,
                                   const Array4<      Real>& ymom_src_arr,
                                   const Geometry& geom,
                                   const SolverChoice& solverChoice,
-                                  const Real fac)
+                                  const Real fac,
+                                  const bool l_drag_in_projection)
 {
     // geometric properties
     const auto dx_arr = geom.CellSizeArray();
-    const Real dx_x = dx_arr[0];
-    const Real dx_y = dx_arr[1];
+    // The drag rates take dx in place of a dy over one cell, and the reverse
+    const auto len_arr = LengthScaleCellSize(geom);
+    const Real len_x = len_arr[0];
+    const Real len_y = len_arr[1];
     const Real dt = fac;  // fac is actually dt in the calling code
 
     const Real alpha_m = solverChoice.if_Cd_momentum;
     const Real tiny = std::numeric_limits<amrex::Real>::epsilon();
     const Real U_s = one; // unit velocity scale
     const bool l_implicit_drag = solverChoice.if_implicit_drag;
-    // erf.if_implicit_projection: the drag of the solid is applied inside the anelastic projection
-    const bool l_drag = !solverChoice.if_implicit_projection;
+    // erf.if_implicit_projection: the drag of the solid is applied inside the projection
+    // (anelastic and pseudo-incompressible levels)
+    const bool l_drag = !l_drag_in_projection;
 
     // MOST parameters (the similarity functions from erf.most.stable_functions)
     const similarity_funs sfuns = solverChoice.most_sfuns;
@@ -262,7 +271,7 @@ void ImmersedForcingTerrain_Ymom (const Box& tby,
         const Real t_blank_above = (t_blank_above_raw < small_volfrac) ? zero : t_blank_above_raw;
 
         const Real dx_z = (z_cc_arr) ? (z_cc_arr(i,j,k) - z_cc_arr(i,j,k-1)) : dx_arr[2];
-        const Real drag_coefficient = alpha_m / std::pow(dx_x*dx_y*dx_z, one/three);
+        const Real drag_coefficient = alpha_m / std::pow(len_x*len_y*dx_z, one/three);
         const Real CdM = std::min(drag_coefficient / (windspeed + tiny), drag_coefficient);
 
         const Real rho_yface =  myhalf * ( cell_data(i,j,k,Rho_comp) + cell_data(i,j-1,k,Rho_comp) );
@@ -323,7 +332,7 @@ void ImmersedForcingTerrain_Ymom (const Box& tby,
  * Surface condition of the fraction-stress wall law from the erf.if_* inputs at this time: a given
  * Obukhov length, a given heat flux, a given surface temperature (erf.if_init_surf_temp, changing
  * at erf.if_surf_heating_rate, which is stored in K/s), or none (neutral); and, with a moisture
- * model that carries water vapour, a given moisture flux (erf.if_surf_moist_flux), a given surface
+ * model that carries water vapor, a given moisture flux (erf.if_surf_moist_flux), a given surface
  * mixing ratio (erf.if_surf_moist) or none, the Obukhov length then formed from theta_v and
  * theta_v*. The inputs guarantee that at most one of each is set.
  */
@@ -421,21 +430,25 @@ void ImmersedForcingTerrain_HorizMom_FractionStress (const Box& tb,
                                                     const Geometry& geom,
                                                     const SolverChoice& solverChoice,
                                                     const Real dt,
-                                                    const Real time)
+                                                    const Real time,
+                                                    const bool l_drag_in_projection)
 {
     const Real* dx_arr = geom.CellSize();
-    const Real dx_x = dx_arr[0];
-    const Real dx_y = dx_arr[1];
+    // The drag rates take dx in place of a dy over one cell, and the reverse
+    const auto len_arr = LengthScaleCellSize(geom);
+    const Real len_x = len_arr[0];
+    const Real len_y = len_arr[1];
     const Real dz   = dx_arr[2];   // fraction_stress runs on a constant-dz mesh
     const Real alpha_m = solverChoice.if_Cd_momentum;
     const Real z0      = solverChoice.if_z0;
     const bool l_implicit_drag = solverChoice.if_implicit_drag;
-    // erf.if_implicit_projection: the drag of the solid is applied inside the anelastic projection
-    const bool l_drag = !solverChoice.if_implicit_projection;
+    // erf.if_implicit_projection: the drag of the solid is applied inside the projection
+    // (anelastic and pseudo-incompressible levels)
+    const bool l_drag = !l_drag_in_projection;
     const Real tiny  = std::numeric_limits<Real>::epsilon();
     const Real small = solverChoice.if_small_volfrac;
     const ib_wall::WallCond cond = make_wall_cond(solverChoice, time);
-    // water vapour on the face (zero without a moisture model), for q* and the virtual Obukhov
+    // water vapor on the face (zero without a moisture model), for q* and the virtual Obukhov
     // length of the wall state, as the scalar kernel forms them
     const int qv_comp = cond.moist ? solverChoice.moisture_indices.qv : -1;
     constexpr int io = (dir == 0) ? 1 : 0;
@@ -468,7 +481,7 @@ void ImmersedForcingTerrain_HorizMom_FractionStress (const Box& tb,
                                        : fourth * ( w(i, j, k) + w(i, j-1, k) + w(i, j, k+1) + w(i, j-1, k+1) );
             const Real uh = if_face_speed<dir>(u, v, i, j, k);
             const Real windspeed = std::sqrt(uh * uh + wz * wz);
-            const Real drag_coefficient = alpha_m / std::pow(dx_x*dx_y*dz, one/three);
+            const Real drag_coefficient = alpha_m / std::pow(len_x*len_y*dz, one/three);
             const Real CdM = std::min(drag_coefficient / (windspeed + tiny), drag_coefficient);
             const Real lambda = b_k * CdM * windspeed;   // linear drag rate [1/s]; zero in fluid cells
             const Real fac_local = l_implicit_drag ? lambda / (one + lambda*dt) : lambda;
@@ -488,10 +501,11 @@ void ImmersedForcingTerrain_Xmom_FractionStress (const Box& tbx,
                                                  const Geometry& geom,
                                                  const SolverChoice& solverChoice,
                                                  const Real fac,
-                                                 const Real time)
+                                                 const Real time,
+                                                 const bool l_drag_in_projection)
 {
     ImmersedForcingTerrain_HorizMom_FractionStress<0>(tbx, u, v, w, cell_data, t_blank_arr, t_blank_xface_arr,
-                                                      xmom_src_arr, geom, solverChoice, fac, time);
+                                                      xmom_src_arr, geom, solverChoice, fac, time, l_drag_in_projection);
 }
 
 void ImmersedForcingTerrain_Ymom_FractionStress (const Box& tby,
@@ -505,10 +519,11 @@ void ImmersedForcingTerrain_Ymom_FractionStress (const Box& tby,
                                                  const Geometry& geom,
                                                  const SolverChoice& solverChoice,
                                                  const Real fac,
-                                                 const Real time)
+                                                 const Real time,
+                                                 const bool l_drag_in_projection)
 {
     ImmersedForcingTerrain_HorizMom_FractionStress<1>(tby, u, v, w, cell_data, t_blank_arr, t_blank_yface_arr,
-                                                      ymom_src_arr, geom, solverChoice, fac, time);
+                                                      ymom_src_arr, geom, solverChoice, fac, time, l_drag_in_projection);
 }
 
 /**
@@ -520,7 +535,7 @@ void ImmersedForcingTerrain_Ymom_FractionStress (const Box& tby,
  * of the TKE is stored in wall_ktarget at the wall cell (-1 elsewhere), and a time factor of 1
  * leaves the pin to erf_slow_rhs_post and the implicit TKE solve. With a moisture model the wall
  * moisture flux -u* q* of the surface moisture condition (erf.if_surf_moist_flux or
- * erf.if_surf_moist; q* = 0 without one) goes to the water vapour of the wall cell and is stored
+ * erf.if_surf_moist; q* = 0 without one) goes to the water vapor of the wall cell and is stored
  * in wall_qfx (zero elsewhere); with wall_tke_moist (erf.rans_moist_buoyancy) the wall TKE's
  * buoyancy uses theta_v* and theta_v, as flat ground's erf.dirichlet_k does under the same key.
  */
@@ -545,19 +560,21 @@ void ImmersedForcingTerrain_Scalar_FractionStress (const Box& bx,
 {
     const Real* dx_arr = geom.CellSize();
     const Real dz = dx_arr[2];   // fraction_stress runs on a constant-dz mesh
+    // The drag rate takes dx in place of a dy over one cell, and the reverse
+    const auto len_arr = LengthScaleCellSize(geom);
     const Real tke_time_factor = solverChoice.if_wall_tke_time_factor;
     // a time factor of 1 pins the wall cell at the wall value after every stage (erf_slow_rhs_post
     // and the implicit TKE solve read wall_ktarget), as erf.dirichlet_k does on flat ground;
     // larger factors relax toward it here as a source
     const bool tke_pin = (tke_time_factor <= one);
-    const Real drag_coefficient = solverChoice.if_Cd_scalar / std::pow(dx_arr[0]*dx_arr[1]*dz, one/three);
+    const Real drag_coefficient = solverChoice.if_Cd_scalar / std::pow(len_arr[0]*len_arr[1]*dz, one/three);
     const Real z0    = solverChoice.if_z0;
     const Real small = solverChoice.if_small_volfrac;
     const ib_wall::WallCond cond = make_wall_cond(solverChoice, time);
     const int klo = geom.Domain().smallEnd(2);
     const int khi = geom.Domain().bigEnd(2);
     const bool have_avg = (r_avg && t_avg);
-    // water vapour component of the conserved state (-1 without a moisture model that carries it)
+    // water vapor component of the conserved state (-1 without a moisture model that carries it)
     const int qv_comp = cond.moist ? solverChoice.moisture_indices.qv : -1;
     const bool moist_cond = (qv_comp >= 0) && (cond.moist_type != ib_wall::WallCond::moist_none);
 
@@ -570,7 +587,7 @@ void ImmersedForcingTerrain_Scalar_FractionStress (const Box& bx,
 
         if (ib_wall::is_wall_cell(if_cell_beta(t_blank_arr, i, j, k-1, klo, khi, small), b_k,
                                   if_cell_beta(t_blank_arr, i, j, k+1, klo, khi, small), small)) {
-            // horizontal speed at the cell centres of the wall cell and the cell above
+            // horizontal speed at the cell centers of the wall cell and the cell above
             const Real uc0 = myhalf * (u(i, j, k)   + u(i+1, j, k));
             const Real vc0 = myhalf * (v(i, j, k)   + v(i, j+1, k));
             const Real uc1 = myhalf * (u(i, j, k+1) + u(i+1, j, k+1));
@@ -578,7 +595,7 @@ void ImmersedForcingTerrain_Scalar_FractionStress (const Box& bx,
             const Real rho       = cell_data(i, j, k,   Rho_comp);
             const Real theta     = cell_data(i, j, k,   RhoTheta_comp) / rho;
             const Real theta_ref = cell_data(i, j, k+1, RhoTheta_comp) / cell_data(i, j, k+1, Rho_comp);
-            // water vapour of the wall cell and the cell above (zero without a moisture model)
+            // water vapor of the wall cell and the cell above (zero without a moisture model)
             const Real q     = (qv_comp >= 0) ? cell_data(i, j, k,   qv_comp) / rho : zero;
             const Real q_ref = (qv_comp >= 0) ? cell_data(i, j, k+1, qv_comp) / cell_data(i, j, k+1, Rho_comp) : zero;
             const ib_wall::WallState ws = ib_wall::wall_state(std::sqrt(uc0*uc0 + vc0*vc0), std::sqrt(uc1*uc1 + vc1*vc1),
@@ -628,19 +645,23 @@ void ImmersedForcingTerrain_Zmom (const Box& tbz,
                                   const Array4<      Real>& zmom_src_arr,
                                   const Geometry& geom,
                                   const SolverChoice& solverChoice,
-                                  const Real fac)
+                                  const Real fac,
+                                  const bool l_drag_in_projection)
 {
     // geometric properties
     const auto dx_arr = geom.CellSizeArray();
-    const Real dx_x = dx_arr[0];
-    const Real dx_y = dx_arr[1];
+    // The drag rates take dx in place of a dy over one cell, and the reverse
+    const auto len_arr = LengthScaleCellSize(geom);
+    const Real len_x = len_arr[0];
+    const Real len_y = len_arr[1];
     const Real dt = fac;  // fac is actually dt in the calling code
 
     const Real alpha_m = solverChoice.if_Cd_momentum;
     const Real tiny = std::numeric_limits<amrex::Real>::epsilon();
     const bool l_implicit_drag = solverChoice.if_implicit_drag;
-    // erf.if_implicit_projection: the drag of the solid is applied inside the anelastic projection
-    const bool l_drag = !solverChoice.if_implicit_projection;
+    // erf.if_implicit_projection: the drag of the solid is applied inside the projection
+    // (anelastic and pseudo-incompressible levels)
+    const bool l_drag = !l_drag_in_projection;
 
     const Real small_volfrac = solverChoice.if_small_volfrac;
     // The terrain kernels keep the raw fractions: erf.if_snap_partial_cells
@@ -661,7 +682,7 @@ void ImmersedForcingTerrain_Zmom (const Box& tbz,
         const Real t_blank = (t_blank_raw < small_volfrac) ? zero : t_blank_raw;
 
         const Real dx_z = (z_cc_arr) ? (z_cc_arr(i,j,k) - z_cc_arr(i,j,k-1)) : dx_arr[2];
-        const Real drag_coefficient = alpha_m / std::pow(dx_x*dx_y*dx_z, one/three);
+        const Real drag_coefficient = alpha_m / std::pow(len_x*len_y*dx_z, one/three);
         const Real CdM = std::min(drag_coefficient / (windspeed + tiny), drag_coefficient);
 
         const Real rho_zface =  myhalf * ( cell_data(i,j,k,Rho_comp) + cell_data(i,j,k-1,Rho_comp) );
@@ -689,12 +710,16 @@ void ImmersedForcingBuildings_Xmom (const Box& tbx,
                                     const Geometry& geom,
                                     const SolverChoice& solverChoice,
                                     const Real fac,
-                                    bool is_slow_step)
+                                    bool is_slow_step,
+                                    const bool l_drag_in_projection)
 {
     // geometric properties
     const auto dx_arr = geom.CellSizeArray();
-    const Real dx_x = dx_arr[0];
     const Real dx_y = dx_arr[1];
+    // The drag rates take dx in place of a dy over one cell, and the reverse
+    const auto len_arr = LengthScaleCellSize(geom);
+    const Real len_x = len_arr[0];
+    const Real len_y = len_arr[1];
     const Real dt = fac;
 
     const Real alpha_m          = solverChoice.if_Cd_momentum;
@@ -711,14 +736,16 @@ void ImmersedForcingBuildings_Xmom (const Box& tbx,
     const bool l_stability_correction  = solverChoice.if_stability_correction;
     const similarity_funs sfuns = solverChoice.most_sfuns; // erf.most.stable_functions
 
-    // To limit stiffness of drag when using anelastic
+    // To limit stiffness of drag when it is applied in the slow step (the anelastic and
+    // pseudo-incompressible default)
     const Real ws_floor           = solverChoice.if_ws_floor;
     const Real damp_alpha         = solverChoice.if_damp_alpha;
-    // Point-implicit alternative to the clamp above; stabilizes both compressible and anelastic
+    // Point-implicit alternative to the clamp above; stabilizes both compressible and
+    // anelastic or pseudo-incompressible runs
     const bool l_implicit_drag    = solverChoice.if_implicit_drag;
-    // erf.if_implicit_projection: the linear drag of the solid is applied inside the anelastic
-    // projection (ERF::make_if_projection_sigma), not here
-    const bool l_ip               = solverChoice.if_implicit_projection;
+    // erf.if_implicit_projection: the linear drag of the solid is applied inside the projection of
+    // an anelastic or pseudo-incompressible level (ERF::make_if_projection_sigma), not here
+    const bool l_ip               = l_drag_in_projection;
 
     const Real small_volfrac = solverChoice.if_small_volfrac;
     // erf.if_snap_partial_cells: read the cell blanking snapped to solid (1)
@@ -735,7 +762,7 @@ void ImmersedForcingBuildings_Xmom (const Box& tbx,
     // carries the wall law and the interior drag together as before. See
     // SolverChoice::if_snap_partial_cells.
     const bool l_snap = solverChoice.if_snap_partial_cells;
-    // The face blanking and its neighbours are read through ERF_ImmersedBuildingMasks.H, as the
+    // The face blanking and its neighbors are read through ERF_ImmersedBuildingMasks.H, as the
     // implicit projection reads them
     const int dom_klo = geom.Domain().smallEnd(2);
 
@@ -752,7 +779,7 @@ void ImmersedForcingBuildings_Xmom (const Box& tbx,
         const Real rho_xface   = myhalf * ( cell_data(i,j,k,Rho_comp) + cell_data(i-1,j,k,Rho_comp) );
         const Real theta_xface = (myhalf * (cell_data(i,j,k,RhoTheta_comp) + cell_data(i-1,j,k, RhoTheta_comp))) / rho_xface;
 
-        // the face, its neighbours and the raw blanking the explicit path zeroes on (ERF_ImmersedBuildingMasks.H)
+        // the face, its neighbors and the raw blanking the explicit path zeroes on (ERF_ImmersedBuildingMasks.H)
         const if_bld::HorizFace fc = if_bld::horiz_face<0>(t_blank_arr, t_blank_xface_arr, i, j, k, dom_klo, l_snap, small_volfrac);
         const Real t_blank       = fc.t;
         // With the snap the boundary solid face stands for the wall layer and
@@ -766,7 +793,7 @@ void ImmersedForcingBuildings_Xmom (const Box& tbx,
         const Real t_blank_north = fc.hi;
 
         const Real dx_z = (z_cc_arr) ? (z_cc_arr(i,j,k) - z_cc_arr(i,j,k-1)) : dx_arr[2];
-        const Real drag_coefficient = alpha_m / std::pow(dx_x*dx_y*dx_z, one/three);
+        const Real drag_coefficient = alpha_m / std::pow(len_x*len_y*dx_z, one/three);
         const Real CdM = std::min(drag_coefficient / (windspeed + tiny), drag_coefficient);
         // With the snap a face joining a solid and a fluid cell is wall-normal:
         // it gets the interior drag (no penetration), not a wall law, whatever
@@ -853,7 +880,8 @@ void ImmersedForcingBuildings_Xmom (const Box& tbx,
                                        + interior_mask * windspeed );
             xmom_src_arr(i,j,k) -= drag / (one + lambda*dt);
         } else if (is_slow_step) {
-            // limit drag term for anelastic for numerical stability
+            // limit drag term in the slow step (the anelastic and pseudo-incompressible default)
+            // for numerical stability
             Real d_drag = dt * -drag; // time step * acceleration like tendency
             Real wsmax_change = damp_alpha * amrex::max(amrex::Math::abs(ux), ws_floor); // aims to prevent oscillations around 0.
             if (amrex::Math::abs(ux) < 0.1){ // no damping for smaller velocities
@@ -885,12 +913,16 @@ void ImmersedForcingBuildings_Ymom (const Box& tby,
                                     const Geometry& geom,
                                     const SolverChoice& solverChoice,
                                     const Real fac,
-                                    bool is_slow_step)
+                                    bool is_slow_step,
+                                    const bool l_drag_in_projection)
 {
     // geometric properties
     const auto dx_arr = geom.CellSizeArray();
     const Real dx_x = dx_arr[0];
-    const Real dx_y = dx_arr[1];
+    // The drag rates take dx in place of a dy over one cell, and the reverse
+    const auto len_arr = LengthScaleCellSize(geom);
+    const Real len_x = len_arr[0];
+    const Real len_y = len_arr[1];
     const Real dt = fac;
 
     const Real alpha_m          = solverChoice.if_Cd_momentum;
@@ -907,14 +939,16 @@ void ImmersedForcingBuildings_Ymom (const Box& tby,
     const bool l_stability_correction  = solverChoice.if_stability_correction;
     const similarity_funs sfuns = solverChoice.most_sfuns; // erf.most.stable_functions
 
-    // To limit stiffness of drag when using anelastic
+    // To limit stiffness of drag when it is applied in the slow step (the anelastic and
+    // pseudo-incompressible default)
     const Real ws_floor           = solverChoice.if_ws_floor;
     const Real damp_alpha         = solverChoice.if_damp_alpha;
-    // Point-implicit alternative to the clamp above; stabilizes both compressible and anelastic
+    // Point-implicit alternative to the clamp above; stabilizes both compressible and
+    // anelastic or pseudo-incompressible runs
     const bool l_implicit_drag    = solverChoice.if_implicit_drag;
-    // erf.if_implicit_projection: the linear drag of the solid is applied inside the anelastic
-    // projection (ERF::make_if_projection_sigma), not here
-    const bool l_ip               = solverChoice.if_implicit_projection;
+    // erf.if_implicit_projection: the linear drag of the solid is applied inside the projection of
+    // an anelastic or pseudo-incompressible level (ERF::make_if_projection_sigma), not here
+    const bool l_ip               = l_drag_in_projection;
 
     const Real small_volfrac = solverChoice.if_small_volfrac;
     // erf.if_snap_partial_cells: read the cell blanking snapped to solid (1)
@@ -931,7 +965,7 @@ void ImmersedForcingBuildings_Ymom (const Box& tby,
     // carries the wall law and the interior drag together as before. See
     // SolverChoice::if_snap_partial_cells.
     const bool l_snap = solverChoice.if_snap_partial_cells;
-    // The face blanking and its neighbours are read through ERF_ImmersedBuildingMasks.H, as the
+    // The face blanking and its neighbors are read through ERF_ImmersedBuildingMasks.H, as the
     // implicit projection reads them
     const int dom_klo = geom.Domain().smallEnd(2);
 
@@ -948,7 +982,7 @@ void ImmersedForcingBuildings_Ymom (const Box& tby,
         const Real rho_yface   = myhalf * ( cell_data(i,j,k,Rho_comp) + cell_data(i,j-1,k,Rho_comp) );
         const Real theta_yface = (myhalf * (cell_data(i,j,k  ,RhoTheta_comp) + cell_data(i,j-1,k,RhoTheta_comp))) / rho_yface;
 
-        // the face, its neighbours and the raw blanking the explicit path zeroes on (ERF_ImmersedBuildingMasks.H)
+        // the face, its neighbors and the raw blanking the explicit path zeroes on (ERF_ImmersedBuildingMasks.H)
         const if_bld::HorizFace fc = if_bld::horiz_face<1>(t_blank_arr, t_blank_yface_arr, i, j, k, dom_klo, l_snap, small_volfrac);
         const Real t_blank       = fc.t;
         // With the snap the boundary solid face stands for the wall layer and
@@ -962,7 +996,7 @@ void ImmersedForcingBuildings_Ymom (const Box& tby,
         const Real t_blank_east  = fc.hi;
 
         const Real dx_z = (z_cc_arr) ? (z_cc_arr(i,j,k) - z_cc_arr(i,j,k-1)) : dx_arr[2];
-        const Real drag_coefficient = alpha_m / std::pow(dx_x*dx_y*dx_z, one/three);
+        const Real drag_coefficient = alpha_m / std::pow(len_x*len_y*dx_z, one/three);
         const Real CdM = std::min(drag_coefficient / (windspeed + tiny), drag_coefficient);
         // With the snap a face joining a solid and a fluid cell is wall-normal:
         // it gets the interior drag (no penetration), not a wall law, whatever
@@ -1047,7 +1081,8 @@ void ImmersedForcingBuildings_Ymom (const Box& tby,
                                        + interior_mask * windspeed );
             ymom_src_arr(i,j,k) -= drag / (one + lambda*dt);
         } else if (is_slow_step) {
-            // limit drag term for anelastic for numerical stability
+            // limit drag term in the slow step (the anelastic and pseudo-incompressible default)
+            // for numerical stability
             Real d_drag = dt * -drag; // time step * acceleration like tendency
             Real wsmax_change = damp_alpha * amrex::max(amrex::Math::abs(uy), ws_floor); // aims to prevent oscillations around 0.
             if (amrex::Math::abs(uy) < 0.1){ // no damping for smaller velocities
@@ -1079,12 +1114,17 @@ void ImmersedForcingBuildings_Zmom (const Box& tbz,
                                     const Geometry& geom,
                                     const SolverChoice& solverChoice,
                                     const Real fac,
-                                    bool is_slow_step)
+                                    bool is_slow_step,
+                                    const bool l_drag_in_projection)
 {
     // geometric properties
     const auto dx_arr = geom.CellSizeArray();
     const Real dx_x = dx_arr[0];
     const Real dx_y = dx_arr[1];
+    // The drag rates take dx in place of a dy over one cell, and the reverse
+    const auto len_arr = LengthScaleCellSize(geom);
+    const Real len_x = len_arr[0];
+    const Real len_y = len_arr[1];
     const Real dt = fac;
 
     const Real alpha_m          = solverChoice.if_Cd_momentum;
@@ -1101,14 +1141,16 @@ void ImmersedForcingBuildings_Zmom (const Box& tbz,
     const bool l_stability_correction  = solverChoice.if_stability_correction;
     const similarity_funs sfuns = solverChoice.most_sfuns; // erf.most.stable_functions
 
-    // To limit stiffness of drag when using anelastic
+    // To limit stiffness of drag when it is applied in the slow step (the anelastic and
+    // pseudo-incompressible default)
     const Real ws_floor           = solverChoice.if_ws_floor;
     const Real damp_alpha         = solverChoice.if_damp_alpha;
-    // Point-implicit alternative to the clamp above; stabilizes both compressible and anelastic
+    // Point-implicit alternative to the clamp above; stabilizes both compressible and
+    // anelastic or pseudo-incompressible runs
     const bool l_implicit_drag    = solverChoice.if_implicit_drag;
-    // erf.if_implicit_projection: the linear drag of the solid is applied inside the anelastic
-    // projection (ERF::make_if_projection_sigma), not here
-    const bool l_ip               = solverChoice.if_implicit_projection;
+    // erf.if_implicit_projection: the linear drag of the solid is applied inside the projection of
+    // an anelastic or pseudo-incompressible level (ERF::make_if_projection_sigma), not here
+    const bool l_ip               = l_drag_in_projection;
 
     const Real small_volfrac = solverChoice.if_small_volfrac;
     // erf.if_snap_partial_cells: read the cell blanking snapped to solid (1)
@@ -1125,7 +1167,7 @@ void ImmersedForcingBuildings_Zmom (const Box& tbz,
     // carries the wall law and the interior drag together as before. See
     // SolverChoice::if_snap_partial_cells.
     const bool l_snap = solverChoice.if_snap_partial_cells;
-    // The face blanking and its neighbours are read through ERF_ImmersedBuildingMasks.H, as the
+    // The face blanking and its neighbors are read through ERF_ImmersedBuildingMasks.H, as the
     // implicit projection reads them
 
 
@@ -1141,7 +1183,7 @@ void ImmersedForcingBuildings_Zmom (const Box& tbz,
         const Real rho_zface   = myhalf * ( cell_data(i,j,k,Rho_comp) + cell_data(i,j,k-1,Rho_comp) );
         const Real theta_zface = (myhalf * (cell_data(i,j,k,RhoTheta_comp) + cell_data(i,j,k-1,RhoTheta_comp))) / rho_zface;
 
-        // the face, its neighbours and the raw blanking the explicit path zeroes on (ERF_ImmersedBuildingMasks.H)
+        // the face, its neighbors and the raw blanking the explicit path zeroes on (ERF_ImmersedBuildingMasks.H)
         const if_bld::VertFace fc = if_bld::vert_face(t_blank_arr, t_blank_zface_arr, i, j, k, l_snap, small_volfrac);
         const Real t_blank       = fc.t;
         // With the snap the boundary solid face stands for the wall layer and
@@ -1156,7 +1198,7 @@ void ImmersedForcingBuildings_Zmom (const Box& tbz,
         const Real t_blank_east  = fc.east;
 
         const Real dx_z = (z_cc_arr) ? (z_cc_arr(i,j,k) - z_cc_arr(i,j,k-1)) : dx_arr[2];
-        const Real drag_coefficient = alpha_m / std::pow(dx_x*dx_y*dx_z, one/three);
+        const Real drag_coefficient = alpha_m / std::pow(len_x*len_y*dx_z, one/three);
         const Real CdM = std::min(drag_coefficient / (windspeed + tiny), drag_coefficient);
         // With the snap a face joining a solid and a fluid cell is wall-normal:
         // it gets the interior drag (no penetration), not a wall law, whatever
@@ -1253,7 +1295,8 @@ void ImmersedForcingBuildings_Zmom (const Box& tbz,
                                        + interior_mask * windspeed );
             zmom_src_arr(i,j,k) -= drag / (one + lambda*dt);
         } else if (is_slow_step) {
-            // limit drag term for anelastic for numerical stability
+            // limit drag term in the slow step (the anelastic and pseudo-incompressible default)
+            // for numerical stability
             Real d_drag = dt * -drag; // time step * acceleration like tendency
             Real wsmax_change = damp_alpha * amrex::max(amrex::Math::abs(uz), ws_floor); // aims to prevent oscillations around 0.
             if (amrex::Math::abs(uz) < 0.1){ // no damping for smaller velocities
@@ -1285,8 +1328,10 @@ void ImmersedForcingTerrain_Scalar (const Box& bx,
 {
     // geometric properties
     const auto dx_arr = geom.CellSizeArray();
-    const Real dx_x = dx_arr[0];
-    const Real dx_y = dx_arr[1];
+    // The drag rates take dx in place of a dy over one cell, and the reverse
+    const auto len_arr = LengthScaleCellSize(geom);
+    const Real len_x = len_arr[0];
+    const Real len_y = len_arr[1];
 
     const Real alpha_h          = solverChoice.if_Cd_scalar;
     // The terrain kernels keep the raw fractions: erf.if_snap_partial_cells
@@ -1316,7 +1361,7 @@ void ImmersedForcingTerrain_Scalar (const Box& bx,
                 AMREX_GPU_DEVICE(int i, int j, int k) noexcept
     {
         const Real dx_z = (z_cc_arr) ? (z_cc_arr(i,j,k) - z_cc_arr(i,j,k-1)) : dx_arr[2];
-        const Real drag_coefficient = alpha_h / std::pow(dx_x*dx_y*dx_z, one/three);
+        const Real drag_coefficient = alpha_h / std::pow(len_x*len_y*dx_z, one/three);
 
         const Real t_blank       = t_blank_arr(i, j, k);
         const Real t_blank_above = t_blank_arr(i, j, k+1);
@@ -1443,12 +1488,16 @@ void ImmersedForcingBuildings_Scalar (const Box& bx,
     const auto dx_arr = geom.CellSizeArray();
     const Real dx_x = dx_arr[0];
     const Real dx_y = dx_arr[1];
+    // The drag rates take dx in place of a dy over one cell, and the reverse
+    const auto len_arr = LengthScaleCellSize(geom);
+    const Real len_x = len_arr[0];
+    const Real len_y = len_arr[1];
 
     const Real alpha_h          = solverChoice.if_Cd_scalar;
     // erf.if_snap_partial_cells: read the cell blanking snapped to solid (1)
     // or fluid (0) at half, so a height-map building becomes the same
     // staircase of whole cells an exact box is: the thermal conditions sit
-    // on the boundary solid cells, roofs included, found from the neighbour
+    // on the boundary solid cells, roofs included, found from the neighbor
     // blanking. Off (the default), the raw fractions are used and nothing
     // below changes. See SolverChoice::if_snap_partial_cells.
     const bool l_snap = solverChoice.if_snap_partial_cells;
@@ -1482,12 +1531,12 @@ void ImmersedForcingBuildings_Scalar (const Box& bx,
         const Real t_blank_west  = snapb(t_blank_arr(i-1, j  , k));
 
         const Real dx_z = (z_cc_arr) ? (z_cc_arr(i,j,k) - z_cc_arr(i,j,k-1)) : dx_arr[2];
-        Real drag_coefficient = alpha_h / std::pow(dx_x*dx_y*dx_z, one/three);
+        Real drag_coefficient = alpha_h / std::pow(len_x*len_y*dx_z, one/three);
 
         // Wall cells of the building, named by the face they carry: a
-        // partially blanked cell with a more solid neighbour behind it and a
+        // partially blanked cell with a more solid neighbor behind it and a
         // fluid one in front, or, with the snap (every solid cell at 1), a
-        // solid cell with a solid neighbour behind and a fluid one in front.
+        // solid cell with a solid neighbor behind and a fluid one in front.
         const bool south_face = l_snap ? (t_blank == one && t_blank_north == one && t_blank_south == zero)
                                        : (t_blank > zero && t_blank < t_blank_north && t_blank_south == zero);
         const bool north_face = l_snap ? (t_blank == one && t_blank_south == one && t_blank_north == zero)

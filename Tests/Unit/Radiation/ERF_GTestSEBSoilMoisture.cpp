@@ -13,7 +13,7 @@
 // from the two source fluxes (with the bare soil's pore-air humidity),
 // Noah-MP's soil and vegetation tables (wilting point, field capacity, Jarvis parameters,
 // monthly leaf area index), the Jarvis canopy and Sakaguchi-Zeng soil resistances, the
-// aerodynamic resistance, the vapour-deficit factor,
+// aerodynamic resistance, the vapor-deficit factor,
 // and the surface heat capacity derived from the soil.
 
 namespace {
@@ -146,13 +146,13 @@ TEST(SEBSoilMoisture, TwoSourceSurfaceMixingRatioAndVapourDeficit)
                                                 q_sat, Real(1.0), q_air),
                 surface_mixing_ratio(beta, q_sat, q_air), tol);
     // The bare part evaporates from RH q_sat: with RH q_sat below the air's, the surface
-    // mixing ratio falls below q_air (the soil takes up vapour), as in Noah-MP.
+    // mixing ratio falls below q_air (the soil takes up vapor), as in Noah-MP.
     EXPECT_LT(two_source_surface_mixing_ratio(Real(50.0), Real(1.0e6), Real(450.0), Real(0.0),
                                               q_sat, Real(0.2), q_air), q_air);
     EXPECT_NEAR(two_source_surface_mixing_ratio(Real(50.0), Real(1.0e6), Real(450.0), Real(0.0),
                                                 q_sat, Real(0.2), q_air),
                 q_air + Real(0.1) * (Real(0.2) * q_sat - q_air), tol);
-    // The vapour-deficit factor: 1 with no deficit, smaller with one, floored at 0.01.
+    // The vapor-deficit factor: 1 with no deficit, smaller with one, floored at 0.01.
     EXPECT_EQ(vapour_deficit_factor(Real(36.35), Real(0.010), Real(0.012)), Real(1.0));
     EXPECT_NEAR(vapour_deficit_factor(Real(36.35), Real(0.020), Real(0.010)),
                 Real(1.0) / (Real(1.0) + Real(0.3635)), tol);

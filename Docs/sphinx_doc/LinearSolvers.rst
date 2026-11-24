@@ -7,12 +7,20 @@
 Linear Solvers
 ==============
 
-Evolving the anelastic equation set requires solution of a Poisson equation in which we solve for the update to the perturbational pressure at cell centers.
+Evolving the anelastic or pseudo-incompressible equation set requires solution of a Poisson equation in which we solve for the update to the perturbational pressure at cell centers;
+the projection that solves it is how these equation sets get their pressure and pressure gradient.
 ERF uses several solver options available through AMReX: geometric multigrid, Fast Fourier Transforms (FFTs) and preconditioned GMRES.
-For simulations without terrain-fitted coordinates or grid stretching, one of the FFT options is generally the fastest solver,
-followed by multigrid.  We note that the multigrid solver has the option to "ignore" a coordinate direction
+For anelastic simulations without terrain-fitted coordinates or grid stretching, one of the FFT options is generally the fastest solver,
+followed by multigrid.  Because a pseudo-incompressible level lets the density vary, its Poisson equation has a
+variable coefficient and never uses the constant-coefficient FFT or multigrid solvers; see
+:ref:`PseudoIncompressibleEquations` for the solvers it uses.  We note that the multigrid solver has the option to "ignore" a coordinate direction
 if the domain is only one cell wide in that direction; this allows for efficient solution of effectively 2D problems.
 Multigrid can also be used when the union of grids at a level is not in itself rectangular (except on terrain-fitted meshes); the FFT solvers do not work in that general case.
+A refined level is solved region by region, a region being a set of connected patches.  Patches that
+meet across a periodic boundary (a refined feature that the flow carries out of one side of the domain
+and back in at the other, say) are one region: on a flat mesh it is solved with multigrid on the
+level's periodic geometry, so the correction crosses the boundary.  On a terrain-fitted mesh such a
+level stops the run.
 
 When the cells of a level are anisotropic (a cell size at least 1.5 times the smallest one, as on a coarse flat grid,
 with immersed forcing, or on a level refined with ``amr.ref_ratio_vect = 2 2 1``), the multigrid solver on a
@@ -107,7 +115,7 @@ Multigrid on terrain-fitted meshes
 ----------------------------------
 
 ``erf.terrain_poisson_solver`` chooses the solver for the projection on a terrain-fitted mesh
-(the anelastic projection every step, and the projection of the initial velocity):
+(the anelastic or pseudo-incompressible projection every step, and the projection of the initial velocity):
 
 - ``gmres_fft`` (default): GMRES applying ERF's own terrain operator, preconditioned by the
   hybrid FFT solver of the flat stretched mesh.  It needs the FFT build.
@@ -127,8 +135,8 @@ since the faces and the terrain across the cell still contribute there.
 A refined region that reaches only one end of a periodic direction is solved with a Neumann
 face there by ``mlmg`` and ``gmres_mlmg`` (coarse cells lie across it); the FFT preconditioner
 of ``gmres_fft`` does not accept that mix of boundary conditions and stops.  A refined level
-whose patches meet across a periodic boundary stops the run with ``mlmg`` and ``gmres_mlmg``,
-since each patch would be solved with a Neumann face at the boundary.
+whose patches meet across a periodic boundary stops the run on a terrain-fitted mesh, with any
+of the three solvers, since none can solve such a region as one.
 
 ``erf.poisson_reltol`` and ``erf.poisson_abstol`` do not measure the same thing for the three
 solvers.  ``mlmg`` stops on the largest value of :math:`J` times the residual of the

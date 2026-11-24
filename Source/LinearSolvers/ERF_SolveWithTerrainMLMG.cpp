@@ -24,8 +24,8 @@ using namespace amrex;
  * it is an Outflow or Open face (a lateral one only without real boundary conditions), as in
  * get_fft_bc; a direction is periodic only if the region spans it.  A region that reaches one
  * end of a periodic direction only is given a Neumann face there (coarse cells lie across
- * it), where get_fft_bc says periodic and the FFT preconditioner stops; project_momenta stops
- * a level whose regions meet across a periodic boundary.
+ * it), as get_fft_bc does; project_momenta stops a terrain-fitted level whose regions meet
+ * across a periodic boundary.
  *
  * @param lev Level index for the solve
  * @param subdomain Box over which the solve is performed
@@ -92,7 +92,7 @@ void ERF::solve_with_terrain_mlmg (int lev, const Box& subdomain, MultiFab& rhs,
     // A region one cell wide in x or y is solved as two-dimensional, as solve_with_mlmg does,
     // but only where that direction is periodic: MLTerrainPoisson then drops the face fluxes
     // and the terrain cross terms in it, which are zero only when the one cell is its own
-    // periodic neighbour (its two node columns are the same).  Across a wall, inflow or
+    // periodic neighbor (its two node columns are the same).  Across a wall, inflow or
     // outflow face they are not, so such a region keeps all three directions.
     LPInfo info;
     if (sub_lo.x == sub_hi.x && is_per[0]) {
@@ -130,6 +130,13 @@ void ERF::solve_with_terrain_mlmg (int lev, const Box& subdomain, MultiFab& rhs,
         try {
             mlmg.solve({&phi}, {&rhs}, reltol, abstol);
         } catch (MLMG::error const& err) {
+            if (solverChoice.mesh_type != MeshType::VariableDz) {
+                // erf.terrain_poisson_solver is not read on a mesh without terrain-fitted coordinates
+                amrex::Abort(std::string("The multigrid projection (map factors other than one, a "
+                             "pseudo-incompressible level, or grid stretching with "
+                             "erf.if_implicit_projection) at level ") + std::to_string(lev)
+                             + ": " + err.what() + "  Loosen erf.poisson_reltol / erf.poisson_abstol.");
+            }
             amrex::Abort(std::string("erf.terrain_poisson_solver = mlmg at level ") + std::to_string(lev)
                          + ": " + err.what() + "  Loosen erf.poisson_reltol / erf.poisson_abstol, or use "
                          + "erf.terrain_poisson_solver = gmres_mlmg or gmres_fft, which continue with "

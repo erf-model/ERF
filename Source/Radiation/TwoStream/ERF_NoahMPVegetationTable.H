@@ -23,7 +23,7 @@ struct NoahMPVegetationParams
 {
     amrex::Real rs_min;   ///< RS     minimum stomatal resistance [s/m]
     amrex::Real rgl;      ///< RGL    radiation stress parameter [W/m^2]
-    amrex::Real hs;       ///< HS     vapour pressure deficit parameter [1/(kg/kg)]
+    amrex::Real hs;       ///< HS     vapor pressure deficit parameter [1/(kg/kg)]
     amrex::Real t_opt;    ///< TOPT   optimum transpiration air temperature [K]
     amrex::Real rs_max;   ///< RSMAX  maximum stomatal resistance [s/m]
     amrex::Real z0;       ///< Z0MVT  momentum roughness length of the vegetation [m]

@@ -9,6 +9,8 @@
 #include "ERF_TileNoZ.H"
 #include "ERF_MoistUtils.H"
 #include "ERF_PBLScaleAwareBlending.H"
+#include "ERF_LengthScaleCellSize.H"
+#include "ERF_PBLRibCrossing.H"
 
 using namespace amrex;
 
@@ -211,9 +213,9 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
     ---------------------------------
     With the K-profile applied in every regime, this scheme inherits WRF MRF's
     over-mixing of stable boundary layers: on GABLS1 its peak K_m is roughly
-    2.1x YSUNew.  That is the behaviour Hong et al. (2006) set out to fix in YSU,
-    so stable cases that need the weaker mixing should use the YSUNew scheme
-    (erf.pbl_type = YSUNew).
+    2.1x YSU.  That is the behavior Hong et al. (2006) set out to fix in YSU,
+    so stable cases that need the weaker mixing should use the YSU scheme
+    (erf.pbl_type = YSU).
 
     TESTING & VALIDATION:
     ---------------------
@@ -461,6 +463,10 @@ Real fire_kbfs_max      = Real(0);
             });
         }
 
+        // For the thickness of the first fluid cell in the PBL-height floor of both Rib passes
+        // (the same expression as in YSU, so the two floors are equal to the last bit)
+        const GpuArray<Real, AMREX_SPACEDIM> dxInv_floor = geom.InvCellSizeArray();
+
         ParallelFor(xybx_work, [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept
         {
             const int  ksrf = ksurf_arr(i, j, 0);   // local surface: first fluid cell of the column
@@ -518,14 +524,20 @@ Real fire_kbfs_max      = Real(0);
                 above_critical = (Rib >= Ribcr);
             }
 
-            const Real pblh_emp = (use_terrain_fitted_coords)
-                                ? Compute_Zrel_AtCellCenter(i, j, ksrf, z_sfc_arr, z_nd_arr)
-                                : myhalf * gdata.CellSize(2);
+            // The floor is the top face of the column's first fluid cell (see pblh_floor),
+            // as in YSU: zl1 is the height of that cell's center above the local surface
+            // and dz1 its thickness, on every mesh type.
+            const Real zl1 = (use_terrain_fitted_coords)
+                           ? Compute_Zrel_AtCellCenter(i, j, ksrf, z_sfc_arr, z_nd_arr)
+                           : myhalf * gdata.CellSize(2);
+            const Real dz1 = (use_terrain_fitted_coords)
+                           ? Compute_h_zeta_AtCellCenter(i, j, ksrf, dxInv_floor, z_nd_arr) / dxInv_floor[2]
+                           : gdata.CellSize(2);
             const Real z_max = (use_terrain_fitted_coords)
                              ? Compute_Zrel_AtCellCenter(i, j, khi, z_sfc_arr, z_nd_arr)
                              : ((khi + myhalf) * gdata.CellSize(2) - zib);
             const Real pblh_max = Real(0.9) * z_max;
-            const Real pblh_min = amrex::max(pblh_emp, Real(10.0));
+            const Real pblh_min = pblh_floor(zl1, dz1);
 
             if (above_critical) {
                 Real pblh_interp;
@@ -583,7 +595,7 @@ Real fire_kbfs_max      = Real(0);
             const Real HOL_bounded = amrex::max(amrex::min(HOL, Real(100.0)), Real(-100.0));
             // |HOL|, so the base 1 + 16*HOL_abs of the unstable arm below equals its
             // 1 - 16*HOL there and is at least 1 for every HOL; a guard written inside the
-            // arm gets folded away by the optimiser and the pow hoisted (see sqrt_neg_Ri).
+            // arm gets folded away by the optimizer and the pow hoisted (see sqrt_neg_Ri).
             const Real HOL_abs = std::abs(HOL_bounded);
             const Real one_quarter = Real(0.25);
             const Real phiM = (obuk_val > 0)
@@ -743,14 +755,20 @@ Real fire_kbfs_max      = Real(0);
                 above_critical = (Rib >= Ribcr);
             }
 
-            const Real pblh_emp = (use_terrain_fitted_coords)
-                                ? Compute_Zrel_AtCellCenter(i, j, ksrf, z_sfc_arr, z_nd_arr)
-                                : myhalf * gdata.CellSize(2);
+            // The floor is the top face of the column's first fluid cell (see pblh_floor),
+            // as in YSU: zl1 is the height of that cell's center above the local surface
+            // and dz1 its thickness, on every mesh type.
+            const Real zl1 = (use_terrain_fitted_coords)
+                           ? Compute_Zrel_AtCellCenter(i, j, ksrf, z_sfc_arr, z_nd_arr)
+                           : myhalf * gdata.CellSize(2);
+            const Real dz1 = (use_terrain_fitted_coords)
+                           ? Compute_h_zeta_AtCellCenter(i, j, ksrf, dxInv_floor, z_nd_arr) / dxInv_floor[2]
+                           : gdata.CellSize(2);
             const Real z_max = (use_terrain_fitted_coords)
                              ? Compute_Zrel_AtCellCenter(i, j, khi, z_sfc_arr, z_nd_arr)
                              : ((khi + myhalf) * gdata.CellSize(2) - zib);
             const Real pblh_max = Real(0.9) * z_max;
-            const Real pblh_min = amrex::max(pblh_emp, Real(10.0));
+            const Real pblh_min = pblh_floor(zl1, dz1);
 
             if (above_critical) {
                 Real pblh_interp;
@@ -785,7 +803,7 @@ Real fire_kbfs_max      = Real(0);
         if (turbChoice.enable_pblh_smoothing) {
             // Smooth the tile's own columns, reading the halo the passes above
             // filled. The result is the same however the domain is split.
-            // The stencil mixes neighbouring columns, so it runs on the
+            // The stencil mixes neighboring columns, so it runs on the
             // absolute height (the stored convention): the column's surface
             // height zib goes on over the work box first and comes off
             // after, and the result is kept at or above the column's floor.
@@ -812,7 +830,7 @@ Real fire_kbfs_max      = Real(0);
             const Box& tbx = mfi.tilebox();
             // The scheme measures its height from the top of an immersed column
             // (zib); the stored field is the absolute height above the domain
-            // bottom, the convention of YSUNew and of every consumer of
+            // bottom, the convention of YSU and of every consumer of
             // SurfaceLayer::get_pblh(). zib is zero without erf.pbl_ib_aware.
             ParallelFor(tbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
                 pblh_out(i, j, k) = pblh_corr_arr(i, j, 0) + zib_arr(i, j, 0);
@@ -841,7 +859,7 @@ Real fire_kbfs_max      = Real(0);
             const Real HOL_bounded = amrex::max(amrex::min(HOL, Real(100.0)), Real(-100.0));
             // |HOL|, so the base 1 + 16*HOL_abs of the unstable arm below equals its
             // 1 - 16*HOL there and is at least 1 for every HOL; a guard written inside the
-            // arm gets folded away by the optimiser and the pow hoisted (see sqrt_neg_Ri).
+            // arm gets folded away by the optimizer and the pow hoisted (see sqrt_neg_Ri).
             const Real HOL_abs = std::abs(HOL_bounded);
             const Real one_quarter = Real(0.25);
             // Enable QNSE stable functions if requested, otherwise use default linear form
@@ -1041,8 +1059,9 @@ Real fire_kbfs_max      = Real(0);
         const amrex::Real scalar_Sc_t = turbChoice.pbl_mrf_Sc_t;
         const amrex::Real Pr_t_in     = turbChoice.Pr_t;
         //const bool        l_use_smag_ceil= turbChoice.pbl_blend_use_smag;
-        // dx: use horizontal spacing at this level (assume dx = dy for regular grids).
-        const amrex::Real l_dx = geom.CellSize(0);
+        // dx: use horizontal spacing at this level (assume dx = dy for regular grids); dy on a
+        // domain with one cell in x, where dx is arbitrary
+        const amrex::Real l_dx = LengthScaleCellSize(geom)[0];
 
         ParallelFor(gbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
@@ -1098,7 +1117,7 @@ Real fire_kbfs_max      = Real(0);
                 const Real HOL_bounded = amrex::max(amrex::min(HOL, Real(100.0)), Real(-100.0));
                 // |HOL|, so the base 1 + 16*HOL_abs of the unstable arm below equals its
                 // 1 - 16*HOL there and is at least 1 for every HOL; a guard written inside the
-                // arm gets folded away by the optimiser and the pow hoisted (see sqrt_neg_Ri).
+                // arm gets folded away by the optimizer and the pow hoisted (see sqrt_neg_Ri).
                 const Real HOL_abs = std::abs(HOL_bounded);
 
                 const Real one_quarter = Real(0.25);
@@ -1153,7 +1172,7 @@ Real fire_kbfs_max      = Real(0);
                 // The first-level offset ZL1 belongs to ZFAC alone: the linear factor
                 // is the full height above the surface, ZQ(I,K).  Subtracting zl1 from
                 // both drives K_m to exactly zero in the first fluid cell.
-                // ERF_ComputeDiffusivityYSUNew.cpp:1699-1720 splits them the same way.
+                // The YSU K profile (ERF_ComputeDiffusivityYSU.cpp, Step 5) splits them the same way.
                 //
                 // zval already measures height from the top of an immersed column (zib
                 // was subtracted where it was formed), so it is that height directly;
@@ -1163,10 +1182,11 @@ Real fire_kbfs_max      = Real(0);
                                ? Compute_Zrel_AtCellCenter(i, j, ksrf, z_sfc_arr, z_nd_arr)
                                : ((ksrf + myhalf) * gdata.CellSize(2) - zib);
                 const Real pblh = pblh_corr_arr(i, j, 0);
-                // The Rib passes floor pblh at max(zl1, 10), so pblh - zl1 is exactly
-                // zero for any column whose height lands on that floor with a first
-                // layer thicker than 20 m -- and zval - zl1 is zero too at k == ksrf,
-                // making the quotient 0/0.  Guard it, as YSUNew does (line 1701).
+                // The Rib passes floor pblh at the top face of the first fluid cell
+                // (pblh_floor), half a cell above zl1, so pblh - zl1 is positive.  The
+                // lower bound below is kept as a guard, as in the YSU K profile; before
+                // the floor moved from zl1 to that face it kept 0/0 out of the first
+                // cell of a column on the floor.
                 const Real pblh_rel = amrex::max(pblh - zl1, Real(1.0e-4));
                 const Real zfac = amrex::max(Real(1) - (zval - zl1) / pblh_rel, Real(1.0e-8));
 
@@ -1199,7 +1219,7 @@ Real fire_kbfs_max      = Real(0);
 
                 const Real grad_Ri_safe = amrex::max(grad_Ri, -Real(100.0));
                 // sqrt(|Ri|), which equals the sqrt(-Ri) of the unstable arm below and is valid
-                // for every Ri. Written as max(-Ri, 0) inside the arm, the optimiser used the
+                // for every Ri. Written as max(-Ri, 0) inside the arm, the optimizer used the
                 // arm's condition to drop the max and then hoisted the bare sqrt above the
                 // selection, where Ri can be positive; written as min(Ri, 0) it folded the
                 // sqrt into the arms of the min. Either way an invalid operation whose
@@ -1231,7 +1251,7 @@ Real fire_kbfs_max      = Real(0);
                 K_turb(i, j, k, EddyDiff::Scalar_v) = K_turb(i, j, k, EddyDiff::Theta_v);
             }
 
-            // Scale-aware blending for grey-zone resolution (Boutle et al. 2014).
+            // Scale-aware blending for gray-zone resolution (Boutle et al. 2014).
             // ERF_PBLScaleAwareBlending.H. Gated by pbl_blend_length > 0.
             // Applied to Theta_v and Q_v. Mom_v is not modified.
             //

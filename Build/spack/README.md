@@ -34,10 +34,11 @@ AMReX, MPI, NetCDF, and GoogleTest.
 For GPU builds, use `+cuda cuda_arch=<n>`, `+rocm amdgpu_target=<gfx>`, or
 `+sycl %oneapi`.
 
-The `+rrtmgp`, `+eamxx_shoc`, and `+noahmp` variants enable RTE-RRTMGP radiation,
-EAMxx SHOC turbulence, and Noah-MP, respectively. The recipe fetches their
-sources and the required EKAT stack at the commits pinned by the selected ERF
-version.
+The `+rrtmgp` and `+noahmp` variants enable RTE-RRTMGP radiation and Noah-MP.
+For ERF 26.09 to 26.11 only, `+eamxx_shoc` builds the EAMxx SHOC turbulence;
+later versions have only the native SHOC, which needs no variant. The recipe
+fetches the sources and the required EKAT stack at the commits pinned by the
+selected ERF version.
 
 The following platform and toolchain limits apply:
 
@@ -84,8 +85,8 @@ When updating the package:
 * After changing dependency pins, run `python3 Build/spack/check_pins.py`
   from the ERF root. The RRTMGP/EKAT and Noah-MP commits, and the AMReX commit
   used by `@develop` or a release in `_amrex_release_commits`, must match
-  ERF's submodule pins. The E3SM commit must match
-  `Build/GNU_Ekat/eamxx_clone.sh`. Use `--fix` to update the recipe's development
+  ERF's submodule pins. For 26.09 to 26.11 the E3SM commit must match those
+  releases' `Build/GNU_Ekat/eamxx_clone.sh`. Use `--fix` to update the recipe's development
   Noah-MP and AMReX pins.
 * For a new release, add the version and tarball's SHA-256 checksum
   (`spack checksum erf <version>`), plus its Noah-MP pin
@@ -121,5 +122,5 @@ See [LICENSE.md](../../LICENSE.md) for ERF's license.
 
 ## Citation
 
-See the [main README](../../README.rst#citation) for publications to cite
+See the [main README](../../README.md#citation) for publications to cite
 when using ERF.

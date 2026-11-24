@@ -16,7 +16,13 @@
 # the domain (Tests/ImmersedCFHeatBalanceCheck.cpp): the implicit run must hold it within 1e-6 K
 # (measured on one build: 4e-10 K, and with the snap 2e-9 K), the explicit run must not (measured
 # -0.012 K, with theta between 263 and 358 K in the partial cells). A third leg runs the implicit
-# projection with erf.if_snap_partial_cells. The implicit projection needs an FFT build.
+# projection with erf.if_snap_partial_cells. The implicit projection uses FFT-preconditioned
+# GMRES in a build with FFT and multigrid in a build without.
+#
+# The _PseudoIncompressible legs override erf.compressibility_type and read the PI DRIFT the run
+# prints, max |rho theta - rho0 theta0| / (rho0 theta0), instead of the mean theta (which does not
+# see the difference on such a level); the _Stratified legs use input_sounding_stratified, so
+# that beta = rho0 theta0 / rho varies with height.
 #
 erf.prob_name = "ABL"
 

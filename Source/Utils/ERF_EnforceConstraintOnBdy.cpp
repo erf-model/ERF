@@ -8,8 +8,7 @@
 
 using namespace amrex;
 
-namespace
-{
+namespace erf_detail_EnforceConstraintOnBdy {
 /**
  * @brief Scale the normal boundary velocity by the base state density.
  *
@@ -44,7 +43,12 @@ scale_bdy_normal_by_rho0 (const MultiFab& rho0,
 #endif
     for (MFIter mfi(rho0,TilingIfNotGPU()); mfi.isValid(); ++mfi)
     {
-        const Box bx = mfi.nodaltilebox(dir) & bdy_fab.box();
+        // Give every face one owner, the tile holding the cell above it (plus the
+        // domain-high face): the per-rank results are summed below, so a face shared
+        // by two boxes on different ranks would otherwise be counted twice
+        Box bx = amrex::surroundingNodes(mfi.tilebox(), dir);
+        if (bx.bigEnd(dir) != domhi) { bx.growHi(dir, -1); }
+        bx &= bdy_fab.box();
         if (!bx.ok()) { continue; }
 
         const Array4<const Real>& rho0_arr = rho0.const_array(mfi);
@@ -148,10 +152,12 @@ correct_bdy_outflow_on_face (FArrayBox& bdy_fab,
     });
 }
 }
+using namespace erf_detail_EnforceConstraintOnBdy;
 
 void compute_influx_outflux_bdy (FArrayBox& bdy_data_xlo, FArrayBox& bdy_data_xhi,
                                  FArrayBox& bdy_data_ylo, FArrayBox& bdy_data_yhi,
                                  Array<MultiFab*, AMREX_SPACEDIM>& area_vec,
+                                 const iMultiFab& mask_x, const iMultiFab& mask_y,
                                  const Geometry& geom,
                                  Real& influx, Real& outflux,
                                  const int n)
@@ -175,6 +181,7 @@ void compute_influx_outflux_bdy (FArrayBox& bdy_data_xlo, FArrayBox& bdy_data_xh
     const auto& bdatxlo = bdy_data_xlo.const_array();
     const auto& bdatxhi = bdy_data_xhi.const_array();
     auto const& area_x = area_vec[0]->const_arrays();
+    auto const& mx     = mask_x.const_arrays();   // owner mask: count shared faces once
     influx += ds_x *
         ParReduce(TypeList<ReduceOpSum>{},
                   TypeList<Real>{},
@@ -182,6 +189,7 @@ void compute_influx_outflux_bdy (FArrayBox& bdy_data_xlo, FArrayBox& bdy_data_xh
         [=] AMREX_GPU_DEVICE (int box_no, int i, int j, int k)
             noexcept -> GpuTuple<Real>
         {
+            if (mx[box_no](i,j,k) == 0) { return { zero }; }
             if ( (i == domlo.x + n) && (j >= domlo.y+n && j<= domhi.y-n) && bdatxlo(i,j,k) > zero) {
                 return { std::abs(bdatxlo(i,j,k)) * area_x[box_no](i,j,k) };
             } else if ( (i == domhi.x+1 - n) && (j >= domlo.y+n && j<= domhi.y-n) && bdatxhi(i,j,k) < zero) {
@@ -198,6 +206,7 @@ void compute_influx_outflux_bdy (FArrayBox& bdy_data_xlo, FArrayBox& bdy_data_xh
         [=] AMREX_GPU_DEVICE (int box_no, int i, int j, int k)
             noexcept -> GpuTuple<Real>
         {
+            if (mx[box_no](i,j,k) == 0) { return { zero }; }
             if (i == (domlo.x + n) && (j >= domlo.y+n && j<= domhi.y-n) && bdatxlo(i,j,k) < zero) {
                 return { std::abs(bdatxlo(i,j,k)) * area_x[box_no](i,j,k) };
             } else if ( (i == domhi.x+1 - n) && (j >= domlo.y+n && j<= domhi.y-n) && bdatxhi(i,j,k) > zero) {
@@ -211,6 +220,7 @@ void compute_influx_outflux_bdy (FArrayBox& bdy_data_xlo, FArrayBox& bdy_data_xh
     const auto& bdatylo = bdy_data_ylo.const_array();
     const auto& bdatyhi = bdy_data_yhi.const_array();
     auto const& area_y = area_vec[1]->const_arrays();
+    auto const& my     = mask_y.const_arrays();
     influx += ds_y *
         ParReduce(TypeList<ReduceOpSum>{},
                   TypeList<Real>{},
@@ -218,6 +228,7 @@ void compute_influx_outflux_bdy (FArrayBox& bdy_data_xlo, FArrayBox& bdy_data_xh
         [=] AMREX_GPU_DEVICE (int box_no, int i, int j, int k)
             noexcept -> GpuTuple<Real>
         {
+            if (my[box_no](i,j,k) == 0) { return { zero }; }
             if ( (j == domlo.y + n) && (i >= domlo.x+n && i<= domhi.x-n) && bdatylo(i,j,k) > zero) {
                 return { std::abs(bdatylo(i,j,k)) * area_y[box_no](i,j,k) };
             } else if ( (j == domhi.y+1 - n) && (i >= domlo.x+n && i<= domhi.x-n) && bdatyhi(i,j,k) < zero) {
@@ -234,6 +245,7 @@ void compute_influx_outflux_bdy (FArrayBox& bdy_data_xlo, FArrayBox& bdy_data_xh
         [=] AMREX_GPU_DEVICE (int box_no, int i, int j, int k)
             noexcept -> GpuTuple<Real>
         {
+            if (my[box_no](i,j,k) == 0) { return { zero }; }
             if ( (j == domlo.y + n) && (i >= domlo.x+n && i<= domhi.x-n) && bdatylo(i,j,k) < zero) {
                 return { std::abs(bdatylo(i,j,k)) * area_y[box_no](i,j,k) };
             } else if ( (j == domhi.y+1 - n) && (i >= domlo.x+n && i<= domhi.x-n) && bdatyhi(i,j,k) > zero) {
@@ -278,12 +290,16 @@ void enforceInOutSolvability_bdy (const MultiFab& rho0,
     AMREX_ASSERT(width == bdy_data_yhi.box().length(1));
     // amrex::Print() << "width in enforce solvability " << width << std::endl;
 
+    // Faces on a box boundary belong to both boxes; count each once
+    auto mask_x = OwnerMask(*area_vec[0], geom.periodicity());
+    auto mask_y = OwnerMask(*area_vec[1], geom.periodicity());
+
     for (int n = 0; n < width; n++)
     {
         Real influx = zero, outflux = zero;
         compute_influx_outflux_bdy(bdy_data_xlo, bdy_data_xhi,
                                    bdy_data_ylo, bdy_data_yhi,
-                                   area_vec, geom, influx, outflux, n);
+                                   area_vec, *mask_x, *mask_y, geom, influx, outflux, n);
 
         // amrex::Print() << " TOTAL BDY INFLUX / OUTFLOW AT WIDTH " << n << " " << influx << " " << outflux << "\n";
 
@@ -303,7 +319,7 @@ void enforceInOutSolvability_bdy (const MultiFab& rho0,
             // Real influx_dbg = zero, outflux_dbg = zero;
             // compute_influx_outflux_bdy(bdy_data_xlo, bdy_data_xhi,
             //                            bdy_data_ylo, bdy_data_yhi,
-            //                            area_vec, geom, influx_dbg, outflux_dbg, n);
+            //                            area_vec, *mask_x, *mask_y, geom, influx_dbg, outflux_dbg, n);
             // amrex::Print() << " TOTAL BDY INFLUX / OUTFLOW AT WIDTH " << n << " " << influx_dbg << " " << outflux_dbg << "\n";
         }
     }

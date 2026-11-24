@@ -35,9 +35,11 @@ EKAT_INSTALL_LIBDIR ?= lib
 
 # Map an AMReX-style TRUE/FALSE switch onto a CMake ON/OFF value.
 erf_bool_onoff = $(if $(filter TRUE,$(1)),ON,OFF)
-EAMXX_HOME ?= $(ERF_HOME)/external/E3SM/components/eamxx/src
 
-USE_EAMXX_SHOC  ?= $(USE_SHOC)
+# The EAMxx SHOC has been removed; native SHOC (erf.pbl_type = NATIVE_SHOC) is always built
+ifneq ($(filter TRUE,$(USE_EAMXX_SHOC) $(USE_SHOC)),)
+  $(error USE_EAMXX_SHOC and USE_SHOC are no longer available: the EAMxx SHOC has been removed. Native SHOC needs no build option; select it with erf.pbl_type = NATIVE_SHOC)
+endif
 
 # Normalize feature dependencies before Make.defs and Make.package includes.
 # GNUmakefile remains the user-facing switchboard; this block only enforces
@@ -55,14 +57,6 @@ ifeq ($(USE_RRTMGP), TRUE)
   override USE_KOKKOS = TRUE
   override USE_NETCDF = TRUE
 endif
-ifeq ($(USE_EAMXX_SHOC), TRUE)
-  override USE_KOKKOS = TRUE
-endif
-
-ifeq ($(USE_SHOC), TRUE)
-$(warning USE_SHOC=TRUE is deprecated; use USE_EAMXX_SHOC=TRUE)
-endif
-
 # ERF builds for at most one parallel backend at a time, so selecting more than
 # one is rejected instead of configured. Unlike the implied options above, this
 # is a contradiction between switches the user set deliberately and there is no
@@ -75,15 +69,6 @@ ERF_BACKENDS_ENABLED := $(strip \
   $(if $(filter TRUE,$(USE_SYCL)),USE_SYCL))
 ifeq ($(filter 0 1,$(words $(ERF_BACKENDS_ENABLED))),)
   $(error At most one of USE_OMP, USE_CUDA, USE_HIP, USE_SYCL may be TRUE; got $(ERF_BACKENDS_ENABLED))
-endif
-
-# The checked-in Source/PhysicsInterfaces/eamxx_config.h defines SCREAM_DOUBLE_PRECISION, so the
-# EAMxx ETI files instantiate the SHOC templates for double only, while ERF instantiates them
-# with amrex::Real.  Refuse a single-precision build here rather than failing at link time.
-ifeq ($(USE_EAMXX_SHOC), TRUE)
-  ifeq ($(PRECISION), FLOAT)
-    $(error USE_EAMXX_SHOC=TRUE requires PRECISION=DOUBLE because the vendored eamxx_config.h builds EAMxx in double precision)
-  endif
 endif
 
 # Default is no Fortran build unless an explicit Fortran bridge/model is enabled.
@@ -625,45 +610,6 @@ ifeq ($(USE_RRTMGP), TRUE)
 endif
 
 DEFINES += -DERF_HAS_SHOC_FAMILY
-
-# If using EAMxx SHOC, compile relevant source and headers
-ifeq ($(USE_EAMXX_SHOC), TRUE)
-
-    DEFINES += -DERF_USE_KOKKOS
-    DEFINES += -DERF_USE_EAMXX_SHOC
-    DEFINES += -DSHOC_ENABLE_KOKKOS
-    DEFINES += -DEKAT_ENABLE_MPI
-    DEFINES += -DSCREAM_SHOC_SMALL_KERNELS
-
-    # Location of EKAT include and library
-    INCLUDE_LOCATIONS += $(EKAT_HOME)/include
-    INCLUDE_LOCATIONS += $(EKAT_HOME)/include/ekat
-    INCLUDE_LOCATIONS += $(ERF_HOME)/Submodules/ekat/src/kokkos
-    INCLUDE_LOCATIONS += $(ERF_HOME)/Submodules/ekat/src/pack
-    INCLUDE_LOCATIONS += $(ERF_HOME)/Submodules/ekat/src/algorithm
-    LIBRARY_LOCATIONS += $(EKAT_LIB_DIR)
-    LIBRARIES += -lekat_core -lspdlog
-
-    # This directory holds the ERF-SHOC interface routines
-    ERF_SHOC_DIR = $(ERF_SOURCE_DIR)/PhysicsInterfaces/Shoc
-    include $(ERF_SHOC_DIR)/Make.package
-    VPATH_LOCATIONS   += $(ERF_SHOC_DIR)
-    INCLUDE_LOCATIONS += $(ERF_SHOC_DIR)
-
-    # This directory holds the SHOC source itself
-    SHOC_HOME = $(EAMXX_HOME)/physics/shoc
-    VPATH_LOCATIONS   += $(SHOC_HOME)/disp
-    VPATH_LOCATIONS   += $(SHOC_HOME)/eti
-    INCLUDE_LOCATIONS += $(SHOC_HOME)
-    INCLUDE_LOCATIONS += $(SHOC_HOME)/eti
-    INCLUDE_LOCATIONS += $(SHOC_HOME)/impl
-
-    # Other things we get from eamxx
-    VPATH_LOCATIONS   += $(EAMXX_HOME)/physics/share
-    INCLUDE_LOCATIONS += $(EAMXX_HOME)
-    INCLUDE_LOCATIONS += $(EAMXX_HOME)/physics
-    INCLUDE_LOCATIONS += $(EAMXX_HOME)/physics/share
-endif
 
 # ---- LAPACK support ----
 USE_LAPACK ?= FALSE

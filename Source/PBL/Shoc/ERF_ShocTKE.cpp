@@ -8,8 +8,7 @@
 
 using namespace amrex;
 
-namespace
-{
+namespace erf_detail_ShocTKE {
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE Real shoc_base_temp () noexcept { return 300.0_rt; }
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE Real shoc_min_tke () noexcept { return 4.0e-4_rt; }
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE Real shoc_max_tke () noexcept { return 50.0_rt; }
@@ -102,6 +101,7 @@ namespace
         });
     }
 }
+using namespace erf_detail_ShocTKE;
 
 void
 ShocTKE::compute_shear_production (const ShocColumnData& col,

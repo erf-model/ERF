@@ -16,7 +16,6 @@ SolverChoice make_sam_solver_choice (const MoistureType moisture_type = Moisture
     sc.rdOcp = kRdOcp;
     sc.ave_plane = 2;
     sc.moisture_type = moisture_type;
-    sc.use_eamxx_shoc = false;
     sc.use_native_shoc = false;
     return sc;
 }
@@ -222,6 +221,50 @@ struct PrecipFallBudgetSummary {
     PrecipFallRunDiagnostics diagnostics{};
 };
 
+// The primitive rho, T and precipitation mixing ratios of one box, on the host, so the
+// replica below can hand them to the production face-state helper as SAM::PrecipFall does.
+struct PrecipFallPrimitiveFabs {
+    amrex::FArrayBox rho, tabs, qpr, qps, qpg;
+};
+
+PrecipFallPrimitiveFabs make_precipfall_primitive_fabs (const amrex::Array4<const amrex::Real>& arr,
+                                                        const amrex::Box& bx)
+{
+    PrecipFallPrimitiveFabs fabs{amrex::FArrayBox(bx, 1, amrex::The_Cpu_Arena()),
+                                 amrex::FArrayBox(bx, 1, amrex::The_Cpu_Arena()),
+                                 amrex::FArrayBox(bx, 1, amrex::The_Cpu_Arena()),
+                                 amrex::FArrayBox(bx, 1, amrex::The_Cpu_Arena()),
+                                 amrex::FArrayBox(bx, 1, amrex::The_Cpu_Arena())};
+    const auto rho = fabs.rho.array();
+    const auto tabs = fabs.tabs.array();
+    const auto qpr = fabs.qpr.array();
+    const auto qps = fabs.qps.array();
+    const auto qpg = fabs.qpg.array();
+    for (int k = bx.smallEnd(2); k <= bx.bigEnd(2); ++k) {
+        for (int j = bx.smallEnd(1); j <= bx.bigEnd(1); ++j) {
+            for (int i = bx.smallEnd(0); i <= bx.bigEnd(0); ++i) {
+                const SAMPrimitiveCell cell = sam_cons_to_primitive(
+                    arr(i,j,k,Rho_comp),
+                    arr(i,j,k,RhoTheta_comp),
+                    arr(i,j,k,RhoQ1_comp),
+                    arr(i,j,k,RhoQ2_comp),
+                    arr(i,j,k,RhoQ3_comp),
+                    arr(i,j,k,RhoQ4_comp),
+                    arr(i,j,k,RhoQ5_comp),
+                    arr(i,j,k,RhoQ6_comp));
+                rho(i,j,k) = cell.rho;
+                tabs(i,j,k) = cell.tabs;
+                qpr(i,j,k) = cell.qpr;
+                qps(i,j,k) = cell.qps;
+                qpg(i,j,k) = cell.qpg;
+            }
+        }
+    }
+    return fabs;
+}
+
+// A host replica of the first substep of SAM::PrecipFall on a column of single boxes: the
+// face state, fall Courant number and donor cap all come from the production helpers.
 PrecipFallRunDiagnostics compute_precipfall_run_diagnostics (const amrex::Geometry& geom,
                                                              const amrex::MultiFab& cons,
                                                              const amrex::Real dt,
@@ -231,11 +274,11 @@ PrecipFallRunDiagnostics compute_precipfall_run_diagnostics (const amrex::Geomet
     const auto terminal_velocities = precipfall_terminal_velocities();
 
     PrecipFallRunDiagnostics diagnostics{};
-    amrex::Real max_total_raw_flux = amrex::Real(0.0);
+    amrex::Real max_courant = amrex::Real(0.0);
 
     for (amrex::MFIter mfi(cons); mfi.isValid(); ++mfi) {
         const amrex::Box& bx = mfi.validbox();
-        const auto arr = cons.const_array(mfi);
+        const PrecipFallPrimitiveFabs prim = make_precipfall_primitive_fabs(cons.const_array(mfi), bx);
         const auto detj = (detJ_cc != nullptr) ? detJ_cc->const_array(mfi) : amrex::Array4<const amrex::Real>{};
         const int k_lo = bx.smallEnd(2);
         const int k_hi = bx.bigEnd(2);
@@ -243,49 +286,10 @@ PrecipFallRunDiagnostics compute_precipfall_run_diagnostics (const amrex::Geomet
         for (int k = k_lo; k <= k_hi + 1; ++k) {
             for (int j = bx.smallEnd(1); j <= bx.bigEnd(1); ++j) {
                 for (int i = bx.smallEnd(0); i <= bx.bigEnd(0); ++i) {
-                    const int donor_k = sam_precip_face_donor_k(k, k_lo, k_hi);
-                    const SAMPrimitiveCell donor = sam_cons_to_primitive(
-                        arr(i,j,donor_k,Rho_comp),
-                        arr(i,j,donor_k,RhoTheta_comp),
-                        arr(i,j,donor_k,RhoQ1_comp),
-                        arr(i,j,donor_k,RhoQ2_comp),
-                        arr(i,j,donor_k,RhoQ3_comp),
-                        arr(i,j,donor_k,RhoQ4_comp),
-                        arr(i,j,donor_k,RhoQ5_comp),
-                        arr(i,j,donor_k,RhoQ6_comp));
-
-                    SAMPrimitiveCell upper = donor;
-                    SAMPrimitiveCell lower = donor;
-                    if (k > k_lo && k <= k_hi) {
-                        lower = sam_cons_to_primitive(
-                            arr(i,j,k-1,Rho_comp),
-                            arr(i,j,k-1,RhoTheta_comp),
-                            arr(i,j,k-1,RhoQ1_comp),
-                            arr(i,j,k-1,RhoQ2_comp),
-                            arr(i,j,k-1,RhoQ3_comp),
-                            arr(i,j,k-1,RhoQ4_comp),
-                            arr(i,j,k-1,RhoQ5_comp),
-                            arr(i,j,k-1,RhoQ6_comp));
-                        upper = sam_cons_to_primitive(
-                            arr(i,j,k,Rho_comp),
-                            arr(i,j,k,RhoTheta_comp),
-                            arr(i,j,k,RhoQ1_comp),
-                            arr(i,j,k,RhoQ2_comp),
-                            arr(i,j,k,RhoQ3_comp),
-                            arr(i,j,k,RhoQ4_comp),
-                            arr(i,j,k,RhoQ5_comp),
-                            arr(i,j,k,RhoQ6_comp));
-                    }
-
                     const SAMPrecipComponentFaceState face_state =
-                        (k == k_lo) ? SAMPrecipComponentFaceState{donor.rho, donor.tabs, donor.qpr, donor.qps, donor.qpg}
-                                    : (k == k_hi + 1) ? SAMPrecipComponentFaceState{donor.rho, donor.tabs, donor.qpr, donor.qps, donor.qpg}
-                                                      : SAMPrecipComponentFaceState{
-                                                            myhalf * (lower.rho + upper.rho),
-                                                            myhalf * (lower.tabs + upper.tabs),
-                                                            myhalf * (lower.qpr + upper.qpr),
-                                                            myhalf * (lower.qps + upper.qps),
-                                                            myhalf * (lower.qpg + upper.qpg)};
+                        sam_precip_component_face_state(prim.rho.const_array(), prim.tabs.const_array(),
+                                                        prim.qpr.const_array(), prim.qps.const_array(),
+                                                        prim.qpg.const_array(), i, j, k, k_lo, k_hi);
 
                     const SAMPrecipFluxComponents raw_fluxes =
                         sam_precip_component_fluxes_from_face_state(face_state,
@@ -298,10 +302,19 @@ PrecipFallRunDiagnostics compute_precipfall_run_diagnostics (const amrex::Geomet
                     diagnostics.max_raw_fluxes[0] = std::max(diagnostics.max_raw_fluxes[0], corrected_fluxes.rain);
                     diagnostics.max_raw_fluxes[1] = std::max(diagnostics.max_raw_fluxes[1], corrected_fluxes.snow);
                     diagnostics.max_raw_fluxes[2] = std::max(diagnostics.max_raw_fluxes[2], corrected_fluxes.graupel);
-                    max_total_raw_flux = std::max(max_total_raw_flux,
-                                                  corrected_fluxes.rain + corrected_fluxes.snow + corrected_fluxes.graupel);
 
+                    const int donor_k = sam_precip_face_donor_k(k, k_lo, k_hi);
+                    const int receiver_k = sam_precip_face_receiver_k(k, k_lo, k_hi);
                     const amrex::Real detj_donor = detj ? detj(i,j,donor_k) : amrex::Real(1.0);
+                    const amrex::Real detj_size = detj ? sam_fall_sizing_detJ(detj(i,j,donor_k), detj(i,j,receiver_k))
+                                                       : amrex::Real(1.0);
+                    max_courant = std::max(max_courant,
+                                           sam_fall_courant(sam_precip_component_max_fall_speed(face_state,
+                                                                                                terminal_velocities[0],
+                                                                                                terminal_velocities[1],
+                                                                                                terminal_velocities[2],
+                                                                                                rho0),
+                                                            dt, geom.CellSize(2), detj_size));
                     diagnostics.detj_min = std::min(diagnostics.detj_min, detj_donor);
                     diagnostics.detj_max = std::max(diagnostics.detj_max, detj_donor);
                 }
@@ -309,15 +322,16 @@ PrecipFallRunDiagnostics compute_precipfall_run_diagnostics (const amrex::Geomet
         }
     }
 
-    diagnostics.n_substep = sam_substep_count_from_reduced_flux(
-        max_total_raw_flux + std::numeric_limits<amrex::Real>::epsilon(),
-        dt,
-        geom.CellSize(2));
+    diagnostics.n_substep = sam_sedimentation_substep_count(max_courant);
 
     const amrex::Real coef_substep = (dt / diagnostics.n_substep) / geom.CellSize(2);
     for (amrex::MFIter mfi(cons); mfi.isValid(); ++mfi) {
         const amrex::Box& bx = mfi.validbox();
-        const auto arr = cons.const_array(mfi);
+        const PrecipFallPrimitiveFabs prim = make_precipfall_primitive_fabs(cons.const_array(mfi), bx);
+        const auto rho = prim.rho.const_array();
+        const auto qpr = prim.qpr.const_array();
+        const auto qps = prim.qps.const_array();
+        const auto qpg = prim.qpg.const_array();
         const auto detj = (detJ_cc != nullptr) ? detJ_cc->const_array(mfi) : amrex::Array4<const amrex::Real>{};
         const int k_lo = bx.smallEnd(2);
         const int k_hi = bx.bigEnd(2);
@@ -325,49 +339,9 @@ PrecipFallRunDiagnostics compute_precipfall_run_diagnostics (const amrex::Geomet
         for (int k = k_lo; k <= k_hi + 1; ++k) {
             for (int j = bx.smallEnd(1); j <= bx.bigEnd(1); ++j) {
                 for (int i = bx.smallEnd(0); i <= bx.bigEnd(0); ++i) {
-                    const int donor_k = sam_precip_face_donor_k(k, k_lo, k_hi);
-                    const SAMPrimitiveCell donor = sam_cons_to_primitive(
-                        arr(i,j,donor_k,Rho_comp),
-                        arr(i,j,donor_k,RhoTheta_comp),
-                        arr(i,j,donor_k,RhoQ1_comp),
-                        arr(i,j,donor_k,RhoQ2_comp),
-                        arr(i,j,donor_k,RhoQ3_comp),
-                        arr(i,j,donor_k,RhoQ4_comp),
-                        arr(i,j,donor_k,RhoQ5_comp),
-                        arr(i,j,donor_k,RhoQ6_comp));
-
-                    SAMPrimitiveCell upper = donor;
-                    SAMPrimitiveCell lower = donor;
-                    if (k > k_lo && k <= k_hi) {
-                        lower = sam_cons_to_primitive(
-                            arr(i,j,k-1,Rho_comp),
-                            arr(i,j,k-1,RhoTheta_comp),
-                            arr(i,j,k-1,RhoQ1_comp),
-                            arr(i,j,k-1,RhoQ2_comp),
-                            arr(i,j,k-1,RhoQ3_comp),
-                            arr(i,j,k-1,RhoQ4_comp),
-                            arr(i,j,k-1,RhoQ5_comp),
-                            arr(i,j,k-1,RhoQ6_comp));
-                        upper = sam_cons_to_primitive(
-                            arr(i,j,k,Rho_comp),
-                            arr(i,j,k,RhoTheta_comp),
-                            arr(i,j,k,RhoQ1_comp),
-                            arr(i,j,k,RhoQ2_comp),
-                            arr(i,j,k,RhoQ3_comp),
-                            arr(i,j,k,RhoQ4_comp),
-                            arr(i,j,k,RhoQ5_comp),
-                            arr(i,j,k,RhoQ6_comp));
-                    }
-
                     const SAMPrecipComponentFaceState face_state =
-                        (k == k_lo) ? SAMPrecipComponentFaceState{donor.rho, donor.tabs, donor.qpr, donor.qps, donor.qpg}
-                                    : (k == k_hi + 1) ? SAMPrecipComponentFaceState{donor.rho, donor.tabs, donor.qpr, donor.qps, donor.qpg}
-                                                      : SAMPrecipComponentFaceState{
-                                                            myhalf * (lower.rho + upper.rho),
-                                                            myhalf * (lower.tabs + upper.tabs),
-                                                            myhalf * (lower.qpr + upper.qpr),
-                                                            myhalf * (lower.qps + upper.qps),
-                                                            myhalf * (lower.qpg + upper.qpg)};
+                        sam_precip_component_face_state(rho, prim.tabs.const_array(), qpr, qps, qpg,
+                                                        i, j, k, k_lo, k_hi);
                     const SAMPrecipFluxComponents corrected_fluxes =
                         sam_precip_flux_components_density_corrected(
                             sam_precip_component_fluxes_from_face_state(face_state,
@@ -376,14 +350,15 @@ PrecipFallRunDiagnostics compute_precipfall_run_diagnostics (const amrex::Geomet
                                                                         terminal_velocities[2]),
                             rho0,
                             face_state.rho_avg);
+                    const int donor_k = sam_precip_face_donor_k(k, k_lo, k_hi);
                     const amrex::Real detj_donor = detj ? detj(i,j,donor_k) : amrex::Real(1.0);
 
                     const amrex::Real limited_rain = sam_limit_precip_component_flux(
-                        corrected_fluxes.rain, donor.rho, donor.qpr, detj_donor, coef_substep);
+                        corrected_fluxes.rain, rho(i,j,donor_k), qpr(i,j,donor_k), detj_donor, coef_substep);
                     const amrex::Real limited_snow = sam_limit_precip_component_flux(
-                        corrected_fluxes.snow, donor.rho, donor.qps, detj_donor, coef_substep);
+                        corrected_fluxes.snow, rho(i,j,donor_k), qps(i,j,donor_k), detj_donor, coef_substep);
                     const amrex::Real limited_graupel = sam_limit_precip_component_flux(
-                        corrected_fluxes.graupel, donor.rho, donor.qpg, detj_donor, coef_substep);
+                        corrected_fluxes.graupel, rho(i,j,donor_k), qpg(i,j,donor_k), detj_donor, coef_substep);
 
                     diagnostics.max_limited_fluxes[0] = std::max(diagnostics.max_limited_fluxes[0], limited_rain);
                     diagnostics.max_limited_fluxes[1] = std::max(diagnostics.max_limited_fluxes[1], limited_snow);
@@ -532,7 +507,6 @@ PrecipFallBudgetSummary run_precipfall_budget_case (const amrex::Geometry& geom,
     SolverChoice sc = make_sam_solver_choice(moisture_type);
     SAM sam;
     sam.Define(sc);
-    sam.Set_dzmin(geom.CellSize(2));
     sam.Set_RealWidth(0);
     sam.Init(cons, ba, geom, dt, z_phys_nd, detj_owned);
     sam.Copy_State_to_Micro(cons);
@@ -885,7 +859,6 @@ TEST(SAMPhysicalProperties, PublicPrecipConstantPressureLatentProxySingleCell)
     SolverChoice sc = make_sam_solver_choice(MoistureType::SAM);
     SAM sam;
     sam.Define(sc);
-    sam.Set_dzmin(geom.CellSize(2));
     sam.Set_RealWidth(0);
     sam.Init(cons, ba, geom, amrex::Real(0.1), z_phys_nd, detJ_cc);
 
@@ -1009,9 +982,14 @@ TEST(SAMPhysicalProperties, PrecipFall_PureRainNoClipColumnBudgetCloses)
 }
 
 // Motivation:
-// With an active donor limiter, PrecipFall should still close the pure-rain
-// column budget and keep rain nonnegative.
-TEST(SAMPhysicalProperties, PrecipFall_PureRainLimiterActiveColumnBudgetCloses)
+// A steep pure-rain column (rain increasing with height, top cell dry) should
+// still close its budget and keep rain nonnegative.  This case once tripped the
+// donor cap; since the substeps are sized from the fall Courant number (#5168),
+// the cap cannot bind on a substep's first pass (each face exports at most about
+// CFL_MAX = 1/2 of its donor), so it no longer does.  The cap itself is covered by
+// SAMScalar.PrecipComponentFluxLimiter_CapsAtAvailableDonorMass and, inside
+// PrecipFall, by PrecipFall_DonorCapHoldsWhenRainEntersThinCells.
+TEST(SAMPhysicalProperties, PrecipFall_PureRainSteepColumnBudgetCloses)
 {
     constexpr int nx = 2;
     constexpr int ny = 1;
@@ -1037,7 +1015,6 @@ TEST(SAMPhysicalProperties, PrecipFall_PureRainLimiterActiveColumnBudgetCloses)
     const amrex::Real residual =
         summary.initial_rain_mass - summary.final_rain_mass - summary.rain_accum_mass;
 
-    EXPECT_TRUE(summary.diagnostics.limiter_active);
     EXPECT_GE(summary.min_qpr_after, -exact_zero_or_near_zero_tol());
     EXPECT_NEAR(residual,
                 amrex::Real(0.0),
@@ -1056,6 +1033,187 @@ TEST(SAMPhysicalProperties, PrecipFall_PureRainLimiterActiveColumnBudgetCloses)
         << " min_qpr_after=" << summary.min_qpr_after
         << " detj_min=" << summary.diagnostics.detj_min
         << " detj_max=" << summary.diagnostics.detj_max;
+}
+
+// Motivation:
+// The sedimentation substeps must be sized from the fall speed (#5168). Rain
+// starts in the top cell of a column and dt is long enough for it to fall about
+// three cells. Sized from the mass flux, PrecipFall took a single substep, and
+// the donor cap then let rain cross only one face: none reached the cells below
+// the second-highest. Sized from the fall speed, it takes several substeps and
+// the rain moves down the column.
+TEST(SAMPhysicalProperties, PrecipFall_RainFallsSeveralCellsInOneLongStep)
+{
+    constexpr int nz = 8;
+    const amrex::Real pres_mbar = amrex::Real(900.0);
+    const amrex::Real tabs = amrex::Real(284.0);
+    const amrex::Real qpr_top = amrex::Real(1.0e-3);
+
+    amrex::Box domain(amrex::IntVect(0, 0, 0), amrex::IntVect(0, 0, nz - 1));
+    amrex::RealBox real_box({AMREX_D_DECL(0.0, 0.0, 0.0)},
+                            {AMREX_D_DECL(1.0, 1.0, amrex::Real(nz))});
+    amrex::Array<int, AMREX_SPACEDIM> is_periodic{AMREX_D_DECL(1, 1, 0)};
+    amrex::Geometry geom(domain, &real_box, 0, is_periodic.data());
+
+    amrex::BoxArray ba(domain);
+    amrex::DistributionMapping dm(ba);
+    amrex::MultiFab cons(amrex::The_Pinned_Arena());
+    cons.define(ba, dm, RhoQ6_comp + 1, 0);
+    cons.setVal(amrex::Real(0.0));
+    amrex::Real rho_top = amrex::Real(0.0);
+    for (amrex::MFIter mfi(cons); mfi.isValid(); ++mfi) {
+        const amrex::Box& bx = mfi.validbox();
+        auto arr = cons.array(mfi);
+        for (int k = bx.smallEnd(2); k <= bx.bigEnd(2); ++k) {
+            const amrex::Real qsat = mixed_qsat_for_state(kSAMNoIceMode, tabs, pres_mbar);
+            const SAMCellState state = make_cell_state(
+                tabs, pres_mbar, amrex::Real(0.8) * qsat,
+                amrex::Real(0.0), amrex::Real(0.0),
+                (k == nz - 1) ? qpr_top : amrex::Real(0.0),
+                amrex::Real(0.0), amrex::Real(0.0));
+            arr(0,0,k,Rho_comp) = state.rho;
+            arr(0,0,k,RhoKE_comp) = amrex::Real(0.0);
+            arr(0,0,k,RhoScalar_comp) = amrex::Real(0.0);
+            sam_primitive_to_cons(state, arr, 0, 0, k);
+            if (k == nz - 1) { rho_top = state.rho; }
+        }
+    }
+
+    // The rain's fall speed out of the top cell, and a dt that carries it three cells
+    const auto terminal_velocities = precipfall_terminal_velocities();
+    SAMPrecipComponentFaceState top_face{};
+    top_face.rho_avg = rho_top;
+    top_face.tabs_avg = tabs;
+    top_face.qpr_avg = qpr_top;
+    const amrex::Real v_top = sam_precip_component_max_fall_speed(
+        top_face, terminal_velocities[0], terminal_velocities[1], terminal_velocities[2],
+        amrex::Real(1.29));
+    const amrex::Real dz = geom.CellSize(2);
+    const amrex::Real dt = amrex::Real(3.0) * dz / v_top;
+
+    const PrecipFallBudgetSummary summary =
+        run_precipfall_budget_case(geom, cons, MoistureType::SAM_NoIce, dt);
+
+    amrex::Real low_rain_mass = amrex::Real(0.0);
+    for (amrex::MFIter mfi(cons); mfi.isValid(); ++mfi) {
+        const auto arr = cons.const_array(mfi);
+        for (int k = 0; k <= nz - 3; ++k) {
+            low_rain_mass += arr(0,0,k,RhoQ4_comp) * dz;
+        }
+    }
+
+    // The count the production sizing gives this column: a fall of three uniform cells at
+    // CFL_MAX = 1/2 per substep.  PrecipFall does not report its count, so the end-to-end
+    // check below, that rain reached the low cells, is what tests PrecipFall itself.
+    const int n_expected = sam_sedimentation_substep_count(
+        sam_fall_courant(v_top, dt, dz, sam_fall_sizing_detJ(amrex::Real(1.0), amrex::Real(1.0))));
+    EXPECT_EQ(n_expected, 6)
+        << "v_top=" << v_top << " dt=" << dt << " dz=" << dz;
+    EXPECT_GT(low_rain_mass, amrex::Real(0.1) * summary.initial_rain_mass)
+        << "low_rain_mass=" << low_rain_mass
+        << " initial_rain_mass=" << summary.initial_rain_mass
+        << " final_rain_mass=" << summary.final_rain_mass
+        << " v_top=" << v_top << " dt=" << dt << " dz=" << dz
+        << " n_substep=" << summary.diagnostics.n_substep;
+    EXPECT_GE(summary.min_qpr_after, -exact_zero_or_near_zero_tol());
+}
+
+// Motivation:
+// The substep count is fixed at the start of the step from the cells that hold
+// rain and the cells right below them; it does not see cells the rain reaches
+// later in the step.  Here rain starts in the top cell of a column whose lower
+// cells are twenty times thinner, and falls three cells in the step: by the time
+// it reaches the thin cells, the realized fall Courant number there is far above
+// one.  The donor cap inside PrecipFall is then all that keeps rain nonnegative,
+// and the column budget must still close.
+TEST(SAMPhysicalProperties, PrecipFall_DonorCapHoldsWhenRainEntersThinCells)
+{
+    constexpr int nz = 8;
+    constexpr int k_thin_top = 4;  // cells 0..k_thin_top are thin
+    const amrex::Real detj_thin = amrex::Real(0.05);
+    const amrex::Real pres_mbar = amrex::Real(900.0);
+    const amrex::Real tabs = amrex::Real(284.0);
+    const amrex::Real qpr_top = amrex::Real(1.0e-3);
+
+    amrex::Box domain(amrex::IntVect(0, 0, 0), amrex::IntVect(0, 0, nz - 1));
+    amrex::RealBox real_box({AMREX_D_DECL(0.0, 0.0, 0.0)},
+                            {AMREX_D_DECL(1.0, 1.0, amrex::Real(nz))});
+    amrex::Array<int, AMREX_SPACEDIM> is_periodic{AMREX_D_DECL(1, 1, 0)};
+    amrex::Geometry geom(domain, &real_box, 0, is_periodic.data());
+
+    amrex::BoxArray ba(domain);
+    amrex::DistributionMapping dm(ba);
+    amrex::MultiFab cons(amrex::The_Pinned_Arena());
+    cons.define(ba, dm, RhoQ6_comp + 1, 0);
+    cons.setVal(amrex::Real(0.0));
+    amrex::MultiFab detJ_cc(amrex::The_Pinned_Arena());
+    detJ_cc.define(ba, dm, 1, 0);
+    amrex::Real rho_top = amrex::Real(0.0);
+    for (amrex::MFIter mfi(cons); mfi.isValid(); ++mfi) {
+        const amrex::Box& bx = mfi.validbox();
+        auto arr = cons.array(mfi);
+        auto detj = detJ_cc.array(mfi);
+        for (int k = bx.smallEnd(2); k <= bx.bigEnd(2); ++k) {
+            const amrex::Real qsat = mixed_qsat_for_state(kSAMNoIceMode, tabs, pres_mbar);
+            const SAMCellState state = make_cell_state(
+                tabs, pres_mbar, amrex::Real(0.8) * qsat,
+                amrex::Real(0.0), amrex::Real(0.0),
+                (k == nz - 1) ? qpr_top : amrex::Real(0.0),
+                amrex::Real(0.0), amrex::Real(0.0));
+            arr(0,0,k,Rho_comp) = state.rho;
+            arr(0,0,k,RhoKE_comp) = amrex::Real(0.0);
+            arr(0,0,k,RhoScalar_comp) = amrex::Real(0.0);
+            sam_primitive_to_cons(state, arr, 0, 0, k);
+            detj(0,0,k) = (k <= k_thin_top) ? detj_thin : amrex::Real(1.0);
+            if (k == nz - 1) { rho_top = state.rho; }
+        }
+    }
+
+    // The rain's fall speed out of the top cell, and a dt that carries it three tall cells
+    const auto terminal_velocities = precipfall_terminal_velocities();
+    SAMPrecipComponentFaceState top_face{};
+    top_face.rho_avg = rho_top;
+    top_face.tabs_avg = tabs;
+    top_face.qpr_avg = qpr_top;
+    const amrex::Real v_top = sam_precip_component_max_fall_speed(
+        top_face, terminal_velocities[0], terminal_velocities[1], terminal_velocities[2],
+        amrex::Real(1.29));
+    const amrex::Real dz = geom.CellSize(2);
+    const amrex::Real dt = amrex::Real(3.0) * dz / v_top;
+
+    // Only the top face is wet at the start, and the cells on both sides of it are tall,
+    // so the count is that of three tall cells; in the thin cells the same speed then
+    // falls much more than one cell per substep
+    const int n_substep = sam_sedimentation_substep_count(
+        sam_fall_courant(v_top, dt, dz, sam_fall_sizing_detJ(amrex::Real(1.0), amrex::Real(1.0))));
+    const amrex::Real courant_thin = v_top * (dt / n_substep) / (dz * detj_thin);
+    ASSERT_GT(courant_thin, amrex::Real(1.0)) << "n_substep=" << n_substep;
+
+    const PrecipFallBudgetSummary summary =
+        run_precipfall_budget_case(geom, cons, MoistureType::SAM_NoIce, dt, &detJ_cc);
+    EXPECT_EQ(summary.diagnostics.n_substep, n_substep);
+
+    amrex::Real thin_rain_mass = amrex::Real(0.0);
+    for (amrex::MFIter mfi(cons); mfi.isValid(); ++mfi) {
+        const auto arr = cons.const_array(mfi);
+        for (int k = 0; k <= k_thin_top; ++k) {
+            thin_rain_mass += arr(0,0,k,RhoQ4_comp) * dz * detj_thin;
+        }
+    }
+    const amrex::Real residual =
+        summary.initial_rain_mass - summary.final_rain_mass - summary.rain_accum_mass;
+
+    EXPECT_GE(summary.min_qpr_after, -exact_zero_or_near_zero_tol())
+        << "courant_thin=" << courant_thin << " n_substep=" << n_substep;
+    EXPECT_GT(thin_rain_mass, amrex::Real(0.0))
+        << "the rain never reached the thin cells; the test does not exercise the cap";
+    EXPECT_NEAR(residual,
+                amrex::Real(0.0),
+                property_accumulation_tol(nz, std::max(summary.initial_rain_mass, summary.rain_accum_mass)))
+        << "initial_rain_mass=" << summary.initial_rain_mass
+        << " final_rain_mass=" << summary.final_rain_mass
+        << " rain_accum_mass=" << summary.rain_accum_mass
+        << " courant_thin=" << courant_thin << " n_substep=" << n_substep;
 }
 
 // Motivation:
@@ -1173,7 +1331,6 @@ TEST(SAMPhysicalProperties, NativeShocSuppressesCloudAdjustment)
 
     SAM sam;
     sam.Define(sc);
-    sam.Set_dzmin(geom.CellSize(2));
     sam.Init(cons, ba, geom, amrex::Real(1.0), z_phys_nd, detJ_cc);
     sam.Copy_State_to_Micro(cons);
     sam.Cloud(sc);

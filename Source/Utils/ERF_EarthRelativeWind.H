@@ -34,6 +34,16 @@ void grid_to_earth (amrex::Real u, amrex::Real v,
     v_north = u * sin_alpha + v * cos_alpha;
 }
 
+// The inverse: grid-relative (u, v) from earth-relative components
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+void earth_to_grid (amrex::Real u_east, amrex::Real v_north,
+                    amrex::Real cos_alpha, amrex::Real sin_alpha,
+                    amrex::Real& u, amrex::Real& v) noexcept
+{
+    u =  u_east * cos_alpha + v_north * sin_alpha;
+    v = -u_east * sin_alpha + v_north * cos_alpha;
+}
+
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 amrex::Real horizontal_speed (amrex::Real u_east, amrex::Real v_north) noexcept
 {
@@ -67,7 +77,7 @@ amrex::Real meteorological_direction (amrex::Real u_east, amrex::Real v_north,
 //
 // The orientation of the grid at mass point (i,j) of a lat/lon array ll
 // (component 0 latitude, component 1 longitude, both in degrees): the
-// direction of increasing i, counterclockwise from true east.  The centred
+// direction of increasing i, counterclockwise from true east.  The centered
 // difference in i collapses to one side at ilo and ihi, the x extent of the
 // domain; a domain one cell wide has no i direction, and gives (1, 0).
 //

@@ -141,6 +141,12 @@ parser accepts one schedule value or one value per region. With several regions,
 a single value applies only to the first region; supply one value per region to
 schedule every region.
 
+On a restart, ``erf.plot_file_on_restart`` (Boolean, default ``true``) writes the
+configured 3D and 2D plotfiles and subvolumes at the restart time, whether or not
+that time is on their schedules. Set it to ``false`` to write nothing until the
+next scheduled output. Either way, each stream then continues on its own schedule:
+every ``*_int_*`` steps, or at the next multiple of ``*_per_*``.
+
 Configuring 3D output
 =====================
 
@@ -330,6 +336,12 @@ only for a moist run. Conserved-state availability is decided by exactly the
 predicate the 3D plotfile uses, so the two output paths accept the same
 ``rhoQn`` names for a given moisture scheme; unsupported or unavailable names
 are omitted from the output rather than reported as an error.
+
+``erf.subvol_sampling_vars`` may also select ``z_phys``, the physical height of
+each cell center, on any mesh. The origin, spacing and box of a subvolume are in
+the computational coordinates, and so is the geometry of its plotfile; on a
+stretched or terrain-fitted mesh these are not the physical height, so there
+``z_phys`` is always written.
 
 .. _sec:PlotfileGeneralNotes:
 

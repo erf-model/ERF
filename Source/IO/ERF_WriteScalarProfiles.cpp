@@ -23,6 +23,14 @@ ERF::sum_integrated_quantities (double time)
 {
     BL_PROFILE("ERF::sum_integrated_quantities()");
 
+    // The point and line logs are asked for by name, so they are written whatever erf.v is
+    if (sample_point_sampler) {
+        run_line_sampler(*sample_point_sampler);
+    }
+    if (sample_line_sampler) {
+        run_line_sampler(*sample_line_sampler);
+    }
+
     if (verbose <= 0)
       return;
 
@@ -106,11 +114,16 @@ ERF::sum_integrated_quantities (double time)
 #endif
     }
 
-    Real h_avg_ustar = zero;
-    Real h_avg_tstar = zero;
-    Real h_avg_olen  = zero;
     Orientation zlo(Direction::z, Orientation::low);
-    if ((m_SurfaceLayer[zlo] != nullptr) && (NumDataLogs() > 0)) {
+    // With EB MOST (whatever zlo.type is), surface_sum samples the lowest grid
+    // plane, not the embedded surface. Its surface averages are unavailable;
+    // write NaN so the data log does not show zero or fill values as fluxes.
+    const bool eb_most = use_eb_surface_layer();
+    const Real surface_default = eb_most ? std::numeric_limits<Real>::quiet_NaN() : zero;
+    Real h_avg_ustar = surface_default;
+    Real h_avg_tstar = surface_default;
+    Real h_avg_olen  = surface_default;
+    if ((m_SurfaceLayer[zlo] != nullptr) && (NumDataLogs() > 0) && !eb_most) {
         // Sum each surface cell once: on grids split in z the planar arrays hold one
         // duplicate box per stacked 3D box
         h_avg_ustar = m_SurfaceLayer[zlo]->surface_sum(0, *m_SurfaceLayer[zlo]->get_u_star(0));
@@ -275,13 +288,6 @@ ERF::sum_integrated_quantities (double time)
 #ifdef AMREX_LAZY
     });
 #endif
-
-    if (sample_point_sampler) {
-        run_line_sampler(*sample_point_sampler);
-    }
-    if (sample_line_sampler) {
-        run_line_sampler(*sample_line_sampler);
-    }
 }
 
 void
@@ -338,10 +344,10 @@ ERF::sum_derived_quantities (double time)
                                     static_cast<Real>(t_new[0]), nullptr, lev);
     }
 
-    // Copy the MF holding 1/2(u^2 + v^2 + w^2) into the MF that will hold 1/2 rho (u^2 + v^2 + w^2)d
+    // Copy the MF holding (u^2 + v^2 + w^2) into the MF that will hold rho (u^2 + v^2 + w^2)
     MultiFab::Copy(r_wted_magvelsq, unwted_magvelsq, 0, 0, 1, 0);
 
-    // Multiply the MF holding 1/2(u^2 + v^2 + w^2) by rho to get  1/2 rho (u^2 + v^2 + w^2)
+    // Multiply the MF holding (u^2 + v^2 + w^2) by rho to get rho (u^2 + v^2 + w^2)
     MultiFab::Multiply(r_wted_magvelsq, vars_new[lev][Vars::cons], 0, 0, 1, 0);
 
     // Copy the MF holding (rho theta) into "theta_mf"
@@ -404,10 +410,11 @@ ERF::sum_derived_quantities (double time)
 
         if (time == zero_d) {
             data_log_der << std::setw(datwidth) << "          time";
-            data_log_der << std::setw(datwidth) << "        ke_den";
+            // the columns are <|u|^2>, <rho |u|^2>, the enstrophy and <theta> (no factor 1/2)
             data_log_der << std::setw(datwidth) << "         velsq";
+            data_log_der << std::setw(datwidth) << "     rho_velsq";
             data_log_der << std::setw(datwidth) << "     enstrophy";
-            data_log_der << std::setw(datwidth) << "    int_energy";
+            data_log_der << std::setw(datwidth) << "         theta";
             data_log_der << std::endl;
         }
         data_log_der << std::setw(datwidth) << std::setprecision(timeprecision) << time;
@@ -479,7 +486,7 @@ ERF::sum_energy_quantities (double time)
                                                                 Array4<const Real>{};
         ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
-            // Mixing ratios of vapour, of all liquid (cloud and rain) and of all ice (cloud
+            // Mixing ratios of vapor, of all liquid (cloud and rain) and of all ice (cloud
             // ice, snow, graupel); the state holds rho_d times each species
             Real Qv = zero, Ql = zero, Qi = zero;
             if (is_moist) { GetMoistureVars(i, j, k, cons_arr, Qv, Ql, Qi, moist_idx); }
@@ -490,11 +497,11 @@ ERF::sum_energy_quantities (double time)
             Real TKE  = myhalf * ( cc_vel_arr(i,j,k,0)*cc_vel_arr(i,j,k,0)
                               + cc_vel_arr(i,j,k,1)*cc_vel_arr(i,j,k,1)
                               + cc_vel_arr(i,j,k,2)*cc_vel_arr(i,j,k,2) );
-            // Height of the cell centre
+            // Height of the cell center
             Real zval = (z_arr) ? z_arr(i,j,k) : prob_lo[2] + (Real(k) + myhalf)*dx[2];
 
             // Internal energy with constant heat capacities (Romps 2008, J. Atmos. Sci. 65,
-            // 3779), measured from liquid water at the triple point: vapour carries
+            // 3779), measured from liquid water at the triple point: vapor carries
             // E0v = L_v - R_v T_trip, ice -E0s with E0s = L_f. The latent heats this
             // implies follow Kirchhoff's law, e.g. L_v(T) = L_v + (c_pv - c_l)(T - T_trip).
             Real Cv   = Cp_d - R_d;

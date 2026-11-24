@@ -160,7 +160,9 @@ ERF::Advance (int lev, double time, double dt_lev, int iteration, int /*ncycle*/
     bool updated_prim = false;
     for (OrientationIter oit; oit; ++oit) {
         Orientation ori = oit();
-        if (phys_bc_type[ori] == ERF_BC::surface_layer && m_SurfaceLayer[ori]) {
+        const bool eb_surface_layer = static_cast<int>(ori) == Orientation::zlo() && use_eb_surface_layer();
+        if ((phys_bc_type[ori] == ERF_BC::surface_layer) || eb_surface_layer) {
+            AMREX_ALWAYS_ASSERT(m_SurfaceLayer[ori]);
             if (!updated_prim) {
                 // This only needs to be done once
                 IntVect ng = Theta_prim[lev]->nGrowVect();
@@ -205,7 +207,8 @@ ERF::Advance (int lev, double time, double dt_lev, int iteration, int /*ncycle*/
     if (solverChoice.windfarm_type != WindFarmType::None) {
         advance_windfarm(Geom(lev), dt_lev, S_old,
                          U_old, V_old, W_old, vars_windfarm[lev],
-                         Nturb[lev], SMark[lev], time);
+                         Nturb[lev], SMark[lev],
+                         z_phys_nd[lev].get(), z_phys_cc[lev].get(), time);
     }
 
 #endif
@@ -256,15 +259,7 @@ ERF::Advance (int lev, double time, double dt_lev, int iteration, int /*ncycle*/
 
         // Apply SHOC before the dycore so it sees a coherent state.
         Real* w_sub = (solverChoice.custom_w_subsidence) ? d_w_subsid[lev].data() : nullptr;
-        if (solverChoice.turbChoice[lev].uses_eamxx_shoc()) {
-#ifdef ERF_USE_EAMXX_SHOC
-            compute_shoc_tendencies(lev, &S_old, &U_old, &V_old, &W_old, w_sub,
-                                    Tau[lev][TauType::tau13].get(), Tau[lev][TauType::tau23].get(),
-                                    SFS_hfx3_lev[lev].get()       , SFS_q1fx3_lev[lev].get()      ,
-                                    eddyDiffs_lev[lev].get()      , z_phys_nd[lev].get()          ,
-                                    dt_lev);
-#endif
-        } else if (solverChoice.turbChoice[lev].uses_native_shoc()) {
+        if (solverChoice.turbChoice[lev].uses_native_shoc()) {
             compute_native_shoc_tendencies(lev, &S_old, &U_old, &V_old, &W_old, w_sub,
                                            Tau[lev][TauType::tau13].get(), Tau[lev][TauType::tau23].get(),
                                            SFS_hfx3_lev[lev].get()       , SFS_q1fx3_lev[lev].get()      ,
@@ -492,8 +487,8 @@ ERF::Advance (int lev, double time, double dt_lev, int iteration, int /*ncycle*/
 
             state_old[IntVars::zmom].FillBoundary(geom[lev].periodicity());
             state_new[IntVars::zmom].FillBoundary(geom[lev].periodicity());
-            FPr_w[lev].RegisterCoarseData({&state_old[IntVars::zmom], &state_new[IntVars::zmom]},
-                                          {time, time+dt_lev});
+            RegisterCoarseZMomentumCF(lev, state_old[IntVars::zmom], state_new[IntVars::zmom],
+                                      {time, time+dt_lev});
         }
 
             //
@@ -600,7 +595,8 @@ ERF::Advance (int lev, double time, double dt_lev, int iteration, int /*ncycle*/
                                lsm, radiation_inputs, noahmp_active,
                                qheating_rates[lev].get(), rad_fluxes[lev].get(),
                                t_surf, sfc_sens_flux, sfc_laten_flux, lat_ptr, lon_ptr,
-                               time + dt_lev + start_time, use_datetime);
+                               time + dt_lev + start_time, use_datetime,
+                               lmask_lev[lev].empty() ? nullptr : lmask_lev[lev][0].get());
     }
     if (solverChoice.compute_mean_vars) {
         // The interval window is shared by all AMR levels.  Reset it before

@@ -55,7 +55,7 @@ validate_flat_terrain (int lev,
 /**
  * Abort unless the top of the domain is flat, i.e. z_phys_nd is the same at every node of the
  * top slab.  The top boundary is a horizontal plane: erf_slow_rhs_pre sets Omega = rho w on the
- * top face, the anelastic projection converts it with OmegaFromW, and the two only agree when
+ * top face, the anelastic or pseudo-incompressible projection converts it with OmegaFromW, and the two only agree when
  * the terrain slopes vanish there.  Every mesh builder pins the top node to z_top, so this
  * guards against a mesh (custom, read from a file or a checkpoint) that does not.
  *
@@ -396,7 +396,7 @@ make_terrain_fitted_coords (int lev,
             init_which_terrain_grid(lev, geom, z_phys_nd_col, z_levels_h, fine_terrain, z_phys_interp);
 
             // Copy the ghost nodes too, then give every node the value of a box that holds it
-            // as valid, rather than one a neighbouring box computed for its ghost node
+            // as valid, rather than one a neighboring box computed for its ghost node
             z_phys_nd.ParallelCopy(z_phys_nd_col,0,0,1,ng,ng);
             z_phys_nd.ParallelCopy(z_phys_nd_col,0,0,1,IntVect(0),ng);
         }
@@ -821,8 +821,11 @@ init_which_terrain_grid (int lev,
                 Real z_sfc     = z_arr(ii,jj,k0);
                 Real z_lev_sfc = z_lev[k0];
 
-                z_arr(i,j,k) = ( (z_sfc - z_lev_sfc) * z_top +
-                                 (z_top - z_sfc    ) * z     ) / (z_top - z_lev_sfc);
+                // Written so that no product feeds a sum: a compiler that contracts to fused
+                //    multiply-adds (gcc on arm64, or with FMA enabled) could otherwise round
+                //    the two products differently in its vectorized and scalar loops, and then
+                //    two boxes would give a node they share different heights (#5237)
+                z_arr(i,j,k) = z + (z_sfc - z_lev_sfc) * (z_top - z) / (z_top - z_lev_sfc);
             });
         } // mfi
 

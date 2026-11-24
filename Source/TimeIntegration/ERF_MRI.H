@@ -45,12 +45,13 @@ private:
     int no_substepping = -1;
 
    /**
-    * \brief Should we use the anelastic integrator (-1 until setAnelastic is called)
+    * \brief Should we use the two-stage integrator of anelastic and pseudo-incompressible levels
+    *        (-1 until setAnelastic is called)
     */
     int anelastic = -1;
 
     /**
-    * \brief Which two-stage scheme the anelastic integrator uses (RK2 or MidPoint)
+    * \brief Which two-stage scheme the anelastic / pseudo-incompressible integrator uses (RK2 or MidPoint)
     */
     TimesteppingType timestepping_type = TimesteppingType::RK2;
 
@@ -142,8 +143,8 @@ public:
     }
 
     /**
-     * @brief Set whether to use the anelastic integrator.
-     * @param[in] _anelastic Integer flag (1 for anelastic, 0 for compressible).
+     * @brief Set whether to use the anelastic / pseudo-incompressible integrator.
+     * @param[in] _anelastic Integer flag (1 for anelastic or pseudo-incompressible, 0 for compressible).
      */
     void setAnelastic (int _anelastic)
     {
@@ -151,7 +152,8 @@ public:
     }
 
     /**
-     * @brief Set the level's time integrator; the anelastic integrator uses RK2 or MidPoint.
+     * @brief Set the level's time integrator; the anelastic / pseudo-incompressible integrator uses
+     *        RK2 or MidPoint.
      * @param[in] _timestepping_type The level's TimesteppingType.
      */
     void setTimesteppingType (TimesteppingType _timestepping_type = TimesteppingType::RK2)
@@ -385,7 +387,8 @@ public:
           } // nrk
 
         } else {
-            // Two-stage integrator for the anelastic equations.
+            // Two-stage integrator for the anelastic and pseudo-incompressible equations, which get
+            // their pressure from a projection at the end of each stage.
             //
             // SSP-RK2 (Heun): both stages advance a full timestep from S^n, and the
             //     second stage averages the slow source with the one from the first,

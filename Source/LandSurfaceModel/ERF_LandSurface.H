@@ -216,6 +216,13 @@ public:
                 varIdx, m_lsm_model[source_lev]->Lsm_Unmapped_Ptr(varIdx));
         }
 
+        const int nsurface = m_lsm_model[lev]->Lsm_Surface_State_Size();
+        AMREX_ALWAYS_ASSERT(nsurface == m_lsm_model[source_lev]->Lsm_Surface_State_Size());
+        for (int varIdx(0); varIdx<nsurface; ++varIdx) {
+            m_lsm_model[lev]->Lsm_Set_Source_Surface_State_Ptr(
+                varIdx, m_lsm_model[source_lev]->Lsm_Surface_State_Ptr(varIdx));
+        }
+
         m_lsm_model[lev]->Lsm_Set_Source_Has_Atmos_State(
             m_lsm_model[source_lev]->Lsm_Has_Atmos_State());
     }
@@ -449,8 +456,9 @@ private:
         if (plotfile_type != PlotFileType::Netcdf || m_warned_nc_lsm_plot) { return; }
         m_warned_nc_lsm_plot = true;
         amrex::Print() << "NOTE: erf.plotfile_type = netcdf, but NetCDF output is not implemented "
-                          "for the land-surface fields; writing " << plot_file_lsm
-                       << "* in the AMReX plotfile format instead." << std::endl;
+                          "for the 3D land-surface plotfiles; writing " << plot_file_lsm
+                       << "<step> in the AMReX plotfile format instead (the SLM fields are "
+                          "written to " << plot_file_lsm << "lev<L>.nc)." << std::endl;
     }
 #endif
 

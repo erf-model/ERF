@@ -1,4 +1,5 @@
 CEXE_headers += ERF_EOS.H
+CEXE_headers += ERF_GroundAverageDown.H
 CEXE_headers += ERF_HostFabView.H
 CEXE_headers += ERF_HSEUtils.H
 CEXE_headers += ERF_Interpolation_UPW.H
@@ -10,6 +11,7 @@ CEXE_headers += ERF_Interpolation_Bilinear.H
 CEXE_headers += ERF_Microphysics_Utils.H
 CEXE_headers += ERF_TerrainMetrics.H
 CEXE_headers += ERF_TimestepUtils.H
+CEXE_headers += ERF_LengthScaleCellSize.H
 CEXE_headers += ERF_TileNoZ.H
 CEXE_headers += ERF_Utils.H
 CEXE_headers += ERF_ImmersedWallCell.H

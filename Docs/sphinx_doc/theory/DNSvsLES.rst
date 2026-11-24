@@ -101,6 +101,15 @@ Smagorinsky Model
 
 :math:`C_s` is the Smagorinsky constant and :math:`\Delta` is the cube root of cell volume, the representative grid spacing.
 
+On a domain with only one cell in a lateral direction (an x-z or y-z slice), the cell size in that
+direction is arbitrary, so it is replaced by the cell size in the other lateral direction:
+:math:`\Delta = (\Delta x^2 \Delta z)^{1/3}` on an x-z slice.  The same substitution is made wherever
+ERF uses a lateral cell size as a length scale rather than to take a difference: the Deardorff and
+anisotropic filter widths, the SHOC mixing-length cap, the MRF scale-aware blending, the surface-layer
+subgrid velocity, the immersed-forcing drag rates and building cutoff, the wind-farm and mass-source
+normalizations, and the super-droplet ground accumulation.  A single column (one cell in both lateral
+directions) keeps the :math:`\Delta x` and :math:`\Delta y` of the inputs as its nominal column size.
+
 .. math::
    \tau_{ij} = -2\mu_{t} \tilde{\sigma}_{ij} = -K \tilde{\sigma}_{ij}
 
@@ -212,7 +221,7 @@ and the SFS heat flux is
    \tau_{\theta i} = -K_H \frac{\partial\theta}{\partial x_i}.
 
 The RHS terms of the TKE transport equation correspond to advection, shear production, buoyant production, diffusion, and dissipation.
-In the buoyant production the vertical flux :math:`\tau_{\theta w}` at the cell centre is the average of the fluxes of the
+In the buoyant production the vertical flux :math:`\tau_{\theta w}` at the cell center is the average of the fluxes of the
 :math:`\theta` diffusion at the two vertical faces of the cell, in every cell; at the bottom of the domain the face flux is the
 surface-layer flux when a surface layer is used. These face fluxes carry the stretched-mesh spacing and are the full fluxes whether
 the vertical diffusion of :math:`\theta` is explicit or implicit, so the source does not depend on that choice. On a terrain-fitted

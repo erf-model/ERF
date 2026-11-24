@@ -1,10 +1,10 @@
-# Tiling parity of the immersed-boundary-aware MRF and YSUNew schemes
+# Tiling parity of the immersed-boundary-aware MRF and YSU schemes
 # (erf.pbl_ib_aware): a 40 m cube by immersed forcing under a surface layer,
 # run tiled and untiled by Tests/RunTilingParity.cmake. The scheme is set
 # from the CTest entry. The sounding caps a 60 m mixed layer with an
 # inversion so the diagnosed boundary-layer height varies from column to
 # column, and is lower above the 40 m roof than over open ground.
-# The MRF and YSUNew boundary-layer schemes on an immersed building.
+# The MRF and YSU boundary-layer schemes on an immersed building.
 #
 # A 40 m cube (an exact box, so every cell is fluid or solid) on a 320 m
 # periodic domain at 10 m in a 3 m/s westerly, neutral at 300 K with a MOST

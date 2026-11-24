@@ -19,11 +19,11 @@ the same way here.
 
 .. _superdroplets-anelastic-compatibility:
 
-Anelastic compatibility
------------------------
+Anelastic and pseudo-incompressible compatibility
+-------------------------------------------------
 
 ``SuperDroplets`` uses a thermodynamic pressure source selected independently
-on each AMR level. On a level with ``erf.compressibility_type`` not ``FullyCompressible``, the pressure supplied
+on each AMR level. On a level with ``erf.compressibility_type`` not ``FullyCompressible`` (Anelastic or PseudoIncompressible), the pressure supplied
 to the super-droplet microphysics is the hydrostatic base-state pressure at
 each cell, rather than a pressure diagnosed from the compressible equation of
 state. ERF diagnoses the temperature from dry potential temperature using
@@ -40,7 +40,7 @@ the fixed reference pressure used to define potential temperature, and
 :math:`c_p` is the configured ``erf.c_p``. These pressures are in pascals.
 No additional pressure or Exner-function input is required.
 
-During an anelastic SDM microphysics source step, the pressure remains the
+During an SDM microphysics source step on such a level, the pressure remains the
 base-state pressure while the temperature is refreshed from the updated
 potential temperature after each phase-change substep. Latent heating uses
 the fixed inverse Exner factor for every process, including sequential
@@ -72,7 +72,7 @@ analysis.
 
 .. warning::
 
-   Anelastic ``SuperDroplets`` execution has not been validated on CUDA or HIP
+   Anelastic and pseudo-incompressible ``SuperDroplets`` execution has not been validated on CUDA or HIP
    GPUs. Check the selected particle processes, restart behavior, and AMR
    configuration before using GPU results for scientific analysis; do not
    assume reproducibility between CPU and GPU runs.
@@ -122,10 +122,18 @@ vapor and latent-heat changes in the initial atmospheric state. These
 initialization operations are not repeated when restarting from a checkpoint.
 
 A restart restores the condensate fields from the checkpoint, including
-fine-level averages in covered coarse cells. Turbulent diffusivities, including
-``Kmv``, are not checkpointed. They can be zero in the initial restart plotfile
-until the next turbulence update, even when the conserved state has been
-restored correctly.
+fine-level averages in covered coarse cells. The ground accumulations
+``rain_accum``, ``snow_accum`` and ``precip_accum`` are checkpointed on every
+level. They and the per-species and per-aerosol ground accumulations
+(``accum_<species>``, ``accum_<aerosol>``) are kept when the grids of a level
+change, a new fine cell taking the depth, or an equal share of the amount, of
+the coarse cell under it. With one-way coupling (``erf.coupling_type = OneWay``)
+the coarse level does not receive what reached the ground on a fine level, so
+that amount is lost where the fine level moves away or is removed. The
+per-species and per-aerosol accumulations are not checkpointed: they start again
+from zero after a restart. Turbulent diffusivities, including ``Kmv``, are not
+checkpointed. They can be zero in the initial restart plotfile until the next
+turbulence update, even when the conserved state has been restored correctly.
 
 For additional species, cloud-in-cell projection uses only cells on the
 particle's level that are not covered by finer grids. The retained weights are
@@ -134,6 +142,8 @@ the particle's represented mass. Near these boundaries the stencil is one-sided;
 it does not transfer condensate mass between levels independently of particle
 motion. Diagnostic condensate is refreshed after initialization, time-step
 redistribution, and regridding without advancing phase change or vapor transport.
+For water, ice and the other projected quantities, the share of the stencil
+outside a non-periodic domain boundary is added to the adjacent boundary cell.
 
 With ``split_merge_amr = true``, ERF also adjusts the super-droplet sampling as
 particles change levels. When empty fine cells are populated from a neighboring
@@ -204,7 +214,7 @@ rather than by the particle container, but use the same prefix.
 +=================================================+==========================================================+==================================================+=====================================+
 | **species**                                     | additional condensate species carried besides water, and | List of species names                            | none                                |
 |                                                 | ice when cold processes are on.  Naming a species that   |                                                  |                                     |
-|                                                 | is already modelled aborts the run, and at most five     |                                                  |                                     |
+|                                                 | is already modeled aborts the run, and at most five      |                                                  |                                     |
 |                                                 | extra species may be given                               |                                                  |                                     |
 +-------------------------------------------------+----------------------------------------------------------+--------------------------------------------------+-------------------------------------+
 | **aerosols**                                    | aerosol materials carried by the super-droplets          | List of species names                            | none                                |
@@ -217,8 +227,7 @@ rather than by the particle container, but use the same prefix.
 +-------------------------------------------------+----------------------------------------------------------+--------------------------------------------------+-------------------------------------+
 | **include_cold_processes**                      | include ice; adds ice to the species list                | Boolean                                          | true                                |
 +-------------------------------------------------+----------------------------------------------------------+--------------------------------------------------+-------------------------------------+
-| **distribution_type**                           | how the initial condensate is distributed over the       | uniform, condensate_density                      | uniform                             |
-|                                                 | particles                                                |                                                  |                                     |
+| **distribution_type**                           | initialization of the particles                          | uniform                                          | uniform                             |
 +-------------------------------------------------+----------------------------------------------------------+--------------------------------------------------+-------------------------------------+
 | **radius_raindrop**                             | radius [m] above which a drop is counted as rain rather  | Real > 0                                         | 4.0e-5                              |
 |                                                 | than cloud water                                         |                                                  |                                     |
@@ -313,9 +322,11 @@ Coalescence
 +-------------------------------------------------+----------------------------------------------------------+--------------------------------------------------+-------------------------------------+
 | Parameter                                       | Definition                                               | Acceptable Values                                | Default                             |
 +=================================================+==========================================================+==================================================+=====================================+
-| **coalescence_kernel**                          | collision kernel used for coalescence.  An unrecognized  | sedimentation, golovin, Longs, Halls             | sedimentation                       |
+| **coalescence_kernel**                          | collision kernel used for coalescence.  An unrecognized  | sedimentation, golovin, Longs, Halls, geometric  | sedimentation                       |
 |                                                 | value aborts the run.  Note that ``Longs`` and           |                                                  |                                     |
-|                                                 | ``Halls`` are matched case-sensitively                   |                                                  |                                     |
+|                                                 | ``Halls`` are matched case-sensitively;                  |                                                  |                                     |
+|                                                 | ``geometric`` is ``sedimentation`` with collision        |                                                  |                                     |
+|                                                 | efficiency 1                                             |                                                  |                                     |
 +-------------------------------------------------+----------------------------------------------------------+--------------------------------------------------+-------------------------------------+
 | **kernel_relative_velocity**                    | which relative velocity enters the kernel                | terminal_velocity, absolute_velocity,            | terminal_velocity                   |
 |                                                 |                                                          | radial_velocity                                  |                                     |
@@ -338,7 +349,7 @@ Particle population and motion
 +-------------------------------------------------+----------------------------------------------------------+--------------------------------------------------+-------------------------------------+
 | Parameter                                       | Definition                                               | Acceptable Values                                | Default                             |
 +=================================================+==========================================================+==================================================+=====================================+
-| **nucleate_particles**                          | create new super-droplets from the vapour field          | Boolean                                          | false                               |
+| **nucleate_particles**                          | create new super-droplets from the vapor field           | Boolean                                          | false                               |
 +-------------------------------------------------+----------------------------------------------------------+--------------------------------------------------+-------------------------------------+
 | **density_scaling**                             | scale the initial number density with the local air      | Boolean                                          | false                               |
 |                                                 | density                                                  |                                                  |                                     |
@@ -394,6 +405,60 @@ Diagnostics
 |                                                 | with ``ERF_USE_ML_UPHYS_DIAGNOSTICS``                    |                                                  |                                     |
 +-------------------------------------------------+----------------------------------------------------------+--------------------------------------------------+-------------------------------------+
 
+Local droplet size distribution probes
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+A named probe counts liquid droplets inside a fixed sampling volume. It writes
+one whitespace-delimited file, ``<name>.dsd``, in the run directory: one row per
+sampled time. It needs SDM but not the optional ML diagnostics build or particle
+plotfiles. No probe runs unless named. For example, for a 2 x 2 x 1 meter chamber:
+
+::
+
+   super_droplets_moisture.dsd_probe_names    = S03 CellA
+   super_droplets_moisture.dsd_probe_interval = 40
+
+   super_droplets_moisture.S03.center       = 1.0 1.0 0.5
+   super_droplets_moisture.S03.side_lengths = 0.125
+   super_droplets_moisture.S03.rmin         = 0
+   super_droplets_moisture.S03.rmax         = 50.e-6
+   super_droplets_moisture.S03.nbins        = 50
+
+   super_droplets_moisture.CellA.cell       = 4 4 4
+   super_droplets_moisture.CellA.r_edges    = 0 2.e-6 5.e-6 10.e-6 20.e-6
+   super_droplets_moisture.CellA.write_mass = true
+
+Give **one** geometry per probe: ``cell`` is a level-0 cell index (including
+its refined descendants); ``box_lo`` and ``box_hi`` are opposite corners in physical
+model coordinates; or give ``center`` and ``side_lengths`` (one length for a cube,
+three for a cuboid). Boxes include the lower but not the upper faces. Each owned
+particle is tested at its position, without deposition or interpolation. On a
+terrain-fitted mesh, box heights are physical, not computational or above ground.
+The normalizing volume is the **full** box volume, not clipped to the terrain; put
+the whole box in the air for an air-volume concentration. An indexed cell uses
+its physical volume, including its local layer thickness.
+
+Specify strictly increasing ``r_edges``, or ``rmin``, ``rmax``, ``nbins`` and
+``spacing`` (``linear``, the default, or ``log`` with positive ``rmin``). All
+lengths and radii are in meters. Only active particles with positive liquid H2O
+mass contribute. Radius is the liquid-water-equivalent radius
+:math:`r=(3m_w/(4\pi\rho_w))^{1/3}`, not the diameter or total wet radius
+including aerosol and ice. Out-of-range radii are omitted.
+
+The header lists the edges and column units. After time in seconds, column
+:math:`N_b=\sum_{r_b\le r<r_{b+1}}\xi/V` is physical droplet number per cubic
+meter **in** bin :math:`b` (multiplicity :math:`\xi`, sample volume :math:`V`).
+Optional mass columns follow the number columns and contain :math:`\sum\xi m_w/V`
+in kg per cubic meter. Empty bins are zero. Divide by the linear or logarithmic
+bin width for a differential spectrum.
+
+The interval is in coarse timesteps (default 1), independent of
+``super_droplets_moisture.diagnostics_interval``. At a fixed timestep of 0.025 s,
+the example samples at 1 Hz. Set ``diagnostics_interval`` to ``0`` for probes
+without the usual whole-domain distribution files. A fresh run samples step 0;
+a restart preserves rows before the checkpoint time and replaces later rows,
+rejecting an incompatible header. A new probe name starts a new series.
+
 .. _sec:SuperDropletInitialization:
 
 Initialization blocks
@@ -417,7 +482,7 @@ key under ``super_droplets_moisture``; otherwise that common value is used.
 | **particle_box_lo**, **particle_box_hi**        | corners of the seeded box; read when                     | 3 Reals                                          | domain corners                      |
 |                                                 | ``initial_distribution_type`` = ``uniform``              |                                                  |                                     |
 +-------------------------------------------------+----------------------------------------------------------+--------------------------------------------------+-------------------------------------+
-| **particle_bubble_center**,                     | centre and radii of the seeded bubble; read when         | 3 Reals                                          | none                                |
+| **particle_bubble_center**,                     | center and radii of the seeded bubble; read when         | 3 Reals                                          | none                                |
 | **particle_bubble_radius**                      | ``initial_distribution_type`` = ``bubble``               |                                                  |                                     |
 +-------------------------------------------------+----------------------------------------------------------+--------------------------------------------------+-------------------------------------+
 | **initial_number_density**                      | number density of real droplets represented              | Real > 0                                         | none                                |
@@ -437,7 +502,7 @@ Each material has its own size or mass distribution. For example,
 super-droplet. Other supported distributions are ``mass_exponential``,
 ``radius_log_normal``, and ``radius_lognormal_autorange``. Their parameters use
 the same prefix with ``min_mass``, ``max_mass``, ``min_radius``, ``mean_radius``,
-or ``max_radius`` in place of ``mean_mass``, as appropriate. Radii are in metres.
+or ``max_radius`` in place of ``mean_mass``, as appropriate. Radii are in meters.
 For log-normal radii, specify either ``initial_species_std_radius_<species>``
 (the standard deviation of log radius) or
 ``initial_species_geomstd_radius_<species>`` (the geometric standard deviation),

@@ -4,6 +4,7 @@
 #include "ERF_NCWpsFile.H"
 #include "AMReX_FArrayBox.H"
 #include "ERF_DataStruct.H"
+#include "ERF_WRFSurfaceFields.H"
 
 using namespace amrex;
 
@@ -67,7 +68,8 @@ wrfinput_dim_type (const std::string& NC_name)
         // Note: staggering is handled in `fill_fab_from_arrays`
         return NC_Data_Dims_Type::Time_SN_WE;
     }
-    else if (NC_name == "C1H" || NC_name == "C2H" || NC_name == "RDNW")
+    else if (NC_name == "C1H" || NC_name == "C2H" || NC_name == "RDNW" ||
+             NC_name == "C1F" || NC_name == "C2F")
     {
         return NC_Data_Dims_Type::Time_BT;
     }
@@ -77,6 +79,14 @@ wrfinput_dim_type (const std::string& NC_name)
     }
     else if (NC_name == "ZS" || NC_name == "DZS") {
         return NC_Data_Dims_Type::Time_SL;
+    }
+    // The land and soil fields that no land model takes: their layout is in their catalog
+    if (const WRFSurfaceFields::Descriptor* d = WRFSurfaceFields::find(NC_name)) {
+        switch (d->kind) {
+            case WRFSurfaceFields::Kind::Surface:     return NC_Data_Dims_Type::Time_SN_WE;
+            case WRFSurfaceFields::Kind::SoilField:   return NC_Data_Dims_Type::Time_SL_SN_WE;
+            case WRFSurfaceFields::Kind::LayerColumn: return NC_Data_Dims_Type::Time_SL;
+        }
     }
     amrex::Abort("wrfinput_dim_type: no NC dim type for NC_name = '" + NC_name + "'");
     return NC_Data_Dims_Type::Time;
@@ -89,7 +99,7 @@ wrfinput_dim_type (const std::string& NC_name)
  * @param lev Level of the file
  * @param fname Name of the wrfinput file
  * @param geom Geometry of the level
- * @param use_theta_m Set on all ranks from the file's USE_THETA_M attribute
+ * @param use_theta_m Set on all ranks from the file's USE_THETA_M attribute (0 if absent)
  */
 void
 check_wrfinput_geometry (int lev,
@@ -107,7 +117,13 @@ check_wrfinput_geometry (int lev,
             std::vector<int> attr;
             ncf.get_attr("WEST-EAST_GRID_DIMENSION", attr);   NC_nx = attr[0];
             ncf.get_attr("SOUTH-NORTH_GRID_DIMENSION", attr); NC_ny = attr[0];
-            ncf.get_attr("USE_THETA_M", attr);                use_theta_m = attr[0];
+            // WRF writes USE_THETA_M from v4.0 on; older files carry dry potential temperature
+            if (ncf.has_attr("USE_THETA_M")) {
+                ncf.get_attr("USE_THETA_M", attr);            use_theta_m = attr[0];
+            } else {
+                use_theta_m = 0;
+                Print() << "wrfinput has no USE_THETA_M attribute; assuming dry potential temperature" << std::endl;
+            }
         }
         { // Global Attributes (Real)
             std::vector<Real> attr;
@@ -213,7 +229,8 @@ wrfinput_var_box (const Box& subdomain_to_read,
         if (success) {
             std::vector<size_t> shape = ncf.var(NC_name).shape();
 
-            // This mirrors the box built by fill_fab_from_arrays
+            // This mirrors the box built by fill_fab_from_arrays, except for the soil
+            // variables (see khi below)
             NC_Data_Dims_Type dim_type = wrfinput_dim_type(NC_name);
             int ns1 = 1, ns2 = 1, ns3 = 1;
             if (dim_type == NC_Data_Dims_Type::Time_BT || dim_type == NC_Data_Dims_Type::Time_SL) {
@@ -226,18 +243,22 @@ wrfinput_var_box (const Box& subdomain_to_read,
                 ns2 = static_cast<int>(shape[2]);
                 ns3 = static_cast<int>(shape[3]);
             }
-            int khi = std::min(subdomain_to_read.bigEnd(2), ns1-1);
+            // A soil variable's first index is the soil layer: every layer is read,
+            // also when the file has fewer atmospheric levels than soil layers.
+            const bool soil_layers = (dim_type == NC_Data_Dims_Type::Time_SL ||
+                                      dim_type == NC_Data_Dims_Type::Time_SL_SN_WE);
+            int khi = soil_layers ? ns1-1 : std::min(subdomain_to_read.bigEnd(2), ns1-1);
 
             var_box = Box(IntVect(0,0,0), IntVect(ns3-1,ns2-1,khi));
-            if (NC_name == "PH" || NC_name == "PHB" || NC_name == "W") {
+            if (NC_name == "PH" || NC_name == "PHB" || NC_name == "W" ||
+                NC_name == "C1F" || NC_name == "C2F") {
                 var_box.setType(IndexType(IntVect(0,0,1)));
                 var_box.setBig(2, khi+1);
             } else if (NC_name == "U" || NC_name == "MAPFAC_U") {
                 var_box.setType(IndexType(IntVect(1,0,0)));
             } else if (NC_name == "V" || NC_name == "MAPFAC_V") {
                 var_box.setType(IndexType(IntVect(0,1,0)));
-            } else if (NC_name == "TSLB" || NC_name == "SMOIS" || NC_name == "SH2O" ||
-                       NC_name == "ZS"   || NC_name == "DZS") {
+            } else if (NC_name == "SH2O" || WRFSurfaceFields::has_soil_layers(NC_name)) {
                 // soil variables are staggered in z
                 var_box.setType(IndexType(IntVect(0,0,1)));
             }

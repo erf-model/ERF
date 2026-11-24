@@ -67,6 +67,11 @@ Choose the thermodynamic mode
    * - Noncondensing moisture transport
      - ``MoistNoCondensation``
      - An ERF moisture-transport shell with no condensation source.
+   * - Lagrangian superdroplets
+     - ``SuperDroplets``
+     - Requires a particle-enabled build; configured with the
+       ``super_droplets_moisture`` inputs described in
+       :ref:`sec:SuperDroplets`.
 
 For dry mode, omit ``erf.moisture_model`` rather than explicitly setting it
 to ``None``. An explicit ``None`` is rejected with a diagnostic naming this
@@ -82,9 +87,11 @@ precipitation accumulator. The wall model does not add a droplet-impact,
 aerosol-deposition, or facility-specific collection law.
 
 A ``wet`` wall requires a supported active moisture model. It exchanges
-water vapor with the adjacent air using the saturation mixing ratio **over
-liquid water**, evaluated at the prescribed wall temperature and local
-hydrostatic pressure. It does not directly deposit suspended cloud droplets,
+water vapor with the adjacent air at a prescribed wall relative humidity **over
+liquid water**. For example, ``zlo.wetness = 0.8`` sets the bottom wet wall
+to 80% RH; omitting the key retains saturation. A wet wall at zero RH can
+remove vapor from moist air, unlike an impermeable dry wall.
+The wall does not directly deposit suspended cloud droplets,
 ice hydrometeors, or aerosol number; those species remain governed by the
 selected native microphysics and transport operators.
 
@@ -153,8 +160,11 @@ The following constraints are part of the implemented Cloud Chamber contract:
      - Required value
      - Notes
    * - ``erf.compressibility_type``
-     - ``Anelastic`` or ``PseudoIncompressible``
-     - Required in every Cloud Chamber mode.
+     - ``Anelastic``
+     - Required in every Cloud Chamber mode and on every level.  The
+       initializer corrects only :math:`\rho\theta` and the moisture at the
+       fixed base-state density, so ``PseudoIncompressible``, which evolves the
+       density, is rejected.
    * - ``erf.use_gravity``
      - ``true``
      - Required in every Cloud Chamber mode.
@@ -367,7 +377,8 @@ initial velocity perturbation.
 Physical wall configuration
 ---------------------------
 
-In physical-temperature mode, every face requires three basic declarations:
+In physical-temperature mode, a conductive face with a constant wall
+temperature is specified as:
 
 .. code-block:: none
 
@@ -380,10 +391,83 @@ The face prefix is one of ``xlo``, ``xhi``, ``ylo``, ``yhi``, ``zlo``, or
 supported active moisture model. Cloud Chamber walls are stationary;
 ``<face>.velocity`` is rejected.
 
+``<face>.heat = conductive`` (default) exchanges sensible heat using the
+selected ``heat_transfer_model``. ``<face>.heat = adiabatic`` instead replaces
+the normal heat flux with exactly zero, including any ordinary diffusive
+flux already applied to the adjacent cell. This does not turn off drag or
+change the moisture boundary type. For example, an insulated wet wall still
+exchanges vapor at its prescribed saturation temperature:
+
+.. code-block:: none
+
+   zlo.type = NoSlipWall
+   zlo.heat = adiabatic
+   zlo.moisture = wet
+   zlo.temperature = 294.0
+
+Wall temperature is required for conductive heat or wet-wall saturation.
+A dry adiabatic face may omit it even with MOST drag: its stability is
+neutral, independent of any supplied temperature. A wet adiabatic face
+uses the prescribed temperature for saturation, not for sensible buoyancy.
+Any supplied temperature must still be finite and positive.
+
+``<face>.thermal = adiabatic`` is an alias; ``thermal = fixed_temperature``
+means ``heat = conductive``. Selector values are case-insensitive. If both
+keys are present, they must agree. In ``legacy_theta_qv`` mode both keys are
+rejected: remove any previously ignored ``.thermal`` key and keep the legacy
+``.theta`` wall input.
+
 ``NoSlipWall`` is the required ERF boundary type for all supported Cloud
 Chamber wall models.  Selecting an aerodynamic momentum model changes the
 Cloud Chamber tangential wall-stress closure; it does not change the required
 boundary type or create a moving wall.
+
+Sidewall temperature bands
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+In ``physical_temperature_rh``, the alternative to a single
+``<face>.temperature`` is a pair of arrays on the same sidewall. Each of
+``xlo``, ``xhi``, ``ylo``, and ``yhi`` can choose independently: supply both
+arrays or a constant, never both forms. Existing constant-temperature inputs
+are unchanged. The bottom and top plates (``zlo``, ``zhi``) do not accept
+bands and retain their existing temperature settings.
+
+``temperature_height_edges`` lists finite, strictly increasing heights in
+metres above the floor, starting at 0 and ending at the full chamber height
+:math:`H`. ``temperature_values`` gives one finite, positive temperature in
+kelvin between each pair of successive edges. For example, on one wet sidewall
+of a **9 m** chamber (not the 1 m runnable example below):
+
+.. code-block:: none
+
+   xlo.type = NoSlipWall
+   xlo.moisture = wet
+   xlo.temperature_height_edges = 0 3 6 9
+   xlo.temperature_values = 285 295 285
+
+The middle 3 m band is held at 295 K and the outer bands at 285 K. The bands
+are static boundary conditions on the existing uniform grid: there is no
+interpolation between temperatures and no change to the initial gas profile.
+If an edge cuts a grid face so that 25% of its area is at 285 K and 75% at
+295 K, evaluate each active scalar flux :math:`J(T)` against the same adjacent
+gas state and use :math:`0.25 J(285) + 0.75 J(295)` for that face. On a
+saturated wet wall, saturation vapor pressure is nonlinear in temperature:
+evaluating vapor flux at the mean temperature (292.5 K) is not equivalent.
+``wetness`` remains one constant RH per wet wall (default 1), not per band.
+
+Dry walls still have zero vapor flux and adiabatic walls still have zero
+sensible heat flux. A wet adiabatic sidewall uses the band temperatures only
+for vapor exchange; a dry adiabatic sidewall still needs no temperature input.
+
+Temperature bands do not set a drag coefficient or a wall-exchange timestep
+rate. On vertical walls the supported closures are resolved transfer, fixed
+bulk transfer (with or without the molecular term), and neutral roughness-log
+transfer. At a given air state their transfer rates do not depend on the wall
+temperature; the heat and wet-vapor fluxes still use each panel's temperature.
+``coefficient_source = most`` is rejected on all four sidewalls. A chamber can
+combine banded sidewalls with MOST on the floor or ceiling: each plate uses
+its own wall state for MOST drag and scalar exchange, never a sidewall band's
+temperature.
 
 Channel defaults
 ~~~~~~~~~~~~~~~~
@@ -436,9 +520,9 @@ The three configurable channels are selected independently:
 
 .. code-block:: none
 
-   <face>.momentum_transfer_model = resolved_noslip|bulk_aero|neutral_roughness_log|law_of_wall_momentum
-   <face>.heat_transfer_model = resolved_molecular|bulk_aero|neutral_roughness_log
-   <face>.vapor_transfer_model = resolved_molecular|bulk_aero|neutral_roughness_log
+   <face>.momentum_transfer_model = resolved_noslip|bulk_aero|bulk_aero_plus_molecular|neutral_roughness_log|law_of_wall_momentum
+   <face>.heat_transfer_model = resolved_molecular|bulk_aero|bulk_aero_plus_molecular|neutral_roughness_log
+   <face>.vapor_transfer_model = resolved_molecular|bulk_aero|bulk_aero_plus_molecular|neutral_roughness_log
 
 ``law_of_wall_momentum`` is a compatibility alias for
 ``neutral_roughness_log``; it does not select a separate formulation.
@@ -459,6 +543,10 @@ The three configurable channels are selected independently:
      - momentum, heat, vapor
      - ``coefficient_source = fixed`` plus the corresponding ``C_D``, ``C_H``, or ``C_E``
      - user-supplied dimensionless transfer coefficient multiplied by actual tangential speed
+   * - fixed ``bulk_aero_plus_molecular``
+     - momentum, heat, vapor
+     - same fixed bulk coefficients, plus the configured molecular transport coefficients
+     - sums molecular and bulk exchange at the wall; excludes SGS diffusivity
    * - ``neutral_roughness_log``
      - momentum, heat, vapor
      - ``z0_m`` and the required scalar roughness lengths
@@ -471,11 +559,11 @@ The three configurable channels are selected independently:
 One coefficient provider per face
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-``<face>.coefficient_source`` is a **face-level provider shared by every
-``bulk_aero`` channel on that face**.  It is required when at least one bulk
-channel is active and must be either ``fixed`` or ``most``.  Consequently, a
+``<face>.coefficient_source`` is shared by every bulk channel on that face.
+``bulk_aero`` accepts ``fixed`` or ``most``; if any channel selects
+``bulk_aero_plus_molecular``, the face must use ``fixed``. Consequently, a
 single face cannot use fixed bulk momentum and MOST bulk heat at the same
-time.  Non-bulk channels on that face may still be resolved or neutral.
+time. Non-bulk channels on that face may still be resolved or neutral.
 
 With ``coefficient_source = fixed``, provide a coefficient for every selected
 bulk channel:
@@ -496,6 +584,10 @@ With ``coefficient_source = most``, do **not** provide ``C_D``, ``C_H``, or
    requires the corresponding roughness metadata.  The physical dry-wall
    vapor flux nevertheless remains exactly zero.
 
+   The same rule applies to heat-model metadata on an adiabatic face:
+   selected models still require their coefficients or roughness lengths,
+   but the heat law is not evaluated and imposes no wall timestep limit.
+
 Roughness requirements
 ~~~~~~~~~~~~~~~~~~~~~~
 
@@ -512,7 +604,10 @@ roughness length must satisfy
 
    0 < z_0 < z_\mathrm{ref}.
 
-The parser does not clip invalid roughness values.
+An exception is a heat law retained on an adiabatic face. Its ``z0_h`` must
+be finite and positive, but need not be below the reference distance because
+the heat resistance is unused. The same applies to ``z0_m`` when it is needed
+only by the inactive heat law. The parser does not clip roughness values.
 
 .. list-table:: Roughness inputs
    :header-rows: 1
@@ -531,7 +626,7 @@ The parser does not clip invalid roughness values.
      - m
      - neutral vapor, or MOST bulk vapor, including a configured dry vapor channel
 
-When wet heat and wet vapor both use MOST on one face, ``z0_h`` and ``z0_q``
+When conductive heat and wet vapor both use MOST on one face, ``z0_h`` and ``z0_q``
 must be exactly equal because the implemented bulk-Richardson fixed point uses
 one scalar stability resistance.  This equality is not imposed by a dry vapor
 channel because dry vapor is not an active scalar-transfer channel.
@@ -553,34 +648,54 @@ The following table summarizes the physical-temperature wall keys.
      - none
      - ``NoSlipWall``
      - required on every face
+   * - ``<face>.heat``
+     - ``conductive``
+     - ``conductive`` or ``adiabatic``
+     - physical mode only; adiabatic sets normal sensible heat flux to zero
+   * - ``<face>.thermal``
+     - omitted
+     - ``fixed_temperature`` or ``adiabatic``
+     - alias for ``<face>.heat``; must agree if both are set; rejected in legacy mode
    * - ``<face>.temperature``
      - none
      - finite, positive K
-     - required on every physical wall
+     - required for conductive or wet walls unless sidewall bands are used; optional on dry adiabatic walls
+   * - ``<face>.temperature_height_edges``
+     - none
+     - strictly increasing heights in m, from 0 to :math:`H` inclusive
+     - sidewalls only; requires ``temperature_values`` and excludes ``temperature``
+   * - ``<face>.temperature_values``
+     - none
+     - one finite, positive temperature in K per band
+     - sidewalls only; requires ``temperature_height_edges`` and excludes ``temperature``
    * - ``<face>.moisture``
      - none
      - ``dry`` or ``wet``
      - required on every physical wall; ``wet`` requires an active supported moisture model
+   * - ``<face>.wetness``
+     - ``1.0``
+     - relative humidity over liquid water (fraction in ``[0,1]``, finite)
+     - optional on physical wet walls; rejected on dry and legacy walls
    * - ``<face>.wall_transfer_model``
      - omitted
      - ``resolved_molecular`` only
      - compatibility aggregate; rejected when combined with any per-channel transfer key
    * - ``<face>.momentum_transfer_model``
      - ``resolved_noslip``
-     - ``resolved_noslip``, ``bulk_aero``, ``neutral_roughness_log``, ``law_of_wall_momentum``
+     - ``resolved_noslip``, ``bulk_aero``, ``bulk_aero_plus_molecular``, ``neutral_roughness_log``, ``law_of_wall_momentum``
      - optional; alias maps to neutral roughness-log
    * - ``<face>.heat_transfer_model``
      - ``resolved_molecular``
-     - ``resolved_molecular``, ``bulk_aero``, ``neutral_roughness_log``
+     - ``resolved_molecular``, ``bulk_aero``, ``bulk_aero_plus_molecular``, ``neutral_roughness_log``
      - optional
    * - ``<face>.vapor_transfer_model``
      - ``resolved_molecular``
-     - ``resolved_molecular``, ``bulk_aero``, ``neutral_roughness_log``
+     - ``resolved_molecular``, ``bulk_aero``, ``bulk_aero_plus_molecular``, ``neutral_roughness_log``
      - optional; dry physical vapor flux remains exactly zero
    * - ``<face>.coefficient_source``
      - omitted
      - ``fixed`` or ``most``
-     - required if any channel is ``bulk_aero``; rejected if no bulk channel is active; ``most`` only on ``zlo``/``zhi``
+     - required for either bulk model; rejected if no bulk channel is selected; ``most`` only for ``bulk_aero`` on ``zlo``/``zhi``
    * - ``<face>.C_D``
      - none
      - finite and nonnegative
@@ -595,11 +710,11 @@ The following table summarizes the physical-temperature wall keys.
      - required only for fixed bulk vapor, including a configured dry vapor channel; rejected with MOST or non-bulk vapor
    * - ``<face>.z0_m``
      - none
-     - ``0 < z0_m < z_ref``
+     - finite, positive; below ``z_ref`` unless used only by inactive heat
      - required by any neutral channel or any MOST bulk channel; otherwise rejected
    * - ``<face>.z0_h``
      - none
-     - ``0 < z0_h < z_ref``
+     - finite, positive; below ``z_ref`` for conductive heat
      - required by neutral heat or MOST bulk heat; otherwise rejected
    * - ``<face>.z0_q``
      - none
@@ -712,7 +827,7 @@ in the positive coordinate direction, so
       -J_\mathrm{in}, & \text{high face}.
    \end{cases}
 
-The wall potential temperature is
+For closures that use a prescribed wall temperature, the wall potential temperature is
 
 .. math::
 
@@ -731,6 +846,17 @@ supported transfer model:
    J_{\rho q_c,\mathrm{in}}=0 \quad \text{for every wall}.
 
 A dry wall is therefore not a ``qv_wall = 0`` Dirichlet condition.
+The heat equations below apply to conductive faces; an adiabatic face has
+:math:`J_{\rho\theta,\mathrm{in}}=0` for every transfer model.
+
+All wet-wall vapor laws derive the wall mixing ratio from the local wall
+temperature. Wetness scales vapor pressure, not the mixing ratio or the
+transfer coefficient:
+
+.. math::
+
+   e_w = \mathrm{wetness}\,e_{sw}(T_w), \qquad
+   q_{v,w} = \frac{R_d}{R_v}\frac{e_w}{\max(e_w,\,p_\mathrm{hse}-e_w)}.
 
 Resolved transfer
 ~~~~~~~~~~~~~~~~~
@@ -752,7 +878,7 @@ For a wet wall with ``vapor_transfer_model = resolved_molecular``,
 
    J_{\rho q_v,\mathrm{in}}
    = \rho\,\alpha_C
-     \left[q_\mathrm{sat}(T_w,p_\mathrm{hse})-q_{v,a}\right]
+       \left[q_{v,w}-q_{v,a}\right]
      \frac{2}{\Delta n}.
 
 The resolved scalar coefficients are configured through ``erf.alpha_T`` for
@@ -792,12 +918,41 @@ For a wet wall, bulk vapor transfer is
 
    J_{\rho q_v,\mathrm{in}}
    = \rho C_E U_t
-     \left[q_\mathrm{sat}(T_w,p_\mathrm{hse})-q_{v,a}\right].
+       \left[q_{v,w}-q_{v,a}\right].
 
 The physical transfer uses the actual :math:`U_t`; there is no hidden minimum
 speed, gustiness velocity, or free-convection augmentation.  Fixed bulk
 transfer is therefore a forced/shear-dependent closure, not a complete
 natural- or mixed-convection wall correlation.
+
+Molecular plus fixed bulk transfer
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Select ``bulk_aero_plus_molecular`` for each channel that should use the sum.
+Let :math:`d=\Delta n/2` be the distance to the first cell center. The
+combined closure replaces :math:`C_D U_t`, :math:`C_H U_t`, and :math:`C_E U_t`
+in the fixed-bulk equations above by :math:`C_D U_t + \nu/d`,
+:math:`C_H U_t + \alpha_T/d`, and :math:`C_E U_t + \alpha_C/d`, respectively.
+Both vapor terms multiply the same prescribed contrast :math:`q_{v,w}-q_{v,a}`,
+including when ``wetness`` is less than one.
+Here :math:`\nu` is ``erf.dynamic_viscosity / erf.rho0_trans`` for
+``ConstantAlpha``. This is a half-cell molecular wall-gradient model, not an
+addition of the full interior LES diffusive flux. At rest the molecular heat
+and wet-wall vapor terms remain if there is a wall-to-air contrast; tangential
+drag and dry-wall vapor flux are zero. The combined flux replaces the
+corresponding boundary flux; it is not added on top of it.
+
+At setup, each selected combined channel requires finite, strictly positive
+molecular inputs: ``erf.dynamic_viscosity`` and ``erf.rho0_trans`` for
+momentum, ``erf.alpha_T`` for heat, and ``erf.alpha_C`` for vapor. A dry
+wall still has zero vapor flux. The solver computes the half-cell transfer
+speeds once for the chamber grid and uses the same wall data in the RHS
+and timestep guard.
+
+``bulk_aero`` remains bulk-only. If the supplied bulk coefficients were fitted
+to *total* DNS wall exchange, adding molecular exchange without refitting can
+count part of that exchange twice. Use coefficients for the residual bulk
+contribution when calibrating this combined model.
 
 Neutral roughness-log transfer
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -859,16 +1014,16 @@ where
 
    \epsilon_v=\frac{R_v}{R_d}-1,
 
-using ERF's thermodynamic constants.  With
+using ERF's thermodynamic constants. For wet walls, MOST uses the same
+prescribed wall mixing ratio :math:`q_{v,w}` as the vapor flux; for dry walls it uses
+:math:`q_{v,w}=q_{v,a}`.
 
-.. math::
-
-   q_{v,w}=\begin{cases}
-      q_\mathrm{sat}(T_w,p_\mathrm{hse}), & \text{wet wall},\\
-      q_{v,a}, & \text{dry wall}.
-   \end{cases}
-
-The stability calculation uses
+For conductive heat, :math:`\theta_w` is the potential temperature corresponding
+to the prescribed :math:`T_w`. For adiabatic heat, the stability calculation
+uses :math:`\theta_w=\theta_a`, so
+:math:`\theta_{v,a}-\theta_{v,w}=\theta_a\epsilon_v(q_{v,a}-q_{v,w})`.
+This gives exactly neutral stability on a dry adiabatic wall and a humidity-only
+stability correction on a wet adiabatic wall. The calculation uses
 
 .. math::
 
@@ -1003,6 +1158,9 @@ required and validated, but dry vapor does not participate in the active
 scalar stability resistance and its physical wall flux remains exactly zero.
 When a moisture state is present, ambient ``qv`` still enters the virtual
 potential temperature used by any active MOST momentum or heat calculation.
+Similarly, adiabatic heat does not supply the scalar stability resistance:
+wet MOST vapor uses ``z0_q``; momentum-only MOST uses ``z0_m``. Neither
+uses ``z0_h`` or a prescribed sensible temperature contrast on an adiabatic wall.
 
 Momentum stress application
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -1027,8 +1185,8 @@ For heat or active wet vapor,
 
    \lambda_s = C_s U_t\,\Delta n^{-1}.
 
-Neutral scalars use their derived coefficient.  Dry vapor does not contribute
-because its wall flux is exactly zero.
+Neutral scalars use their derived coefficient. Dry vapor and adiabatic heat
+do not contribute because their wall fluxes are exactly zero.
 
 For a bulk or neutral tangential momentum face, the local conservative
 infinity-row-sum factor is
@@ -1044,8 +1202,33 @@ so the per-face momentum contribution is
    \lambda_{m,f}
    = K_\infty C_{D,f}U_{t,f}\Delta n_f^{-1}.
 
-At an edge or corner, contributions from perpendicular active walls are added
-for each free velocity component before taking the maximum.  MOST coefficients
+For ``bulk_aero_plus_molecular``, add :math:`(\nu/d)\Delta n^{-1}` to
+the momentum rate (without :math:`K_\infty`), or
+:math:`(\alpha_s/d)\Delta n^{-1}` to the corresponding scalar rate.
+If an incident face uses combined transfer for an active scalar, the guard
+sums that scalar's rates from **all** incident physical faces. For example,
+where a combined heat face meets a ``resolved_molecular`` heat face, the
+resolved face contributes :math:`2\alpha_T/\Delta n^2` to the heat sum.
+Both faces of a one-cell direction count. Heat and vapor are handled
+separately: a dry face neither contributes to nor activates the vapor sum.
+Without an active combined face for that scalar, the guard retains the
+largest bulk or neutral face rate; a resolved face alone does not impose a
+separate wall-law limit. This rule does not depend on enabling ERF's optional
+interior diffusion timestep limiter.
+
+For each velocity component, the guard sums modeled momentum rates only from
+walls tangential to that component. If any of those walls uses combined
+momentum transfer, the same row also includes its incident resolved no-slip
+walls. For example, a combined bottom plate and a resolved x-sidewall both
+act on y-momentum. The plate's molecular term is :math:`2\nu/\Delta z^2`.
+The sidewall retains ERF's ordinary one-sided shear stencil, with uniform-grid
+weights :math:`(-8/3,3,-1/3)` for the prescribed wall velocity and the two
+interior velocities. Its molecular contribution to the absolute wall-row sum
+is therefore :math:`(3+1/3)\nu/\Delta x^2`. This is a timestep estimate, not
+an additional stress or a bound on interior or SGS diffusion. A combined
+scalar wall does not activate this momentum rule.
+
+MOST coefficients
 are evaluated once for the current wall/cell sample and then treated as frozen
 for this local rate estimate; this is not an exact Jacobian of the nonlinear
 MOST iteration.
@@ -1364,12 +1547,13 @@ Run checklist
 #. In ``physical_temperature_rh``, define bottom/top initial temperature and
    add RH when any active supported moisture model is enabled.
 #. For ``physical_temperature_rh``, define all six stationary ``NoSlipWall``
-   faces with physical wall temperature and ``dry`` or ``wet`` moisture state.
+   faces with ``dry`` or ``wet`` moisture state. Supply wall temperature for
+   conductive heat or wet moisture.
    Choose the momentum, heat, and vapor model on each face; remember that one
    ``coefficient_source`` is shared by every bulk channel on that face.  Supply
-   every required coefficient or roughness length, check ``0 < z0_* <
-   Delta_n/2`` on the actual grid, and use equal ``z0_h`` and ``z0_q`` for wet
-   heat+vapor MOST on one face.
+   every required coefficient or roughness length. Check the grid bounds
+   in the per-face input reference and use equal ``z0_h`` and ``z0_q``
+   when conductive heat and wet vapor both use MOST on one face.
 #. For ``legacy_theta_qv``, use the legacy ``<face>.theta`` wall values and,
    for cloudy legacy cases, provide ``<face>.qv``.  Do not use generalized
    per-channel wall-transfer keys in legacy mode.
@@ -1390,7 +1574,7 @@ The implemented Cloud Chamber wall-model scope is intentionally limited to:
 * six stationary ``NoSlipWall`` faces;
 * no periodic direction;
 * no terrain, embedded boundaries, or immersed buildings;
-* prescribed physical wall temperature in the generalized wall-model path;
+* conductive (prescribed-temperature) or adiabatic sensible heat boundaries;
 * resolved, fixed bulk, neutral roughness-log, and horizontal MOST transfer as
   documented above; and
 * forced/shear-dependent bulk transfer with no gustiness or natural/mixed
@@ -1430,8 +1614,8 @@ A bulk model's chamber budget is rejected
    physical chamber cases. Omit the option or set it to ``0``.
 
 ``coefficient_source`` is rejected
-   Use it only when at least one channel on that face is ``bulk_aero``.  The
-   same provider applies to every bulk channel on the face.
+   Use it only when at least one channel on that face selects a bulk model.
+   If any selects ``bulk_aero_plus_molecular``, the provider must be ``fixed``.
 
 ``C_D``, ``C_H``, or ``C_E`` is missing
    Fixed bulk transfer requires the coefficient corresponding to every bulk

@@ -7,7 +7,7 @@ using namespace amrex;
 
 /**
  * Read in the turbine locations in latitude-longitude from windturbines.txt
- * and convert it into x and y coordinates in metres
+ * and convert it into x and y coordinates in meters
  *
  * @param lev Integer specifying the current level
  */
@@ -33,10 +33,36 @@ ERF::init_windfarm (int lev)
                              true, false);
     }
 
-    windfarm->fill_Nturb_multifab(geom[lev], Nturb[lev], z_phys_nd[lev]);
+    fill_windfarm_markers(lev);
 
     windfarm->write_turbine_locations_vtk();
 
+    if(solverChoice.windfarm_type == WindFarmType::SimpleAD or
+       solverChoice.windfarm_type == WindFarmType::GeneralAD) {
+        windfarm->write_actuator_disks_vtk(geom[lev],
+                                           solverChoice.sampling_distance_by_D);
+    }
+
+    if(solverChoice.windfarm_type == WindFarmType::GeneralAD) {
+        windfarm->read_windfarm_blade_table(solverChoice.windfarm_blade_table);
+        windfarm->read_windfarm_airfoil_tables(solverChoice.windfarm_airfoil_tables,
+                                               solverChoice.windfarm_blade_table);
+        windfarm->read_windfarm_spec_table_extra(solverChoice.windfarm_spec_table_extra);
+    }
+}
+
+/**
+ * @brief Fill the turbine markers of a level: the turbine count Nturb, the source and
+ *        sampling markers SMark, and zero the wind farm variables.  Called whenever a level
+ *        is built or remade (from scratch, from a coarser level, or by regrid), after its
+ *        terrain arrays are current.  The ground elevation under each turbine is set on
+ *        level 0, which covers the domain.
+ * @param lev Level to fill.
+ */
+void
+ERF::fill_windfarm_markers (int lev)
+{
+    windfarm->fill_Nturb_multifab(geom[lev], Nturb[lev], z_phys_nd[lev], lev == 0);
 
     if(solverChoice.windfarm_type == WindFarmType::Fitch or
        solverChoice.windfarm_type == WindFarmType::EWP) {
@@ -53,16 +79,9 @@ ERF::init_windfarm (int lev)
                                       solverChoice.sampling_distance_by_D,
                                       solverChoice.turb_disk_angle,
                                       z_phys_cc[lev]);
-        windfarm->write_actuator_disks_vtk(geom[lev],
-                                           solverChoice.sampling_distance_by_D);
     }
 
-    if(solverChoice.windfarm_type == WindFarmType::GeneralAD) {
-        windfarm->read_windfarm_blade_table(solverChoice.windfarm_blade_table);
-        windfarm->read_windfarm_airfoil_tables(solverChoice.windfarm_airfoil_tables,
-                                               solverChoice.windfarm_blade_table);
-        windfarm->read_windfarm_spec_table_extra(solverChoice.windfarm_spec_table_extra);
-    }
+    vars_windfarm[lev].setVal(0.0);
 }
 
 /**
@@ -77,6 +96,8 @@ ERF::init_windfarm (int lev)
  * @param mf_vars_windfarm Wind farm work and diagnostic variables
  * @param mf_Nturb MultiFab storing turbine counts
  * @param mf_SMark MultiFab storing source-marker data
+ * @param z_phys_nd Physical heights of the nodes (may be null)
+ * @param z_phys_cc Physical heights of the cell centers (may be null)
  * @param time Current simulation time
  */
 void
@@ -89,8 +110,11 @@ ERF::advance_windfarm (const Geometry& a_geom,
                        MultiFab& mf_vars_windfarm,
                        const MultiFab& mf_Nturb,
                        const MultiFab& mf_SMark,
+                       const MultiFab* z_phys_nd,
+                       const MultiFab* z_phys_cc,
                        const double& time)
 {
         windfarm->advance(a_geom, dt_advance, cons_in, mf_vars_windfarm,
-                          U_old, V_old, W_old, mf_Nturb, mf_SMark, time);
+                          U_old, V_old, W_old, mf_Nturb, mf_SMark,
+                          z_phys_nd, z_phys_cc, time);
 }

@@ -94,7 +94,7 @@ ImplicitDiffForStateLU_S (const Box& bx,
 
     // k-eqn RANS with a Dirichlet wall value of k: the first cell is held at
     // the value set by the surface layer, so its row reduces to x(klo) = phi(klo)
-    // and the row above sees it as a Dirichlet neighbour.
+    // and the row above sees it as a Dirichlet neighbor.
     // NOTE: init_bcs requires zlo.type = surface_layer whenever dirichlet_k is set,
     //       so this matches the l_dirichlet_k pin in erf_slow_rhs_post, which also
     //       requires a surface layer. Do not relax one without the other.

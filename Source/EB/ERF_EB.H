@@ -32,31 +32,8 @@ class eb_ {
     //! Destroy the EB factory manager.
     ~eb_ ();
 
-    /**
-     * \brief Construct an EB description from terrain data.
-     * \param a_geom Geometry used to place the terrain EB.
-     * \param terrain_fab Terrain height data.
-     * \param a_dz_stretched Device vector containing stretched vertical spacing.
-     * \param is_anelastic Whether the owning level is using anelastic dynamics.
-     */
-    eb_ (amrex::Geometry const& a_geom,
-         amrex::FArrayBox const& terrain_fab,
-         amrex::Gpu::DeviceVector<amrex::Real>& a_dz_stretched,
-         bool is_anelastic);
     //! Construct an empty EB factory manager.
     eb_ ();
-
-    /**
-     * \brief Define the EB level metadata used by this factory manager.
-     * \param level AMR level index.
-     * \param a_geom Geometry for the level.
-     * \param a_eb_level AMReX EB level owned by the global EB index space.
-     * \param is_anelastic Whether the owning level is using anelastic dynamics.
-     */
-    void define (int level,
-                 amrex::Geometry const& a_geom,
-                 amrex::EB2::Level const* a_eb_level,
-                 bool is_anelastic);
 
     /**
      * \brief Build cell-centered and staggered EB factories for the level.
@@ -65,12 +42,14 @@ class eb_ {
      * \param ba BoxArray over which factories are defined.
      * \param dm DistributionMapping for the BoxArray.
      * \param a_eb_level AMReX EB level used to populate factory data.
+     * \param cover_zero_area_faces Cover FC faces with zero CC area fraction.
      */
     void make_all_factories ( int level,
                         amrex::Geometry   const& a_geom,
                         amrex::BoxArray            const& ba,
                         amrex::DistributionMapping const& dm,
-                        amrex::EB2::Level const& a_eb_level);
+                        amrex::EB2::Level const& a_eb_level,
+                        bool cover_zero_area_faces = false);
 
     /**
      * \brief Build only the cell-centered EB factory for the level.
@@ -141,10 +120,12 @@ class eb_ {
      * \param fc_factory Face-centered factory to modify (non-const)
      * \param cc_factory Cell-centered factory to read neighbor states (const)
      * \param idim Direction of face centering (0=x, 1=y, 2=z)
+     * \param cover_zero_area_faces Also cover faces with zero CC area fraction
      */
     void mask_fc_from_cc (amrex::EBFArrayBoxFactory* fc_factory,
                           const amrex::EBFArrayBoxFactory* cc_factory,
-                          int idim);
+                          int idim,
+                          bool cover_zero_area_faces);
 
     #if USE_FC_FACTORY
     //! Return the native AMReX x-face EB factory.

@@ -68,7 +68,12 @@ ERF::write_1D_profiles_stag (double time)
                                       h_avg_wthv, h_avg_thv);
         }
 
-        if (NumDataLogs() > 3 && time > zero) {
+        // The stresses and SFS fluxes exist only with molecular diffusion or a turbulence
+        // closure; without them there is no stress log to write (InitData_post says so once).
+        // This is the same on every rank, so skipping the reductions below is too.
+        const bool have_stress = (Tau[0][TauType::tau11] != nullptr);
+
+        if (NumDataLogs() > 3 && time > zero && have_stress) {
             derive_stress_profiles_stag(h_avg_tau11, h_avg_tau12, h_avg_tau13,
                                         h_avg_tau22, h_avg_tau23, h_avg_tau33,
                                         h_avg_sgshfx, h_avg_sgsq1fx, h_avg_sgsq2fx,
@@ -257,7 +262,7 @@ ERF::write_1D_profiles_stag (double time)
                 } // if good
             } // NumDataLogs
 
-            if (NumDataLogs() > 3 && time > zero) {
+            if (NumDataLogs() > 3 && time > zero && have_stress) {
                 std::ostream& data_log3 = DataLog(3);
                 if (data_log3.good()) {
                   // Write the average stresses
@@ -514,7 +519,7 @@ ERF::derive_diag_profiles_stag (double /*time*/,
                 fab_arr_stag(i,j,k,6) = zero;  // w*qv
                 fab_arr_stag(i,j,k,7) = zero;  // w*qc
                 fab_arr_stag(i,j,k,8) = zero;  // w*qr
-                fab_arr_stag(i,j,k,9) = zero;  // w*thv
+                fab_arr_stag(i,j,k,9) = thface * w_fc_arr(i,j,k);  // w*thv (thv = theta when dry)
             }
         });
 

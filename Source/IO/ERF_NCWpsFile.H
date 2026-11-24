@@ -253,7 +253,7 @@ fill_fab_from_arrays (int iv,
                       FAB& temp)
 {
     // bottom_top, south_north, west_east (these can be staggered or unstaggered).
-    // Initialised because amrex::Abort is not [[noreturn]], so the compiler
+    // Initialized because amrex::Abort is not [[noreturn]], so the compiler
     // cannot tell that the final else never falls through.
     int ns1 = 0, ns2 = 0, ns3 = 0;
     if (NC_dim_type == NC_Data_Dims_Type::Time_BT) {
@@ -299,7 +299,7 @@ fill_fab_from_arrays (int iv,
     amrex::Box in_box(amrex::IntVect(0,0,0), amrex::IntVect(ns3-1,ns2-1,ns1-1)); // ns1 may or may not be staggered
     amrex::Box my_box(amrex::IntVect(0,0,0), amrex::IntVect(ns3-1,ns2-1,khi));
 
-    if (var_name == "PH" || var_name == "PHB") {
+    if (var_name == "PH" || var_name == "PHB" || var_name == "C1F" || var_name == "C2F") {
         my_box.setType(amrex::IndexType(amrex::IntVect(0,0,1)));
         my_box.setBig(2, khi+1);
     }

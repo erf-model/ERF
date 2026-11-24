@@ -201,8 +201,8 @@ foreach(_kind IN ITEMS plt plt2d)
       RESULT_VARIABLE _result)
     file(APPEND "${WORKING_DIRECTORY}/fextrema_${_kind}.log" "${_extrema}${_extrema_err}")
     # Some launchers label task output with a per-line "<rank>: " prefix (srun
-    # --label, flux --label-io). Strip it, normalising to one leading space;
-    # unlabelled output is unchanged.
+    # --label, flux --label-io). Strip it, normalizing to one leading space;
+    # unlabeled output is unchanged.
     string(REGEX REPLACE "\n[0-9]+:[ \t]*" "\n " _extrema "\n${_extrema}")
     # fextrema prints one line per variable: " name   min   max"
     if(NOT _result EQUAL 0 OR

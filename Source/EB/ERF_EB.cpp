@@ -25,7 +25,7 @@
 
 using namespace amrex;
 
-namespace {
+namespace erf_detail_EB {
 
 #ifdef AMREX_USE_GPU
 int
@@ -51,6 +51,7 @@ fill_cut_cell_list (Box const& bx, Array4<EBCellFlag const> const& flag,
 #endif
 
 } // namespace
+using namespace erf_detail_EB;
 
 eb_::~eb_ ()
 {
@@ -68,7 +69,8 @@ eb_::make_all_factories ([[maybe_unused]] int level,
                          Geometry            const& a_geom,
                          BoxArray            const& ba,
                          DistributionMapping const& dm,
-                         EB2::Level const& a_eb_level)
+                         EB2::Level const& a_eb_level,
+                         [[maybe_unused]] bool cover_zero_area_faces)
 {
 #if USE_FC_FACTORY
     for (int idim = 0; idim < AMREX_SPACEDIM; ++idim) {
@@ -88,6 +90,9 @@ eb_::make_all_factories ([[maybe_unused]] int level,
     eb_::set_connection_flags(m_factory.get());
 
 #if USE_FC_FACTORY
+    if (cover_zero_area_faces) {
+        Print() << "covering staggered EB cells at faces with zero area fraction\n";
+    }
     // Native AMReX FC factories (EB2::BuildFC called in initializeEB).
     { int const idim(0);
         Print() << "making EB staggered u-factory\n";
@@ -95,7 +100,7 @@ eb_::make_all_factories ([[maybe_unused]] int level,
             a_eb_level, a_geom, ba, dm,
             Vector<int>{nghost_basic(), nghost_volume(), nghost_full()},
             m_support_level, idim);
-        eb_::mask_fc_from_cc(m_u_factory_fc.get(), m_factory.get(), idim);
+        eb_::mask_fc_from_cc(m_u_factory_fc.get(), m_factory.get(), idim, cover_zero_area_faces);
         eb_::set_connection_flags(m_u_factory_fc.get());
     }
 
@@ -105,7 +110,7 @@ eb_::make_all_factories ([[maybe_unused]] int level,
             a_eb_level, a_geom, ba, dm,
             Vector<int>{nghost_basic(), nghost_volume(), nghost_full()},
             m_support_level, idim);
-        eb_::mask_fc_from_cc(m_v_factory_fc.get(), m_factory.get(), idim);
+        eb_::mask_fc_from_cc(m_v_factory_fc.get(), m_factory.get(), idim, cover_zero_area_faces);
         eb_::set_connection_flags(m_v_factory_fc.get());
     }
 
@@ -115,7 +120,7 @@ eb_::make_all_factories ([[maybe_unused]] int level,
             a_eb_level, a_geom, ba, dm,
             Vector<int>{nghost_basic(), nghost_volume(), nghost_full()},
             m_support_level, idim);
-        eb_::mask_fc_from_cc(m_w_factory_fc.get(), m_factory.get(), idim);
+        eb_::mask_fc_from_cc(m_w_factory_fc.get(), m_factory.get(), idim, cover_zero_area_faces);
         eb_::set_connection_flags(m_w_factory_fc.get());
     }
 #else
@@ -273,16 +278,19 @@ eb_::set_connection_flags (EBFArrayBoxFactory* factory)
  * For each face in the FC factory, if BOTH neighboring cell-centered cells
  * are marked as covered, this function sets the FC face's volume fraction to zero
  * and marks it as covered. This maintains consistency between CC and FC EB representations.
+ * If cover_zero_area_faces, faces with zero CC area fraction are covered too.
  */
 void
 eb_::mask_fc_from_cc (EBFArrayBoxFactory* fc_factory,
                       const EBFArrayBoxFactory* cc_factory,
-                      int idim)
+                      int idim,
+                      bool cover_zero_area_faces)
 {
 
     FabArray<EBCellFlagFab>& fc_cellflag = getNonConstEBCellFlags(*fc_factory);
     MultiFab& fc_volfrac = getNonConstVolFrac(*fc_factory);
     const FabArray<EBCellFlagFab>& cc_cellflag = cc_factory->getMultiEBCellFlagFab();
+    const auto cc_afrac = cc_factory->getAreaFrac();
 
     for (MFIter mfi(fc_cellflag, false); mfi.isValid(); ++mfi) {
         const Box face_box = mfi.nodaltilebox(idim);
@@ -291,6 +299,17 @@ eb_::mask_fc_from_cc (EBFArrayBoxFactory* fc_factory,
         Array4<EBCellFlag> const& fc_flag = fc_cellflag.array(mfi);
         Array4<Real> const& fc_vfrac = fc_volfrac.array(mfi);
         Array4<EBCellFlag const> const& cc_flag = cc_cellflag.const_array(mfi);
+
+        if (cover_zero_area_faces && cc_cellflag[mfi].getType() == FabType::singlevalued) {
+            Array4<Real const> const& ap = cc_afrac[idim]->const_array(mfi);
+            const Box abx = gbx & (*cc_afrac[idim])[mfi].box();
+            ParallelFor(abx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                if (ap(i,j,k) == Real(0.0)) {
+                    fc_vfrac(i,j,k) = Real(0.0);
+                    fc_flag(i,j,k).setCovered();
+                }
+            });
+        }
 
         if (idim == 0) {
             ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {

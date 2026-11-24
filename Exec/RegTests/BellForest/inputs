@@ -2,8 +2,8 @@
 # BellForest test case
 # Bell-shaped (Gaussian) terrain + Gaussian forest drag loaded from NetCDF files.
 # Domain: 2000 m x 2000 m x 1000 m, 40 x 40 x 40 cells (50 m horizontal, 25 m vertical).
-# Terrain: peak 100 m at domain centre, sigma 400 m.
-# Forest: peak height 20 m, peak LAI 2.0, sigma 250 m (at domain centre).
+# Terrain: peak 100 m at domain center, sigma 400 m.
+# Forest: peak height 20 m, peak LAI 2.0, sigma 250 m (at domain center).
 #
 # Generate the three NC input files before running:
 #   cd <this directory> && python gen_nc_files.py

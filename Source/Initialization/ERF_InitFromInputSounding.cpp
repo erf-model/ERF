@@ -100,12 +100,12 @@ ERF::sounding_at_level (int lev)
 
     if (input_sounding_data_fine.size() <= lev) { input_sounding_data_fine.resize(lev+1); }
     if (!input_sounding_data_fine[lev]) {
-        // input_sounding_data holds the profiles sampled at the level-0 cell centres, with the
+        // input_sounding_data holds the profiles sampled at the level-0 cell centers, with the
         // surface line of the sounding at z = 0. Interpolating those to a fine cell below the
-        // first level-0 centre blends in the surface values (with erf.most.surf_temp the surface
+        // first level-0 center blends in the surface values (with erf.most.surf_temp the surface
         // theta is the surface temperature, and U = V = 0) even where the sounding has air
         // values, and indexing them with a fine k reads the wrong height. So resample the file
-        // at this level's own cell centres, exactly as a single-level run at this resolution does.
+        // at this level's own cell centers, exactly as a single-level run at this resolution does.
         auto snd = std::make_unique<InputSoundingData>(input_sounding_data);
         const bool is_moist = (solverChoice.moisture_type != MoistureType::None);
         for (int n = 0; n < snd->n_sounding_files; n++) {
@@ -133,7 +133,7 @@ ERF::lsf_at_level (int lev)
     if (lsf_fine.size() <= lev) { lsf_fine.resize(lev+1); }
     if (!lsf_fine[lev]) {
         // lsf holds the forcing file as read and its profiles interpolated to the level-0 cell
-        // centres; interpolate the same file to this level's cell centres instead
+        // centers; interpolate the same file to this level's cell centers instead
         auto l = std::make_unique<LargeScaleForcingData>(lsf);
         l->verbose_print = false;
         l->interp_forcing(geom[lev].data(), zlevels_stag[lev], sounding_at_level(lev));
@@ -203,65 +203,38 @@ ERF::init_from_input_sounding (int lev)
          (*physbcs_base[lev])(base_state[lev],0,base_state[lev].nComp(),base_state[lev].nGrowVect());
     }
 
-    // The sounding sampled at this level's own cell centres
+    // The sounding sampled at this level's own cell centers
     const InputSoundingData& sounding = sounding_at_level(lev);
 
     auto& lev_new = vars_new[lev];
 
-    const bool l_isentropic = (solverChoice.sounding_type == SoundingType::Isentropic ||
-                               solverChoice.sounding_type == SoundingType::DryIsentropic);
-
     const bool constant_density_sounding = (solverChoice.sounding_type == SoundingType::ConstantDensity);
 
     MultiFab r_hse (base_state[lev], make_alias, BaseState::r0_comp, 1);
-    MultiFab p_hse (base_state[lev], make_alias, BaseState::p0_comp, 1);
-    MultiFab pi_hse(base_state[lev], make_alias, BaseState::pi0_comp, 1);
     MultiFab th_hse(base_state[lev], make_alias, BaseState::th0_comp, 1);
     MultiFab qv_hse(base_state[lev], make_alias, BaseState::qv0_comp, 1);
 
-    const Real l_gravity = solverChoice.gravity;
-    const Real l_rdOcp   = solverChoice.rdOcp;
     const bool l_moist   = (solverChoice.moisture_type != MoistureType::None);
 
-    int ngz = r_hse.nGrow(2);
-
+    if (constant_density_sounding) {
 #ifdef _OPENMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
 #endif
-    for (MFIter mfi(lev_new[Vars::cons], TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-        const Box &bx = mfi.tilebox();
-        const auto &cons_arr = lev_new[Vars::cons].array(mfi);
-        Array4<Real>  r_hse_arr =  r_hse.array(mfi);
-        Array4<Real>  p_hse_arr =  p_hse.array(mfi);
-        Array4<Real> pi_hse_arr = pi_hse.array(mfi);
-        Array4<Real> th_hse_arr = th_hse.array(mfi);
-        Array4<Real> qv_hse_arr = qv_hse.array(mfi);
+        for (MFIter mfi(lev_new[Vars::cons], TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+            const Box &bx = mfi.tilebox();
+            const auto &cons_arr = lev_new[Vars::cons].array(mfi);
+            Array4<Real const> z_cc_arr = (z_phys_cc[lev]) ? z_phys_cc[lev]->const_array(mfi) : Array4<Real const>{};
+            Array4<Real const> z_nd_arr = (z_phys_nd[lev]) ? z_phys_nd[lev]->const_array(mfi) : Array4<Real const>{};
 
-        Array4<Real const> z_cc_arr = (z_phys_cc[lev]) ? z_phys_cc[lev]->const_array(mfi) : Array4<Real const>{};
-        Array4<Real const> z_nd_arr = (z_phys_nd[lev]) ? z_phys_nd[lev]->const_array(mfi) : Array4<Real const>{};
-
-        if (constant_density_sounding) {
             // This assumes rho_0 = one
             // HSE will be calculated later with call to initHSE
             init_state_from_input_sounding(bx, cons_arr, geom[lev].data(), z_cc_arr, z_nd_arr,
                                            l_moist, sounding);
         }
-        else
-        {
-            // HSE will be initialized here, interpolated from values previously
-            // calculated by calc_rho_p or calc_rho_p_isentropic
-            init_state_from_input_sounding_hse(bx, cons_arr,
-                r_hse_arr, p_hse_arr, pi_hse_arr, th_hse_arr, qv_hse_arr,
-                geom[lev].data(), z_cc_arr, z_nd_arr,
-                l_gravity, l_rdOcp, l_moist, sounding,
-                l_isentropic, ngz);
-        }
-    }
-
-    if (!constant_density_sounding) {
-        // Enforce HSE on the base state -- holding th_hse and qv_hse constant
-        bool maintain_Th = true;
-        rebalance_columns(r_hse, th_hse, qv_hse, qv_hse, z_phys_nd[lev].get(), geom[lev], maintain_Th);
+        recompute_p_pi_hse(base_state[lev], solverChoice.rdOcp);
+    } else {
+        // The base state, and rho and rho theta (and rho qv) in the state with it
+        build_base_state_from_input_sounding(lev, base_state[lev]);
 
         // Update rho in the state from base state
         MultiFab::Copy(lev_new[Vars::cons], r_hse, 0, Rho_comp, 1, 1);
@@ -287,28 +260,82 @@ ERF::init_from_input_sounding (int lev)
         init_velocities_from_input_sounding(bx, xvel_arr, yvel_arr, zvel_arr,
                                             geom[lev].data(), z_nd_arr, sounding);
     }
+}
 
-    // *****************************************************************************
-    // Re-compute p_hse and pi_hse
-    // *****************************************************************************
-    for (MFIter mfi(lev_new[Vars::cons], TilingIfNotGPU()); mfi.isValid(); ++mfi)
-    {
-        Box bx = mfi.tilebox();
+void
+ERF::build_base_state_from_input_sounding (int lev, MultiFab& base_state_mf)
+{
+    AMREX_ALWAYS_ASSERT(solverChoice.sounding_type != SoundingType::ConstantDensity);
 
-        const Array4<const Real>&  r_hse_arr =  r_hse.const_array(mfi);
-        const Array4<const Real>& th_hse_arr = th_hse.const_array(mfi);
-        const Array4<const Real>& qv_hse_arr = qv_hse.const_array(mfi);
+    // The sounding sampled at this level's own cell centers
+    const InputSoundingData& sounding = sounding_at_level(lev);
 
-        const Array4<      Real>&  p_hse_arr =  p_hse.array(mfi);
-        const Array4<      Real>& pi_hse_arr = pi_hse.array(mfi);
+    const bool l_isentropic = (solverChoice.sounding_type == SoundingType::Isentropic ||
+                               solverChoice.sounding_type == SoundingType::DryIsentropic);
 
-        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-        {
-            Real rhotheta = r_hse_arr(i,j,k) * th_hse_arr(i,j,k);
-             p_hse_arr(i,j,k) = getPgivenRTh(rhotheta,qv_hse_arr(i,j,k));
-            pi_hse_arr(i,j,k) = getExnergivenRTh(rhotheta, l_rdOcp, qv_hse_arr(i,j,k));
-        });
+    const Real l_gravity = solverChoice.gravity;
+    const Real l_rdOcp   = solverChoice.rdOcp;
+    const bool l_moist   = (solverChoice.moisture_type != MoistureType::None);
+
+    //
+    // Work on this level's boxes grown by the base state's lateral ghost cells, so that the
+    //    ghost cells are built, and rebalanced, as valid cells: a ghost column is then the
+    //    column it would be were it valid, the same in every box it is a ghost of.  The grown
+    //    boxes overlap; a column they share is integrated from the same heights in each.
+    //
+    const IntVect ngb = base_state_mf.nGrowVect();
+    const int     ngz = ngb[2];
+    MultiFab bs_g;
+    std::unique_ptr<MultiFab> z_nd_g, z_cc_g;
+    make_base_state_on_grown_boxes(lev, base_state_mf, ngb[0], IntVect(0,0,ngz), bs_g, z_nd_g, z_cc_g);
+    AMREX_ALWAYS_ASSERT(ngb[1] == ngb[0]);
+
+    // The kernel also writes rho, rho theta and rho qv; they are not used
+    MultiFab cons_g(bs_g.boxArray(), bs_g.DistributionMap(), RhoQ1_comp+1, 0);
+
+    MultiFab r_hse (bs_g, make_alias, BaseState::r0_comp, 1);
+    MultiFab th_hse(bs_g, make_alias, BaseState::th0_comp, 1);
+    MultiFab qv_hse(bs_g, make_alias, BaseState::qv0_comp, 1);
+
+#ifdef _OPENMP
+#pragma omp parallel if (Gpu::notInLaunchRegion())
+#endif
+    for (MFIter mfi(bs_g, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+        const Box &bx = mfi.tilebox();
+        const auto& cons_arr = cons_g.array(mfi);
+        const auto& bs_arr   = bs_g.array(mfi);
+        Array4<Real>  r_hse_arr(bs_arr, BaseState::r0_comp , 1);
+        Array4<Real>  p_hse_arr(bs_arr, BaseState::p0_comp , 1);
+        Array4<Real> pi_hse_arr(bs_arr, BaseState::pi0_comp, 1);
+        Array4<Real> th_hse_arr(bs_arr, BaseState::th0_comp, 1);
+        Array4<Real> qv_hse_arr(bs_arr, BaseState::qv0_comp, 1);
+
+        Array4<Real const> z_cc_arr = (z_phys_cc[lev]) ? z_cc_g->const_array(mfi) : Array4<Real const>{};
+        Array4<Real const> z_nd_arr = z_nd_g->const_array(mfi);
+
+        // HSE will be initialized here, interpolated from values previously
+        // calculated by calc_rho_p or calc_rho_p_isentropic
+        init_state_from_input_sounding_hse(bx, cons_arr,
+            r_hse_arr, p_hse_arr, pi_hse_arr, th_hse_arr, qv_hse_arr,
+            geom[lev].data(), z_cc_arr, z_nd_arr,
+            l_gravity, l_rdOcp, l_moist, sounding,
+            l_isentropic, ngz);
     }
+
+    // Enforce HSE on the base state -- holding th_hse and qv_hse constant
+    bool maintain_Th = true;
+    rebalance_columns(r_hse, th_hse, qv_hse, qv_hse, z_nd_g.get(), geom[lev], maintain_Th);
+
+    recompute_p_pi_hse(bs_g, l_rdOcp);
+
+    // Into the valid and ghost cells; the grown boxes cover the lateral ghost cells
+    copy_base_state_from_grown_boxes(lev, base_state_mf, bs_g);
+}
+
+void
+ERF::rebuild_base_state_from_input_sounding (int lev, MultiFab& base_state_mf)
+{
+    build_base_state_from_input_sounding(lev, base_state_mf);
 }
 
 /**
@@ -343,9 +370,8 @@ init_state_from_input_sounding (const Box &bx,
     const Real  z_lo = prob_lo[2];
     const Real  dz   = dx[2];
 
-    // We want to set the lateral BC values, too
-    Box gbx = bx; // Copy constructor
-    gbx.grow(0,1); gbx.grow(1,1); // Grow by one in the lateral directions
+    // The caller passes the cells to fill, ghost cells included
+    const Box& gbx = bx;
 
     // erf.input_sounding_theta_above_ground: theta measured from the column's own ground
     const bool theta_above_ground = inputSoundingData.theta_above_ground && static_cast<bool>(z_nd_arr);
@@ -427,9 +453,8 @@ init_state_from_input_sounding_hse (const Box &bx,
     int kbot = geomdata.Domain().smallEnd(2);
     int ktop = geomdata.Domain().bigEnd(2);
 
-    // We want to set the lateral BC values, too
-    Box gbx = bx; // Copy constructor
-    gbx.grow(0,1); gbx.grow(1,1); // Grow by one in the lateral directions
+    // The caller passes the cells to fill, ghost cells included
+    const Box& gbx = bx;
 
     // erf.input_sounding_theta_above_ground: theta measured from the column's own
     // ground. rho*theta, and so the pressure, keeps the sounding's value at the
@@ -555,9 +580,8 @@ init_velocities_from_input_sounding (const Box &bx,
     const Real  z_lo = prob_lo[2];
     const Real  dz   = dx[2];
 
-    // We want to set the lateral BC values, too
-    Box gbx = bx; // Copy constructor
-    gbx.grow(0,1); gbx.grow(1,1); // Grow by one in the lateral directions
+    // The caller passes the cells to fill, ghost cells included
+    const Box& gbx = bx;
 
     // Construct a box that is on x-faces
     const Box& xbx = surroundingNodes(gbx,0);

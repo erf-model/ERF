@@ -51,7 +51,7 @@ python3 plot_random_buildings.py         # random_buildings_{map,tskin,theta}.pn
 face dumps (`faces/set.*` on level 0, `faces/set.lev1.*` on level 1), `radiation_diag.csv` and the
 first and last 2D plotfiles. Each check, and what it would catch:
 
-1. **Buildings.** Both levels hold all 8 buildings, numbered alike, their roofs centred on
+1. **Buildings.** Both levels hold all 8 buildings, numbered alike, their roofs centered on
    `buildings.csv`. Catches a level that loses or renumbers a building.
 2. **Energy balance.** Every building closes its balance on both levels (residual below 1e-3 W/m²).
 3. **The sun and the beam.** On every sunlit, unshaded roof of level 0, at every face dump, the
@@ -77,7 +77,7 @@ sunlight and skin temperature. The results below rest on those numbers.
 
 Two runs of the deck on development ae7ef9d47 plus this change, on 4 MPI ranks of a laptop shared
 with other runs: the option on (the default) and off (`erf.ibseb.two_stream_buildings = false`, the
-behaviour of #4232). Each took about 2 h 20 min for the 10,800 level-0 steps. The building balance
+behavior of #4232). Each took about 2 h 20 min for the 10,800 level-0 steps. The building balance
 cost 0.20 ms per step on level 0 and 0.11 ms on level 1, on the slowest rank. (The numbers differ
 from those in the #4232 run of this deck: the dynamics changed between the two, and the deck now
 pins the acoustic substep count, see `inputs`.)
@@ -87,7 +87,7 @@ should: the footprints absorb the full 761 W/m² and no open ground is shaded.
 
 | Check | On (default) | Off |
 |---|---|---|
-| 1. Buildings | 8 and 8, roof centres on `buildings.csv` | same |
+| 1. Buildings | 8 and 8, roof centers on `buildings.csv` | same |
 | 2. Energy balance | largest residual 3.3e-8 W/m² over 2,896 rows | same |
 | 3. The sun and the beam | 11,034 sunlit roof samples at 5 heights, largest difference 4.8e-7; no diffuse sky; azimuth 99.5° to 156.6° | same |
 | 4. The sun climbs | zenith 52.7° to 24.8°; shaded face area 5.3 % to 3.2 % on level 0, 6.5 % to 4.2 % on level 1 | same |
@@ -163,7 +163,7 @@ What the numbers show:
   Building 2's heat flux rises by 15 W/m² while its skin falls, so the air in its street must be
   cooler with the option on; this case does not separate the two effects further.
 - **Roofs absorb four to five times what walls do.** The top roofs absorb 582–724 W/m² at 18:00
-  UTC and the walls 121–172 W/m². Buildings that are mostly roof absorb the most per square metre:
+  UTC and the walls 121–172 W/m². Buildings that are mostly roof absorb the most per square meter:
   the 10 m concrete block (5) 525 W/m² over all its faces, the 60 m towers (1, 3) 181–243.
 - **A roof's sunlight depends on its material and a little on its height.** Timber roofs absorb
   582–586 W/m², brick 677–683 and concrete 724. Higher roofs absorb slightly more, as less

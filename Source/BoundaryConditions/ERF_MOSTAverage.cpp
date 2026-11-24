@@ -5,6 +5,7 @@
 
 #include "ERF_MOSTAverage.H"
 #include "ERF_TileNoZ.H"
+#include "ERF_LengthScaleCellSize.H"
 
 using namespace amrex;
 
@@ -419,7 +420,8 @@ MOSTAverage::make_MOSTAverage_at_level (const int& lev,
     if (include_subgrid_vel) {
         AMREX_ALWAYS_ASSERT_WITH_MESSAGE(dir == 2, "Subgrid velocity correction only for Z faces!");
         Print() << "Subgrid velocity scale correction at level : " << lev << ' ';
-        const auto dxArr = m_geom[lev].CellSizeArray();
+        // dx in place of a dy over one cell, and the reverse
+        const auto dxArr = LengthScaleCellSize(m_geom[lev]);
         Real dx = std::sqrt(dxArr[0]*dxArr[1]);
         if (dx > Real(5000.)) {
             m_Vsg[lev] = Real(0.32) * std::pow(dx/Real(5000.)-1, Real(0.33));
@@ -784,6 +786,7 @@ MOSTAverage::set_eb_normalization (const int& lev)
         ParallelFor(Gpu::KernelInfo().setReduction(true), bx, [=]
         AMREX_GPU_DEVICE(int i, int j, int k, Gpu::Handler const& handler) noexcept
         {
+            Real area = zero;
             if (flag_arr(i,j,k).isSingleValued()) {
                 // Compute area from face-centered area fractions
                 Real axm = afrac_x(i  ,j  ,k  );
@@ -797,10 +800,11 @@ MOSTAverage::set_eb_normalization (const int& lev)
                 Real ady = (aym - ayp) * dx * dz;
                 Real adz = (azm - azp) * dx * dy;
 
-                Real area = std::sqrt(adx*adx + ady*ady + adz*adz);
-
-                Gpu::deviceReduceSum(&area_device[0], area, handler);
+                area = std::sqrt(adx*adx + ady*ady + adz*adz);
             }
+            // Every active thread must enter the block reduction, including
+            // regular and covered cells, which contribute zero surface area.
+            Gpu::deviceReduceSum(&area_device[0], area, handler);
         });
     }
 
@@ -1114,7 +1118,7 @@ MOSTAverage::set_k_indices_T (const int& lev)
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!(user_zref && read_k),
                                      "Specify erf.most.zref or erf.most.k_arr_in for MOST, not both");
 
-    // Without most.zref the reference is the centre of the first cell above the
+    // Without most.zref the reference is the center of the first cell above the
     // wall, as on every other mesh.  On a terrain-fitted mesh its height above
     // the wall varies by column, so it is filled column by column below
     // (erf-model/ERF#4935).
@@ -1200,7 +1204,7 @@ MOSTAverage::set_k_indices_T (const int& lev)
                 const int cell_step = is_lo_face ? 1 : -1;
                 k_arr(i,j,k) = first_cell;
 
-                // Default: the centre of this column's first cell, half its
+                // Default: the center of this column's first cell, half its
                 // thickness above the wall
                 if (!d_user_zref) {
                     zref_arr(i,j,k) = myhalf * (z_at(i, j, first_cell + 1) - z_at(i, j, first_cell));
@@ -1268,7 +1272,7 @@ MOSTAverage::set_norm_indices_T (const int& lev)
     pp.queryAdd("most.zref",zref_tmp);
     const bool user_zref = (zref_tmp > Real(0));
     if (!user_zref) {
-        // The centre of each column's first cell (erf-model/ERF#4935)
+        // The center of each column's first cell (erf-model/ERF#4935)
         Print() << "erf.most.zref not set: the MOST reference is the center of the first cell above the surface"
                 << std::endl;
         AMREX_ALWAYS_ASSERT_WITH_MESSAGE(m_radius == 0,
@@ -1325,7 +1329,7 @@ MOSTAverage::set_norm_indices_T (const int& lev)
             Real z_top_face  = fourth * ( z_phys_arr(i  ,j  ,k+1) + z_phys_arr(i+1,j  ,k+1)
                                           + z_phys_arr(i  ,j+1,k+1) + z_phys_arr(i+1,j+1,k+1) );
 
-            // Default: the centre of this column's first cell, no displacement
+            // Default: the center of this column's first cell, no displacement
             if (!d_user_zref) {
                 i_arr(i,j,0)    = i;
                 j_arr(i,j,0)    = j;
@@ -1354,7 +1358,7 @@ MOSTAverage::set_norm_indices_T (const int& lev)
 
             Real z_target    = z_bot_face + delta_z;
             k_arr(i,j,0)     = klo;
-            // Fallback if no cell holds the target: the first cell's centre height
+            // Fallback if no cell holds the target: the first cell's center height
             zref_arr(i,j,0)  = myhalf * (z_top_face - z_bot_face);
             for (int lk(klo); lk<=kmax; ++lk) {
                 Real z_lo = fourth * ( z_phys_arr(i_new,j_new  ,lk  ) + z_phys_arr(i_new+1,j_new  ,lk  )
@@ -1400,7 +1404,7 @@ MOSTAverage::set_z_positions_T (const int& lev)
     pp.queryAdd("most.zref",zref_tmp);
     const bool user_zref = (zref_tmp > Real(0));
     if (!user_zref) {
-        // The centre of each column's first cell (erf-model/ERF#4935)
+        // The center of each column's first cell (erf-model/ERF#4935)
         Print() << "erf.most.zref not set: the MOST reference is the center of the first cell above the surface"
                 << std::endl;
         AMREX_ALWAYS_ASSERT_WITH_MESSAGE(m_radius == 0,
@@ -1490,7 +1494,7 @@ MOSTAverage::set_norm_positions_T (const int& lev)
     pp.queryAdd("most.zref",zref_tmp);
     const bool user_zref = (zref_tmp > Real(0));
     if (!user_zref) {
-        // The centre of each column's first cell (erf-model/ERF#4935)
+        // The center of each column's first cell (erf-model/ERF#4935)
         Print() << "erf.most.zref not set: the MOST reference is the center of the first cell above the surface"
                 << std::endl;
         AMREX_ALWAYS_ASSERT_WITH_MESSAGE(m_radius == 0,
@@ -1538,7 +1542,7 @@ MOSTAverage::set_norm_positions_T (const int& lev)
             Real z_bot_face  = fourth * ( z_phys_arr(i  ,j  ,k) + z_phys_arr(i+1,j  ,k)
                                         + z_phys_arr(i  ,j+1,k) + z_phys_arr(i+1,j+1,k) );
 
-            // Default: the centre of this column's first cell, no displacement
+            // Default: the center of this column's first cell, no displacement
             if (!d_user_zref) {
                 Real z_top_face = fourth * ( z_phys_arr(i  ,j  ,k+1) + z_phys_arr(i+1,j  ,k+1)
                                            + z_phys_arr(i  ,j+1,k+1) + z_phys_arr(i+1,j+1,k+1) );
@@ -2928,7 +2932,7 @@ MOSTAverage::compute_eb_averages (const int& lev)
         denom[1]   = one / m_total_bndry_area[lev][1];
         val_old[1] = plane_average[1]*d_fact_old;
 
-        int iavg = m_navg - 1;  // Tangential velocity magnitude
+        int iavg = m_navg - 3;  // Tangential velocity magnitude
         denom[iavg]   = one / m_total_bndry_area[lev][iavg];
         val_old[iavg] = plane_average[iavg]*d_fact_old;
 
@@ -2967,6 +2971,9 @@ MOSTAverage::compute_eb_averages (const int& lev)
             ParallelFor(Gpu::KernelInfo().setReduction(true), bx, [=]
             AMREX_GPU_DEVICE(int i, int j, int k, Gpu::Handler const& handler) noexcept
             {
+                Real val_u = zero;
+                Real val_v = zero;
+                Real val_mag = zero;
                 // Area-weighted averaging over cut cells at any k
                 if (flag_arr(i,j,k).isSingleValued()) {
                     // Compute area from face-centered area fractions
@@ -3011,14 +3018,14 @@ MOSTAverage::compute_eb_averages (const int& lev)
                     Real mag = std::sqrt(u_tangent*u_tangent + v_tangent*v_tangent + Vsg*Vsg);
 
                     // Area-weighted sum
-                    Real val_u = u_tangent * area;
-                    Real val_v = v_tangent * area;
-                    Real val_mag = mag * area;
-
-                    Gpu::deviceReduceSum(&plane_avg[0], val_u, handler);
-                    Gpu::deviceReduceSum(&plane_avg[1], val_v, handler);
-                    Gpu::deviceReduceSum(&plane_avg[iavg], val_mag, handler);
+                    val_u = u_tangent * area;
+                    val_v = v_tangent * area;
+                    val_mag = mag * area;
                 }
+                // The reduction is collective across the active GPU block.
+                Gpu::deviceReduceSum(&plane_avg[0], val_u, handler);
+                Gpu::deviceReduceSum(&plane_avg[1], val_v, handler);
+                Gpu::deviceReduceSum(&plane_avg[iavg], val_mag, handler);
             });
         }
     }
@@ -3059,6 +3066,7 @@ MOSTAverage::compute_eb_averages (const int& lev)
             ParallelFor(Gpu::KernelInfo().setReduction(true), bx, [=]
             AMREX_GPU_DEVICE(int i, int j, int k, Gpu::Handler const& handler) noexcept
             {
+                Real val = zero;
                 // Area-weighted averaging over cut cells at any k
                 if (flag_arr(i,j,k).isSingleValued()) {
                     // Compute area from face-centered area fractions
@@ -3075,9 +3083,9 @@ MOSTAverage::compute_eb_averages (const int& lev)
 
                     Real area = std::sqrt(adx*adx + ady*ady + adz*adz);
 
-                    Real val = mf_arr(i,j,k) * area;
-                    Gpu::deviceReduceSum(&plane_avg[imf], val, handler);
+                    val = mf_arr(i,j,k) * area;
                 }
+                Gpu::deviceReduceSum(&plane_avg[imf], val, handler);
             });
         }
     }
@@ -3121,6 +3129,7 @@ MOSTAverage::compute_eb_averages (const int& lev)
             ParallelFor(Gpu::KernelInfo().setReduction(true), bx, [=]
             AMREX_GPU_DEVICE(int i, int j, int k, Gpu::Handler const& handler) noexcept
             {
+                Real val = zero;
                 if (flag_arr(i,j,k).isSingleValued()) {
                     // Compute area from face-centered area fractions
                     Real axm = afrac_x(i  ,j  ,k  );
@@ -3143,9 +3152,9 @@ MOSTAverage::compute_eb_averages (const int& lev)
                     } else {
                         vfac = one + epsv*qv_mf_arr(i,j,k);
                     }
-                    const Real val = T_mf_arr(i,j,k) * vfac * area;
-                    Gpu::deviceReduceSum(&plane_avg[iavg], val, handler);
+                    val = T_mf_arr(i,j,k) * vfac * area;
                 }
+                Gpu::deviceReduceSum(&plane_avg[iavg], val, handler);
             });
         }
     }
@@ -3153,7 +3162,8 @@ MOSTAverage::compute_eb_averages (const int& lev)
     {
         int iavg    = m_navg - 4;
         denom[iavg] = one / m_total_bndry_area[lev][iavg];
-        // plane_avg[iavg] = plane_avg[2]
+        // Dry virtual temperature shares temperature's filtered history.
+        val_old[iavg] = val_old[3];
         Gpu::copy(Gpu::deviceToDevice, pavg.begin() + 3, pavg.begin() + 4,
                   pavg.begin() + iavg);
     }

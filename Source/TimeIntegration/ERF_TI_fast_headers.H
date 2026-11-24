@@ -67,7 +67,8 @@ void erf_substep_NS (int step, int nrk, int level, int finest_level,
                      const amrex::Real l_damp_coef,
                      const amrex::Real beta_d,
                      const CFFaceFluxes& cf_fluxes,
-                     amrex::MultiFab* mom_reflux_p = nullptr);
+                     amrex::MultiFab* mom_reflux_p,
+                     const amrex::GpuArray<bool,4>& lateral_walls);
 
 /**
  * Function for computing the fast RHS with fixed-in-time terrain
@@ -103,7 +104,8 @@ void erf_substep_T (int step, int nrk, int level, int finest_level,
                     const amrex::Real* sinesq_at_lev_d,
                     const amrex::Real l_damp_coef,
                     const amrex::Real beta_d,
-                    const CFFaceFluxes& cf_fluxes);
+                    const CFFaceFluxes& cf_fluxes,
+                    const amrex::GpuArray<bool,4>& lateral_walls);
 
 /**
  * Function for computing the fast RHS with moving terrain
@@ -146,7 +148,8 @@ void erf_substep_MT (int step, int nrk, int level, int finest_level,
                      bool l_use_moisture, bool l_reflux, bool l_real_bc,
                      const amrex::Real* sinesq_at_lev_d,
                      const amrex::Real l_damp_coef,
-                     const amrex::Real beta_d);
+                     const amrex::Real beta_d,
+                     const amrex::GpuArray<bool,4>& lateral_walls);
 
 /**
  * Function for computing the coefficients for the tridiagonal solver used in the fast
@@ -165,10 +168,9 @@ void make_fast_coeffs (int level,
                        std::unique_ptr<amrex::MultiFab>& detJ_cc,
                        const double dtau,
                        const amrex::Real beta_s,
+                       const amrex::MultiFab* z_phys_cc,
                        const amrex::MultiFab* z_phys_nd,
                        const bool use_variable_beta_s,
-                       const amrex::Real beta_s_min,
-                       const amrex::Real beta_s_max,
                        amrex::GpuArray<ERF_BC, AMREX_SPACEDIM*2> &phys_bc_type);
 
 #endif

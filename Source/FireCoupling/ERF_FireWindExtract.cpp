@@ -6,10 +6,10 @@ using namespace amrex;
  * @brief Wind at a target height within one atmospheric column
  *
  * Brackets the target height by bisection on the column's terrain-following
- * cell-centre heights, averages the face velocities to cell centres at the two
+ * cell-center heights, averages the face velocities to cell centers at the two
  * bracketing levels, and interpolates linearly between them. A target above the
- * highest cell centre takes that level's wind. A target below the lowest cell
- * centre takes the lowest centre's wind as it is (below_first_log = false, which
+ * highest cell center takes that level's wind. A target below the lowest cell
+ * center takes the lowest center's wind as it is (below_first_log = false, which
  * with a 20 m first cell hands the fire the 10 m wind as its 6.1 m wind, 12 %
  * high at z0 = 0.1 m), or scaled down a neutral log profile of roughness z0_log
  * (below_first_log = true), U(z) = U(z_1) ln(z/z0) / ln(z_1/z0), the better form
@@ -27,7 +27,7 @@ void column_wind_at_height(const Array4<const Real>& xvel,
 {
     // Bracket by bisection; z_cc is monotonically increasing in k.
     int k_lo;
-    // Log-profile factor for a target below the lowest centre, from floored
+    // Log-profile factor for a target below the lowest center, from floored
     // heights (both arguments valid whether or not the branch is taken, so
     // nothing speculated under the fpe traps can raise a flag).
     Real below_scale = Real(1.0);
@@ -71,6 +71,47 @@ void column_wind_at_height(const Array4<const Real>& xvel,
     v_out = below_scale * (v_lo + alpha * (v_hi - v_lo));
 }
 
+/**
+ * @brief Neutral log-law factor ln(z_to / z0) / ln(z_from / z0)
+ *
+ * Every argument of the logarithms is kept valid whether or not the caller
+ * uses the result: clang evaluates a ternary's arm speculatively in Release,
+ * and with resampling off z_from is 0, so log(0) raised the divide-by-zero
+ * flag and tripped amrex.fpe_trap_zero on the first step. abs and the tiny
+ * offset are not selects, so nothing is folded back into the arm; for
+ * positive heights and roughness the values are unchanged. ln(z_to / z0) is
+ * floored at zero, so a roughness at or above z_to gives no wind rather than a
+ * reversed one, as the clamp below the first center does; the callers keep
+ * z0 well below both heights, where the floor is never reached.
+ */
+AMREX_GPU_DEVICE AMREX_FORCE_INLINE
+Real log_law_factor (Real z_to, Real z_from, Real z0) noexcept
+{
+    constexpr Real z_tiny  = Real(1.0e-30);
+    const Real z0_safe     = std::abs(z0) + z_tiny;
+    const Real log_to      = amrex::max(std::log((std::abs(z_to) + z_tiny) / z0_safe), Real(0.0));
+    const Real log_from    = std::log((std::abs(z_from) + z_tiny) / z0_safe);
+    return log_to / (log_from + z_tiny);
+}
+
+std::string
+fire_column_z0_range_error (const MultiFab& col_z0, Real z_low)
+{
+    const Real z0_min = col_z0.min(0);
+    const Real z0_max = col_z0.max(0);
+    if (!(z0_min > Real(0.0))) {
+        return "the column roughness passed to the fire wind sampler has a minimum of "
+               + std::to_string(z0_min) + " m; every value must be positive";
+    }
+    if (!(z0_max * std::exp(Real(1.0)) <= z_low)) {
+        return "the column roughness passed to the fire wind sampler has a maximum of "
+               + std::to_string(z0_max) + " m; e times it must not exceed the lowest height the"
+               " log profile is evaluated at, " + std::to_string(z_low)
+               + " m (the reference height, or the sampling height when that is lower)";
+    }
+    return {};
+}
+
 void fill_fire_wind_from_interpolation(
     MultiFab&       fire_wind_ref,
     MultiFab&       fire_wind_extract_z_mf,
@@ -88,7 +129,8 @@ void fill_fire_wind_from_interpolation(
     const MultiFab* col_roof,
     Real            z_sample,
     Real            z0_log,
-    bool            below_first_log)
+    bool            below_first_log,
+    const MultiFab* col_z0)
 {
     const int C = fg.C;
     // Fire cell (i_f, j_f) lies in atmospheric cell (i_f / C + lo_x, j_f / C + lo_y)
@@ -97,6 +139,43 @@ void fill_fire_wind_from_interpolation(
     const bool bilinear = (wind_interp == 1);
     const bool open_weights = bilinear && (col_open != nullptr) && (col_roof != nullptr);
     const bool resample = (z_sample > Real(0.0));
+    const bool z0_cols = (col_z0 != nullptr);
+
+    // The column roughness is read with the fire grid's MFIter, on its own
+    // k slab, and every value must leave both log profiles well defined.
+    if (z0_cols) {
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+            col_z0->size() == fire_wind_ref.size() &&
+            col_z0->DistributionMap() == fire_wind_ref.DistributionMap(),
+            "fill_fire_wind_from_interpolation: col_z0 must have the fire grid's boxes, in its"
+            " order and with its owners (a copy on the level's k = 0 slabs)");
+        for (int n = 0; n < col_z0->size(); ++n) {
+            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(col_z0->boxArray()[n].length(2) == 1 &&
+                                             col_z0->nGrowVect()[2] == 0,
+                "fill_fire_wind_from_interpolation: col_z0 must be a 2D field, one cell in z");
+        }
+        // Only a run that evaluates a log profile depends on the field
+        if (below_first_log || resample) {
+            Real z_low = (z_ref_cell_mf != nullptr) ? z_ref_cell_mf->min(0) : z_ref;
+            if (resample) { z_low = amrex::min(z_low, z_sample); }
+            const std::string err = fire_column_z0_range_error(*col_z0, z_low);
+            if (!err.empty()) { amrex::Abort("fill_fire_wind_from_interpolation: " + err); }
+        }
+    }
+
+    // Atmospheric columns the fire grid covers. Across a non-periodic face of
+    // that region the column roughness is taken from the edge column, so only
+    // valid cells of col_z0 are read: FillBoundary does not fill a ghost cell
+    // there, and the range check sees valid cells only.
+    const Box& fire_dom = fg.geom.Domain();
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!z0_cols || fire_dom.ok(),
+        "fill_fire_wind_from_interpolation: col_z0 needs the fire grid's Geometry (create_fire_grid)");
+    const int z0_reg_ilo = lo_x;
+    const int z0_reg_ihi = lo_x + (fire_dom.bigEnd(0) + 1) / C - 1;
+    const int z0_reg_jlo = lo_y;
+    const int z0_reg_jhi = lo_y + (fire_dom.bigEnd(1) + 1) / C - 1;
+    const bool z0_per_x = fg.geom.isPeriodic(0);
+    const bool z0_per_y = fg.geom.isPeriodic(1);
 
     for (MFIter mfi(fire_wind_ref, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
         const Box& bx = mfi.tilebox();
@@ -127,6 +206,27 @@ void fill_fire_wind_from_interpolation(
             jo_min = obox.smallEnd(1); jo_max = obox.bigEnd(1);
         }
 
+        // Column roughness: same layout as the open-column fields, read on
+        // the field's own k slab; clamped to the fab and, across a
+        // non-periodic face of the fire grid's region, to its edge column
+        Array4<const Real> z0_arr;
+        int iz_min = 0, iz_max = 0, jz_min = 0, jz_max = 0, kz = 0;
+        if (z0_cols) {
+            z0_arr = col_z0->const_array(mfi);
+            const Box& z0box = Box(z0_arr);
+            iz_min = z0box.smallEnd(0); iz_max = z0box.bigEnd(0);
+            jz_min = z0box.smallEnd(1); jz_max = z0box.bigEnd(1);
+            kz = z0box.smallEnd(2);
+            if (!z0_per_x) {
+                iz_min = amrex::max(iz_min, z0_reg_ilo);
+                iz_max = amrex::min(iz_max, z0_reg_ihi);
+            }
+            if (!z0_per_y) {
+                jz_min = amrex::max(jz_min, z0_reg_jlo);
+                jz_max = amrex::min(jz_max, z0_reg_jhi);
+            }
+        }
+
         // Bilinear reaches one atmospheric cell beyond the column holding the
         // fire cell, and the face average reaches one further in x or y. Both
         // land in the atmospheric fab's ghost region, which carries two cells
@@ -148,19 +248,11 @@ void fill_fire_wind_from_interpolation(
 
             // Height actually sampled and the log-law factor that brings the
             // sampled wind down to the target height (1 without resampling).
-            // The log ratio is written so that every argument is valid whether
-            // or not it is selected: clang evaluates the ternary's arm
-            // speculatively in Release, and with resampling off z_sample is 0,
-            // so log(0) raised the divide-by-zero flag and tripped
-            // amrex.fpe_trap_zero on the first step. abs and the tiny offset
-            // are not selects, so nothing is folded back into the arm; with
-            // resampling on the values are unchanged.
-            constexpr Real z_tiny  = Real(1.0e-30);
-            const Real z0_safe     = std::abs(z0_log) + z_tiny;
-            const Real log_ref     = std::log((std::abs(z_ref_cell) + z_tiny) / z0_safe);
-            const Real log_sample  = std::log((std::abs(z_sample)   + z_tiny) / z0_safe);
+            // With column roughness the factor is taken per column below and
+            // this one is not applied.
             const Real z_at  = resample ? z_sample : z_ref_cell;
-            const Real scale = resample ? log_ref / (log_sample + z_tiny) : Real(1.0);
+            const Real f_ref = log_law_factor(z_ref_cell, z_sample, z0_log);
+            const Real scale = (resample && !z0_cols) ? f_ref : Real(1.0);
 
             if (!bilinear) {
                 // Nearest atmospheric column: every fire cell in a column shares
@@ -170,23 +262,33 @@ void fill_fire_wind_from_interpolation(
                 const int j_a = amrex::max(ja_min, amrex::min(j_f / C + lo_y, ja_max));
 
                 // Ground elevation of this fire cell's atmospheric column. This
-                // is the terrain surface, not the first cell centre, which sits
+                // is the terrain surface, not the first cell center, which sits
                 // half an atmospheric cell higher and would push the extraction
                 // height up by an amount that varies with vertical resolution.
                 const Real z_target = z_surf_arr(i_f, j_f, 0) + z_at;
                 extract_z(i_f, j_f, 0) = z_target;
 
+                // Roughness of this column, and its resampling factor
+                Real z0_c  = z0_log;
+                Real s_col = Real(1.0);
+                if (z0_cols) {
+                    z0_c = z0_arr(amrex::max(iz_min, amrex::min(i_a, iz_max)),
+                                  amrex::max(jz_min, amrex::min(j_a, jz_max)), kz);
+                    const Real f_c = log_law_factor(z_ref_cell, z_sample, z0_c);
+                    s_col = resample ? f_c : Real(1.0);
+                }
+
                 Real u_out, v_out;
                 column_wind_at_height(xvel, yvel, z_phys_cc, i_a, j_a, nz,
                                       z_target, z_surf_arr(i_f, j_f, 0), u_out, v_out,
-                                      below_first_log, z0_log);
-                fire_wind(i_f, j_f, 0, 0) = scale * u_out;
-                fire_wind(i_f, j_f, 0, 1) = scale * v_out;
+                                      below_first_log, z0_c);
+                fire_wind(i_f, j_f, 0, 0) = scale * (s_col * u_out);
+                fire_wind(i_f, j_f, 0, 1) = scale * (s_col * v_out);
                 return;
             }
 
             // Bilinear between the four surrounding atmospheric columns. The
-            // fire cell centre sits at continuous atmospheric cell-centre
+            // fire cell center sits at continuous atmospheric cell-center
             // coordinate (i_f + 0.5)/C - 0.5 relative to the region's corner; the
             // weights come from that, the column indices add the corner.
             const Real gx = (Real(i_f) + Real(0.5)) / Real(C) - Real(0.5);
@@ -236,16 +338,28 @@ void fill_fire_wind_from_interpolation(
                 // Each column is sampled at the same height above *its own*
                 // ground: near the surface the profile is anchored to the local
                 // terrain, so blending at one absolute height would sample an
-                // upslope neighbour far higher above ground than asked for.
+                // upslope neighbor far higher above ground than asked for.
                 const Real z_target_c = z_col_arr(i_f, j_f, 0, c) + z_at;
+
+                // Roughness of this column, and its resampling factor
+                Real z0_c  = z0_log;
+                Real s_col = Real(1.0);
+                if (z0_cols) {
+                    // The wind's column (ia, ja, already clamped), so the
+                    // roughness never comes from a different column
+                    z0_c = z0_arr(amrex::max(iz_min, amrex::min(ia, iz_max)),
+                                  amrex::max(jz_min, amrex::min(ja, jz_max)), kz);
+                    const Real f_c = log_law_factor(z_ref_cell, z_sample, z0_c);
+                    s_col = resample ? f_c : Real(1.0);
+                }
 
                 Real u_c, v_c;
                 column_wind_at_height(xvel, yvel, z_phys_cc, ia, ja, nz,
                                       z_target_c, z_col_arr(i_f, j_f, 0, c), u_c, v_c,
-                                      below_first_log, z0_log);
+                                      below_first_log, z0_c);
 
-                u_sum += w * u_c;
-                v_sum += w * v_c;
+                u_sum += w * (s_col * u_c);
+                v_sum += w * (s_col * v_c);
                 z_sum += w * z_target_c;
             }
 

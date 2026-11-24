@@ -1,8 +1,11 @@
 
 #include <ERF_RadiationSimple.H>
 #include "ERF_Constants.H"
+#include "ERF_TerrainMetrics.H"
 
 #include <AMReX_MFIter.H>
+
+#include <limits>
 
 using namespace amrex;
 
@@ -15,24 +18,29 @@ void RadiationSimple::Init (const amrex::Geometry& geom,
 
     // Set (or cleared) on every Init, so a level that spans the column again after a
     // regrid resumes the sweep.
-    m_partial_columns = false;
-    for (int ib = 0; ib < ba.size(); ++ib) {
-        if (ba[ib].smallEnd(2) != geom.Domain().smallEnd(2) || ba[ib].bigEnd(2) != geom.Domain().bigEnd(2)) {
-            m_partial_columns = true;
-            break;
-        }
-    }
+    m_partial_columns = !rad_boxes_span_column(ba, geom.Domain());
 
     DistributionMapping dm = cons_in->DistributionMap();
     deltaq.define(ba, dm, 1, 0);
     flux.define(ba, dm, 1, IntVect(0, 0, 1));
-    radlwdn = std::make_unique<amrex::MultiFab>(ba, dm, 1, 0);
-    radqrlw = std::make_unique<amrex::MultiFab>(ba, dm, 1, 0);
-
     deltaq.setVal(zero);
     flux.setVal(zero);
-    radlwdn->setVal(zero);
-    radqrlw->setVal(zero);
+
+    // Run() skips a level made of partial columns (and aborts on level 0), so the datalog
+    // is never filled there; drop any MultiFabs left over from an earlier grid.
+    if (datalog_int > 0 && !m_partial_columns) {
+        datalog_mf.define(ba, dm, n_datalog_comp, 0);
+        datalog_mf.setVal(zero);
+
+        // One cell thick in z; each box spans the full column (m_partial_columns is false)
+        BoxList bl_bdy = ba.boxList();
+        for (auto& b : bl_bdy) { b.setRange(2, 0, 1); }
+        datalog_bdy_mf.define(BoxArray(std::move(bl_bdy)), dm, n_datalog_bdy_comp, 0);
+        datalog_bdy_mf.setVal(zero);
+    } else {
+        datalog_mf.clear();
+        datalog_bdy_mf.clear();
+    }
 }
 
 void RadiationSimple::Run (int& level,
@@ -49,7 +57,7 @@ void RadiationSimple::Run (int& level,
                            amrex::MultiFab* qheating_rates,
                            amrex::MultiFab* /*rad_fluxes*/,
                            amrex::MultiFab* z_phys,
-                           amrex::MultiFab* /*z_sfc*/,
+                           amrex::MultiFab* z_sfc,
                            amrex::MultiFab* /*lat*/,
                            amrex::MultiFab* /*lon*/,
                            const bool /*force_update*/,
@@ -57,9 +65,9 @@ void RadiationSimple::Run (int& level,
                            amrex::Real& /*calday*/)
 {
     if (m_partial_columns) {
-        // Level 0 has no parent to interpolate from: grids split in z are unsupported here.
-        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(level > 0,
-            "RadiationSimple: every level-0 box must span the domain in z (do not split grids in z)");
+        // A level 0 split in z is rejected when its grids are built (ERF::check_rad_level_grids)
+        AMREX_ASSERT(level > 0);
+        amrex::ignore_unused(level);
         return;
     }
 
@@ -82,6 +90,11 @@ void RadiationSimple::Run (int& level,
     const int  qc_comp = m_qc_comp;
     const int  qi_comp = m_qi_comp;
 
+    const bool do_datalog = (datalog_int > 0);
+
+    // Heights above ground need both the node heights and the surface heights
+    const bool has_z = (z_phys != nullptr) && (z_sfc != nullptr);
+
     for (MFIter mfi(*cons_in, TileNoZ()); mfi.isValid(); ++mfi)
     {
         Box box = mfi.tilebox();
@@ -91,9 +104,10 @@ void RadiationSimple::Run (int& level,
         const Array4<const Real>& z_nd_arr = (z_phys) ? z_phys->const_array(mfi) : Array4<const Real>{};
         const Array4<Real>& deltaq_arr = deltaq.array(mfi);
         const Array4<Real>& flux_arr = flux.array(mfi);
-        const Array4<Real>& radlwdn_arr = radlwdn->array(mfi);
-        const Array4<Real>& radqrlw_arr = radqrlw->array(mfi);
         const Array4<Real>& qheating_arr = qheating_rates->array(mfi);
+        const Array4<const Real>& zsfc_arr = (has_z) ? z_sfc->const_array(mfi) : Array4<const Real>{};
+        const Array4<Real>& dl_arr  = (do_datalog) ? datalog_mf.array(mfi)     : Array4<Real>{};
+        const Array4<Real>& bdy_arr = (do_datalog) ? datalog_bdy_mf.array(mfi) : Array4<Real>{};
 
         ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int)
         {
@@ -184,12 +198,28 @@ void RadiationSimple::Run (int& level,
                 Real exner = getExnergivenP(pres, R_d/Cp_d);
                 FTHRL /= exner;
                 qheating_arr(i, j, k, 1) = FTHRL;          // radiative heating for source term
-                radlwdn_arr(i, j, k) = flux_arr(i, j, k);  // net lw flux
-                radqrlw_arr(i, j, k) = FTHRL;              // net lw heating
+
+                // Datalog profiles at the cell center; the net flux is averaged from the faces
+                if (do_datalog) {
+                    dl_arr(i, j, k, dl_z_comp)       = (has_z) ? Compute_Zrel_AtCellCenter(i,j,k,zsfc_arr,z_nd_arr)
+                                                               : (k + myhalf)*fixed_dz;
+                    dl_arr(i, j, k, dl_flux_comp)    = myhalf * (flux_arr(i, j, k) + flux_arr(i, j, k+1));
+                    dl_arr(i, j, k, dl_heating_comp) = FTHRL;
+                }
 
                 // The net flux is not written to rad_fluxes: that array holds
                 // (SW up, SW down, LW up, LW down), and this model computes
                 // none of those. It stays zero, and HasRadiation() is false.
+            }
+
+            // Net flux on the surface and top-of-atmosphere faces, and the top-face height
+            if (do_datalog) {
+                bdy_arr(i, j, 0, bdy_sfc_comp)  = flux_arr(i, j, 0);
+                bdy_arr(i, j, 0, bdy_toa_comp)  = flux_arr(i, j, nz);
+                bdy_arr(i, j, 0, bdy_ztop_comp) = (has_z) ?
+                    fourth*( z_nd_arr(i,j,nz) + z_nd_arr(i+1,j,nz) + z_nd_arr(i,j+1,nz) + z_nd_arr(i+1,j+1,nz) )
+                  - fourth*( zsfc_arr(i,j,0) + zsfc_arr(i+1,j,0) + zsfc_arr(i,j+1,0) + zsfc_arr(i+1,j+1,0) )
+                  : nz*fixed_dz;
             }
         });
     }
@@ -197,41 +227,61 @@ void RadiationSimple::Run (int& level,
 
 void RadiationSimple::WriteDataLog (const double &time)
 {
-    constexpr int datwidth = 14;
-    constexpr int datprecision = 9;
-    constexpr int timeprecision = 13;
-
-    Gpu::HostVector<Real> h_avg_radlwdn, h_avg_radqrlw;
-
     auto domain = m_geom.Domain();
-    h_avg_radlwdn = sumToLine(*radlwdn, 0, 1, domain, 2);
-    h_avg_radqrlw = sumToLine(*radqrlw, 0, 1, domain, 2);
+    const Real area_z = static_cast<Real>(domain.length(0)*domain.length(1));
+    const int nz = domain.length(2);
 
-    Real area_z = static_cast<Real>(domain.length(0)*domain.length(1));
-    int nz = domain.length(2);
-    for (int k = 0; k < nz; k++) {
-        h_avg_radlwdn[k] /= area_z;
-        h_avg_radqrlw[k] /= area_z;
+    // Planar averages of the cell-centered profiles
+    Vector<Gpu::HostVector<Real>> cc_avg(n_datalog_comp);
+    for (int n = 0; n < n_datalog_comp; ++n) {
+        cc_avg[n] = sumToLine(datalog_mf, n, 1, domain, 2);
+        for (auto& val : cc_avg[n]) { val /= area_z; }
     }
+
+    // Planar averages of the surface and top-of-atmosphere values
+    Vector<Real> bdy_avg(n_datalog_bdy_comp);
+    for (int n = 0; n < n_datalog_bdy_comp; ++n) { bdy_avg[n] = datalog_bdy_mf.sum(n, true); }
+    ParallelDescriptor::ReduceRealSum(bdy_avg.data(), n_datalog_bdy_comp);
+    for (auto& val : bdy_avg) { val /= area_z; }
 
     if (ParallelDescriptor::IOProcessor()) {
         std::ostream& log = *datalog;
-
         if (log.good()) {
-            for (int k = 0; k < nz; k++)
-            {
-                Real z = k * m_geom.CellSize(2);
-                log << std::setw(datwidth) << std::setprecision(timeprecision) << time << " "
-                    << std::setw(datwidth) << std::setprecision(datprecision) << z << " "
-                    << h_avg_radlwdn[k] << " "
-                    << h_avg_radqrlw[k] << std::endl;
+            // The log is opened in append mode, so only a new file gets the header
+            log.seekp(0, std::ios::end);
+            if (log.tellp() == 0) {
+                log << "# Planar averages; each output is a block of nz+2 rows: the surface face,\n"
+                    << "# the nz cell centers, then the top-of-atmosphere face. z_agl is the height\n"
+                    << "# above ground. The heating rate exists only at cell centers and is nan on\n"
+                    << "# the face rows.\n"
+                    << "# time z_agl lw_flux_net lw_heating" << std::endl;
             }
-            // Write top face values
-            Real z = nz * m_geom.CellSize(2);
-            log << std::setw(datwidth) << std::setprecision(timeprecision) << time << " "
-                << std::setw(datwidth) << std::setprecision(datprecision) << z << " "
-                << 0.0 << " "
-                << 0.0 << std::endl;
-        }
-    }
+
+            const Real nan = std::numeric_limits<Real>::quiet_NaN();
+
+            // Row -1 is the surface face, rows 0..nz-1 the cell centers, row nz the top face
+            for (int row = -1; row <= nz; ++row)
+            {
+                Real z_agl, lw_flux, lw_heating;
+                if (row < 0) {
+                    z_agl      = zero;
+                    lw_flux    = bdy_avg[bdy_sfc_comp];
+                    lw_heating = nan;
+                } else if (row == nz) {
+                    z_agl      = bdy_avg[bdy_ztop_comp];
+                    lw_flux    = bdy_avg[bdy_toa_comp];
+                    lw_heating = nan;
+                } else {
+                    z_agl      = cc_avg[dl_z_comp][row];
+                    lw_flux    = cc_avg[dl_flux_comp][row];
+                    lw_heating = cc_avg[dl_heating_comp][row];
+                }
+
+                log << std::setw(datalog_width) << std::setprecision(datalog_time_precision) << time << " "
+                    << std::setw(datalog_width) << std::setprecision(datalog_precision) << z_agl << " "
+                    << lw_flux << " "
+                    << lw_heating << std::endl;
+            } // for row
+        } // log is good
+    } // IOProc
 }

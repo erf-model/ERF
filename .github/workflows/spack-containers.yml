@@ -26,7 +26,6 @@ on:
 
 permissions:
   contents: read
-  packages: write
 
 concurrency:
   group: spack-containers-${{ github.ref }}
@@ -47,7 +46,7 @@ jobs:
       images: ${{ steps.matrix.outputs.images }}
       date: ${{ steps.matrix.outputs.date }}
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
@@ -92,6 +91,9 @@ jobs:
   images:
     name: image ${{ matrix.image.tag }}
     needs: plan
+    permissions:
+      contents: read
+      packages: write
     # Must match the base image's Ubuntu release (glibc).
     runs-on: ubuntu-22.04
     timeout-minutes: 300
@@ -107,7 +109,7 @@ jobs:
       GHCR_USER: ${{ github.actor }}
       GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
@@ -124,7 +126,7 @@ jobs:
             cmake pkg-config
           sudo mkdir -p /opt/software && sudo chown "$(id -u):$(id -g)" /opt/software
 
-      - uses: spack/setup-spack@v3
+      - uses: spack/setup-spack@16b756799ede8b28951287f89bcd3fdb32ec1ca3 # v3.0.0
         with:
           spack_path: ${{ github.workspace }}/spack_install_dir
           spack_ref: ${{ env.SPACK_REF }}
@@ -207,7 +209,7 @@ jobs:
           printf '### %s\n\n- spec: `%s`\n- digest: `%s`\n- %s\n' "$IMAGE:$DATED_TAG" "$SPEC" \
             "$(cat image-record/digest.txt)" "$(cat image-record/size.txt)" >> "$GITHUB_STEP_SUMMARY"
 
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: image-${{ matrix.image.tag }}-${{ needs.plan.outputs.date }}
           path: image-record

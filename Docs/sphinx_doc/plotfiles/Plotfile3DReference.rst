@@ -725,7 +725,7 @@ energy balance is on (``erf.ibseb.enable = true``); without it the names are
 dropped from the stream silently. Each is the mean over the wall faces that
 touch the cell (up to three at an outside corner, six in a one-cell slot) and
 zero where the cell touches none, so they are face diagnostics scattered onto
-cells rather than cell-centred fields.
+cells rather than cell-centered fields.
 
 The ``qrain``, ``qsnow``, and ``qgraup`` rows are available when the active
 moisture scheme provides the corresponding rain, snow, or graupel component.
@@ -1078,7 +1078,7 @@ available.
      - Native SHOC meaning
    * - ``pblh``
      - m
-     - Native SHOC ``pblh`` is reported in metres above local ground (AGL).
+     - Native SHOC ``pblh`` is reported in meters above local ground (AGL).
    * - ``shoc_cldfrac``
      - 1
      - Subgrid cloud fraction diagnosed by the native SHOC PDF.
@@ -1325,6 +1325,9 @@ The current providers expose the following families:
 * SuperDroplets generates ``qv_<species>``, ``qc_<species>``,
   ``qt_<species>``, ``sat_ratio_<species>``, and ``accum_<species>`` names for
   configured species, plus ``accum_<aerosol>`` names for configured aerosols.
+  The ``accum_`` fields are kept when the grids of a level change (with one-way
+  coupling, not where a fine level moves away or is removed), but not
+  checkpointed: they start again from zero after a restart.
 * Providers that inherit the empty ``NullMoist`` plot-name implementation add
   no scheme-specific names.
 

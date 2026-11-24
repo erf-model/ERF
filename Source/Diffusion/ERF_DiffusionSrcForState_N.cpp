@@ -151,7 +151,7 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
                 zflux(i,j,k,fc) *= wall_face33(i,j,k);
             });
             // the qv and qc face-flux diagnostics were filled from the open face: close them the
-            // same way (the TKE buoyancy sources read qfx1_z); on the wall face the water vapour
+            // same way (the TKE buoyancy sources read qfx1_z); on the wall face the water vapor
             // flux is the wall moisture flux of the wall law (rho times the kinematic flux, as the
             // surface layer writes it at zlo), zero without a surface moisture condition; the
             // cloud-water face is zero. wall_qfx has no ghost cells (see wall_hfx below).

@@ -23,7 +23,7 @@ void grow_buffer (V& v, std::size_t n)
 /**
  * An array filled on the host and read by the kernels: the host side is a std::vector (clear() keeps its
  * capacity), copied through pinned memory to the device with one asynchronous copy. The pinned and device
- * sides only grow. A call that uploads must synchronise the stream before it returns, so that the next
+ * sides only grow. A call that uploads must synchronize the stream before it returns, so that the next
  * call may refill the host side.
  */
 template <class T>
@@ -42,7 +42,7 @@ struct StagedBuffer
         std::copy(host.begin(), host.end(), pinned.begin());
         amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, pinned.begin(), pinned.begin() + host.size(), device.begin());
     }
-    /** Copy the first n device values to pinned, asynchronously: they are there after the next stream synchronisation. */
+    /** Copy the first n device values to pinned, asynchronously: they are there after the next stream synchronization. */
     void download_async (std::size_t n)
     {
         grow_buffer(pinned, n);

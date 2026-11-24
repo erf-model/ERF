@@ -36,7 +36,8 @@ surface_slab (const MultiFab& z_nd, int klo)
  *
  * @param znd_surf Surface slab filled by fill_surface_nodes
  */
-static void
+namespace erf_detail_PoissonWallDist {
+void
 assert_surface_gathered (const MultiFab& znd_surf)
 {
     Real znd_max = ReduceMax(znd_surf, znd_surf.nGrowVect(),
@@ -52,12 +53,14 @@ assert_surface_gathered (const MultiFab& znd_surf)
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(znd_max < Real(0.5) * bogus_large_value,
         "poisson_wall_dist: the surface nodes were not gathered onto every box");
 }
+} // namespace erf_detail_PoissonWallDist
+using namespace erf_detail_PoissonWallDist;
 
 /**
  * The RANS wall distance at this level: the distance to the bottom wall from
  * poisson_wall_dist, corrected for thin immersed bodies.  Does nothing when this
  * level runs no RANS model.  init_stuff resets walldist to bogus_large_value
- * whenever a level is made on new grids, so this runs at initialisation (and on
+ * whenever a level is made on new grids, so this runs at initialization (and on
  * a restart) and again for each level a regrid adds or remakes.
  *
  * @param lev Level index
@@ -592,11 +595,11 @@ void ERF::poisson_wall_dist (int lev)
         auto dist_arr = walldist[lev]->arrays();
 
         ParallelFor(*walldist[lev], [=] AMREX_GPU_DEVICE(int b, int i, int j, int k) {
-            // Cell-centred gradient of phi in physical space: centred
-            // differences in computational space with the cell-centre
+            // Cell-centered gradient of phi in physical space: centered
+            // differences in computational space with the cell-center
             // terrain metrics (chain rule for a mesh deformed in z only).
             // The face fluxes used before sat half a cell below and beside
-            // the centre, which overstated |grad phi| by dz/2 and shortened
+            // the center, which overstated |grad phi| by dz/2 and shortened
             // every distance by z dz / (2H) on a flat mesh (0.8 % for 64
             // cells). The ghost cells of phi carry the Dirichlet (odd) value
             // below the wall and even values elsewhere, so the stencil needs

@@ -11,10 +11,6 @@
 #include "ERF_EOS.H"
 #include "ERF_EB.H"
 
-#ifdef ERF_USE_EAMXX_SHOC
-#include "ERF_ShocInterface.H"
-#endif
-
 /** Compute turbulent viscosity and related flux fields for the configured turbulence model. */
 void
 ComputeTurbulentViscosity (double dt,
@@ -94,7 +90,9 @@ ComputeTurbulentViscosityRANS (int level,
                                const amrex::MultiFab* ib_blank = nullptr,
                                bool flat_wall_diss = false,
                                amrex::Real ib_small_volfrac = amrex::Real(0.005),
-                               amrex::Real ib_z0 = amrex::Real(0.0));
+                               amrex::Real ib_z0 = amrex::Real(0.0),
+                               const amrex::MultiFab* xvel = nullptr,
+                               const amrex::MultiFab* yvel = nullptr);
 
 /** Compute LES turbulent viscosity and heat fluxes for embedded-boundary cells. */
 void

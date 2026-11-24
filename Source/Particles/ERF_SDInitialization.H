@@ -38,7 +38,7 @@ AMREX_ENUM(SDDistributionType,
 /*! \brief List of super-droplet initializations */
 namespace SupDropInit
 {
-    /*! Maximum number of vapour/condensate species */
+    /*! Maximum number of vapor/condensate species */
     const int num_species_max = 10;
 
     /*! Maximum number of aerosols */
@@ -157,7 +157,7 @@ amrex::Real SD_erfinv_gpu (const amrex::Real x) {
 /*! \brief Generate mass from distribution parameters on GPU
  *  \param[in] params Distribution parameters
  *  \param[in] engine Random engine
- *  \param[out] mult_contribution Contribution to multiplicity (added, not set)
+ *  \param[out] mult_contribution Weight of the sampled value in the sampled-multiplicity mode
  *  \return Generated mass value
  */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
@@ -218,6 +218,49 @@ amrex::Real SD_sample_mass_gpu (const SDDistributionParams& params,
     return mass;
 }
 
+/*! \brief Sampled-multiplicity weight of a super-droplet over its independently sampled
+ *  components: the weights of the varying components multiply, and the constant components set
+ *  the weight only when no component varies. Callers leave out constant species, as before. */
+struct SDSampledWeight
+{
+    amrex::Real var = zero;  /*!< product of the varying-component weights */
+    amrex::Real cst = zero;  /*!< sum of the constant-component weights */
+    int nvar = 0;            /*!< number of varying components */
+
+    /*! a_w is the component's weight from SD_sample_mass_gpu, a_ndv the factor
+     *  numdens*cell_volume that every varying weight carries */
+    AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+    void add (const SDDistributionType a_type, const amrex::Real a_w, const amrex::Real a_ndv) noexcept
+    {
+        if (a_type == SDDistributionType::mass_constant) {
+            cst += a_w;
+        } else if (nvar == 0) {
+            var = a_w;
+            ++nvar;
+        } else {
+            var *= (a_ndv != zero) ? a_w / a_ndv : zero;
+            ++nvar;
+        }
+    }
+
+    [[nodiscard]] AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+    amrex::Real value () const noexcept { return (nvar > 0) ? var : cst; }
+};
+
+/*! \brief Factor that maps the sampled weights of a cell, adding up to a_sum, onto a_num
+ *  particles. Injection weights are negative (an injection reads no number density), and the
+ *  sign cancels. Returns false, for an even split, when the weights are so small that the factor
+ *  would overflow, as when they all underflow to zero. */
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+bool SD_sampled_scale (const amrex::Real a_sum, const amrex::Real a_num, amrex::Real& a_scale) noexcept
+{
+    if (std::abs(a_sum) > a_num / std::numeric_limits<amrex::Real>::max()) {
+        a_scale = a_num / a_sum;
+        return true;
+    }
+    return false;
+}
+
 /*! \brief Numbers of super-droplets and of physical particles that an initialization,
  *  or one per-cell injection step, places in a cell of volume a_dv */
 struct SDCellCounts
@@ -230,17 +273,22 @@ struct SDCellCounts
     double par_total_old = 0;         /*!< injection: physical particles per m^3 before this step */
     amrex::Real frac_tol = 0;         /*!< injection: tolerance below 1 at which an accumulated particle is injected */
 
+    /*! True when a super-droplet density, not the per-cell count, sets the number of
+     *  super-droplets (an injection without a super-droplet rate has sd_density 0) */
+    AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+    bool densityMode () const noexcept { return inject ? (sd_density > 0) : (sd_density >= 0); }
+
     /*! Number of super-droplets in the cell (0 when it receives no particles) */
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
     int numSD (const amrex::Real a_dv) const noexcept
     {
         if (!inject) {
             if (numParticles(a_dv) <= 0) { return 0; }
-            return (sd_density >= 0) ? static_cast<int>(std::ceil(sd_density*a_dv)) : ppc;
+            return densityMode() ? static_cast<int>(std::ceil(sd_density*a_dv)) : ppc;
         }
         const amrex::Real num_par = numParticles(a_dv);
-        const int num_sd = (sd_density > 0) ? amrex::max(static_cast<int>(std::round(sd_density*a_dv)), 1)
-                                            : amrex::max(ppc, 1);
+        const int num_sd = densityMode() ? amrex::max(static_cast<int>(std::round(sd_density*a_dv)), 1)
+                                         : amrex::max(ppc, 1);
         return static_cast<int>(amrex::min(amrex::Real(num_sd), num_par));
     }
 
@@ -415,7 +463,7 @@ class SDInitProperties
 
         /*! \brief Get a distribution with sampled multiplicity
          * \param[out] a_mass Output vector of particle masses
-         * \param[out] a_mult Output vector of particle multiplicities
+         * \param[in,out] a_mult Particle weights, added to the entries
          * \param[in] a_dV Cell volume
          * \param[in] a_np Number of particles
          * \param[in] a_density Density of the particle material
@@ -473,7 +521,7 @@ class SDInitProperties
 
         /*! \brief Compute the aerosol mass distribution with sampled multiplicity
          * \param[out] a_mass Output vector of aerosol masses
-         * \param[out] a_mult Output vector of particle multiplicities
+         * \param[in,out] a_mult Particle weights, added to the entries
          * \param[in] a_dV Cell volume for scaling multiplicity
          * \param[in] a_idx Aerosol species index
          * \param[in] a_np Number of particles to generate
@@ -533,7 +581,7 @@ class SDInitProperties
 
         /*! \brief Compute the species mass distribution with sampled multiplicity
          * \param[out] a_mass Output vector of species masses
-         * \param[out] a_mult Output vector of particle multiplicities
+         * \param[in,out] a_mult Particle weights, added to the entries
          * \param[in] a_dV Cell volume for scaling multiplicity
          * \param[in] a_idx Species index
          * \param[in] a_np Number of particles to generate

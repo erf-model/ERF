@@ -833,6 +833,7 @@ void SuperDropletPC::MergeParticlesAtDerefinement (
         auto* ae_sol_p = ptrs.ae_sol_arr;
         auto idx_w     = ctx.idx_water;
         auto rho_w     = ctx.rho_water;
+        auto* active_p = ptrs.active_ptr;
 
         int num_bins = bins.numBins();
 
@@ -848,12 +849,12 @@ void SuperDropletPC::MergeParticlesAtDerefinement (
             IntVect iv = amrex::getParticleCell(pstruct_ptr[first_idx], plo, dxi, domain);
             if (!mask_arr(iv)) { return 0; }
 
-            // Per-cell adaptive radius range over live SDs.
+            // Per-cell adaptive radius range over live, active SDs.
             ParticleReal rmin_c = ParticleReal(-1);
             ParticleReal rmax_c = ParticleReal(-1);
             for (int k = 0; k < np_bin; k++) {
                 unsigned int idx = inds[bin_start + k];
-                if (pstruct_ptr[idx].id() <= 0) { continue; }
+                if (pstruct_ptr[idx].id() <= 0 || active_p[idx] <= 0) { continue; }
                 ParticleReal r = radius_p[idx];
                 if (r > ParticleReal(0)) {
                     if (rmin_c < ParticleReal(0) || r < rmin_c) { rmin_c = r; }
@@ -877,7 +878,7 @@ void SuperDropletPC::MergeParticlesAtDerefinement (
                 int cnt = 0;
                 for (int k = 0; k < np_bin; k++) {
                     unsigned int idx = inds[bin_start + k];
-                    if (pstruct_ptr[idx].id() <= 0) { continue; }
+                    if (pstruct_ptr[idx].id() <= 0 || active_p[idx] <= 0) { continue; }
                     if (sdmRadiusBin(radius_p[idx], lnrmin, inv_lnr, n_rbin) == rb) { cnt++; }
                 }
                 if (cnt < 2) { continue; }
@@ -890,7 +891,7 @@ void SuperDropletPC::MergeParticlesAtDerefinement (
                 int ns = 0, cyc = 0;
                 for (int k = 0; k < np_bin; k++) {
                     unsigned int idx = inds[bin_start + k];
-                    if (pstruct_ptr[idx].id() <= 0) { continue; }
+                    if (pstruct_ptr[idx].id() <= 0 || active_p[idx] <= 0) { continue; }
                     if (sdmRadiusBin(radius_p[idx], lnrmin, inv_lnr, n_rbin) != rb) { continue; }
                     if (ns < keep) { surv[ns++] = static_cast<int>(idx); continue; }
                     unsigned int h = static_cast<unsigned int>(surv[cyc % keep]); cyc++;
@@ -1149,6 +1150,7 @@ void SuperDropletPC::SplitMergeAtLevelBoundary ()
                 Gpu::DeviceVector<int> first_active_d(num_bins, -1);
                 auto* active_count = active_count_d.data();
                 auto* first_active = first_active_d.data();
+                const auto* active_tag = soa.GetIntData(active_idx).data();
 
                 amrex::ParallelFor(num_bins, [=] AMREX_GPU_DEVICE (int b) {
                     auto bstart = d_offsets[b];
@@ -1157,7 +1159,7 @@ void SuperDropletPC::SplitMergeAtLevelBoundary ()
                     int first = -1;
                     for (auto k = bstart; k < bstop; k++) {
                         unsigned int idx = d_inds[k];
-                        if (pstruct[idx].id() > 0) {
+                        if (pstruct[idx].id() > 0 && active_tag[idx] > 0) {
                             count++;
                             // DenseBins order within a cell can vary on GPUs.
                             if (first < 0 || static_cast<int>(idx) < first) {
@@ -1183,7 +1185,7 @@ void SuperDropletPC::SplitMergeAtLevelBoundary ()
 
                     // Global fine-level cell index and the corresponding
                     // coarse parent index.  Cloning is restricted to face-
-                    // adjacent neighbours inside the same coarse parent so
+                    // adjacent neighbors inside the same coarse parent so
                     // SDs cannot leak out of their parent's footprint --
                     // unrestricted cloning + count-based refinement creates
                     // a positive feedback loop that grows the fine BoxArray
@@ -1466,12 +1468,12 @@ void SuperDropletPC::SplitMergeAtLevelBoundary ()
                     return 0;
                 }
 
-                // Per-cell adaptive radius range over live SDs.
+                // Per-cell adaptive radius range over live, active SDs.
                 ParticleReal rmin_c = ParticleReal(-1);
                 ParticleReal rmax_c = ParticleReal(-1);
                 for (int k = 0; k < np_bin; k++) {
                     unsigned int idx = inds[bin_start + k];
-                    if (pstruct_ptr[idx].id() <= 0) { continue; }
+                    if (pstruct_ptr[idx].id() <= 0 || active_int_p[idx] <= 0) { continue; }
                     ParticleReal r = radius_p[idx];
                     if (r > ParticleReal(0)) {
                         if (rmin_c < ParticleReal(0) || r < rmin_c) { rmin_c = r; }

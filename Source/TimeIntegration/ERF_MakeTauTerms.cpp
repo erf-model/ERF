@@ -6,6 +6,7 @@
 #include "ERF_TI_slow_headers.H"
 #include "ERF_EOS.H"
 #include "ERF_Utils.H"
+#include "ERF_LogShear.H"
 
 using namespace amrex;
 
@@ -22,14 +23,15 @@ void erf_make_tau_terms (int level, int nrk,
                          MultiFab* eddyDiffs,
                          const Geometry geom,
                          const SolverChoice& solverChoice,
-                         const amrex::Vector<std::unique_ptr<SurfaceLayer>>& /*SurfLayer*/,
+                         const amrex::Vector<std::unique_ptr<SurfaceLayer>>& SurfLayer,
                          Gpu::DeviceVector<Real>& stretched_dz_d,
                          const MultiFab& detJ,
                          Vector<std::unique_ptr<MultiFab>>& mapfac,
                          const MultiFab& ax, const MultiFab& ay, const MultiFab& az,
                          const eb_& ebfact,
                          const MultiFab* ib_wall_face13,
-                         const MultiFab* ib_wall_face23)
+                         const MultiFab* ib_wall_face23,
+                         const MultiFab* walldist)
 {
     BL_PROFILE_REGION("erf_make_tau_terms()");
 
@@ -51,12 +53,23 @@ void erf_make_tau_terms (int level, int nrk,
                                     tc.pbl_type  == PBLType::MYJ         ||
                                     tc.pbl_type  == PBLType::MYNN25      ||
                                     tc.pbl_type  == PBLType::MYNNEDMF    ||
-                                    tc.pbl_type  == PBLType::YSU  ||
-                                    tc.pbl_type  == PBLType::YSUNew  ||
+                                    tc.pbl_type  == PBLType::YSU         ||
                                     tc.pbl_type  == PBLType::MRF);
 
     const bool need_SmnSmn      = (tc.les_type  == LESType::Deardorff ||
                                    tc.rans_type == RANSType::kEqn);
+
+    // k-eqn RANS, erf.rans_shear_stencil = log_law: the vertical shear in SmnSmn is the
+    // log-consistent one (ERF_LogShear.H), from the wall distance and the surface layer's z0
+    const bool l_log_shear = (tc.rans_type == RANSType::kEqn &&
+                              tc.rans_shear_stencil == RANSShearStencil::log_law);
+    const MultiFab* z0_log_shear = nullptr;
+    if (l_log_shear) {
+        const auto& sl_zlo = SurfLayer[Orientation(Direction::z, Orientation::low)];
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(sl_zlo != nullptr && walldist != nullptr,
+            "erf.rans_shear_stencil = log_law needs zlo.type = surface_layer and the RANS wall distance");
+        z0_log_shear = sl_zlo->get_z0(level);
+    }
 
     const bool do_implicit = (solverChoice.vert_implicit_fac[level][nrk] > 0) && solverChoice.implicit_momentum_diffusion;
     // erf.implicit_terrain_metric: the implicit solve also takes the compact terrain-metric
@@ -290,6 +303,11 @@ void erf_make_tau_terms (int level, int nrk,
                                                         s11,s22,s33,
                                                         s12,s13,s23);
                     });
+                    if (l_log_shear) {
+                        log_shear::correct_box(bx, domain, SmnSmn_a, u, v, s13, s23,
+                                               walldist->const_array(mfi),
+                                               z0_log_shear->const_array(mfi), z_nd);
+                    }
                 }
 
                 // *****************************************************************************
@@ -445,6 +463,11 @@ void erf_make_tau_terms (int level, int nrk,
                                                         s11,s22,s33,
                                                         s12,s13,s23);
                     });
+                    if (l_log_shear) {
+                        log_shear::correct_box(bx, domain, SmnSmn_a, u, v, s13, s23,
+                                               walldist->const_array(mfi),
+                                               z0_log_shear->const_array(mfi), z_nd);
+                    }
                 }
 
                 // *****************************************************************************
@@ -624,6 +647,11 @@ void erf_make_tau_terms (int level, int nrk,
                                                         s11,s22,s33,
                                                         s12,s13,s23);
                     });
+                    if (l_log_shear) {
+                        log_shear::correct_box(bx, domain, SmnSmn_a, u, v, s13, s23,
+                                               walldist->const_array(mfi),
+                                               z0_log_shear->const_array(mfi), z_nd);
+                    }
                 }
 
                 // *****************************************************************************

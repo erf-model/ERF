@@ -15,7 +15,7 @@ becomes a one-cell ramp and its corners are sliver cells with 1 to 20
 percent solid. The forcing has two regimes on a partial cell: a drag
 proportional to the solid fraction, which fades to zero with it, and the
 wall law (with `erf.if_use_most`), which the original selection applies
-to any cell above 0.005 solid whose normal neighbour is exactly zero, at a
+to any cell above 0.005 solid whose normal neighbor is exactly zero, at a
 rate that does not depend on the fraction. The top cell of a sliver
 column is therefore forced like a full wall on top of an almost free
 cell. In a neutral 3 m/s run on a 40 m cube at 10 m and 0.5 s, a vertical
@@ -33,7 +33,7 @@ read the blanking snapped to solid or fluid at half: a height-map building
 becomes the same staircase of whole cells an exact box is. The momentum
 kernels take a face's blanking from the two cells it joins (solid when
 either is), so the staircase is the same with and without the build's
-face-centred blanking; a face between a solid and a fluid cell is
+face-centered blanking; a face between a solid and a fluid cell is
 wall-normal and gets the drag toward zero (no penetration), a face between
 two solid cells the roof or wall law of its row (with `erf.if_use_most`) or
 the interior drag, never both; the thermal conditions sit on the boundary

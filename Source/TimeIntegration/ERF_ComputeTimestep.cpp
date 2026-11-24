@@ -9,6 +9,7 @@
 #include <ERF.H>
 #include "Diffusion/ERF_CloudChamberWallFlux.H"
 #include "TimeIntegration/ERF_CloudChamberWallDtGuard.H"
+#include "TimeIntegration/ERF_VariableBetaSSwitch.H"
 #include "AuxiliaryState/ERF_AuxiliaryMappedTransport.H"
 #include "Microphysics/SBM/ERF_SBMTransport.H"
 
@@ -46,7 +47,7 @@ ERF::ComputeDt (int step, double cur_time_d)
     {
         // The terrain slope factor is reported only when one of the options it informs is on:
         // the diffusive check or limit, or a Smagorinsky2D limit at this level.  It is printed
-        // whenever a level has a new set of grids (at initialisation, on the first step after a
+        // whenever a level has a new set of grids (at initialization, on the first step after a
         // restart, and on the coarse step after a regrid), and on a moving terrain also whenever
         // its largest value changes by more than 1 %.
         const TurbChoice& tc = solverChoice.turbChoice[lev];
@@ -59,6 +60,9 @@ ERF::ComputeDt (int step, double cur_time_d)
                 slope_report_grids[lev] = grids[lev];
             }
         }
+
+        // Stability of the constant beta_s on this level's terrain (also checked after a regrid)
+        CheckVariableBetaS(lev);
 
         // Steep terrain next to an inflow or outflow face: checked for every new set of grids
         if (openface_grids[lev] != grids[lev]) {
@@ -163,7 +167,7 @@ ERF::ComputeDt (int step, double cur_time_d)
 /**
  * Largest explicit diffusion rates on a level, for the diffusive time-step check: the
  * maximum over valid cells of CellDiffusiveRates (ERF_TerrainDiffusionLimits.H), which takes
- * the largest diffusivities and the smallest density over each cell's 3x3x3 neighbourhood,
+ * the largest diffusivities and the smallest density over each cell's 3x3x3 neighborhood,
  * built from the eddy diffusivities of the last step (zero
  * before the first step and on the first step after a restart, since they are not
  * checkpointed; a regrid happens before the advance that recomputes them) plus the molecular
@@ -189,8 +193,8 @@ ERF::ComputeDiffusiveRates (int lev, Real& rate_mom, Real& rate_scal) const
 
     // Explicit fraction of the vertical diffusion (ExplicitVerticalFraction): 0 where the
     // partly implicit stages keep it bounded, 1 otherwise.  Compressible levels use the
-    // three-stage scheme; anelastic MidPoint is two stages; anelastic RK2 turns the implicit
-    // solve off (its factors are zero).
+    // three-stage scheme; MidPoint (anelastic and pseudo-incompressible levels) is two stages;
+    // RK2 turns the implicit solve off (its factors are zero).
     const auto& fac = solverChoice.vert_implicit_fac[lev];
     const int nstages = (solverChoice.compressibility_type[lev] != CompressibilityType::FullyCompressible &&
                          solverChoice.timestepping_type[lev] == TimesteppingType::MidPoint) ? 2 : 3;
@@ -206,6 +210,9 @@ ERF::ComputeDiffusiveRates (int lev, Real& rate_mom, Real& rate_scal) const
     set.implicit_metric = solverChoice.implicit_terrain_metric;
     set.e_uv = e_uv; set.e_th = e_th; set.e_q = e_q; set.e_ke = e_ke;
     set.has_eddy = has_eddy;
+    // As in estTimeStep, the level 0 domain decides whether a lateral direction counts
+    set.x_active = (geom[0].Domain().length(0) > 1);
+    set.y_active = (geom[0].Domain().length(1) > 1);
     // Molecular diffusivities as the diffusion operators use them: the stresses take
     // 2 * dynamic_viscosity (ComputeStress*), i.e. dynamic_viscosity in the convention of
     // MomentumDiffusiveRate, and the scalars rhoAlpha_T and rhoAlpha_C; with ConstantAlpha
@@ -222,7 +229,7 @@ ERF::ComputeDiffusiveRates (int lev, Real& rate_mom, Real& rate_scal) const
     }
 
     const MultiFab& S = vars_new[lev][Vars::cons];
-    // CellDiffusiveRates reads the 3x3x3 neighbourhood of each valid cell
+    // CellDiffusiveRates reads the 3x3x3 neighborhood of each valid cell
     AMREX_ALWAYS_ASSERT(S.nGrowVect().min() >= 1);
     AMREX_ALWAYS_ASSERT(!has_eddy || eddyDiffs_lev[lev]->nGrowVect().min() >= 1);
 
@@ -312,6 +319,87 @@ ERF::ReportTerrainSlopeFactor (int lev, bool force)
         }
         Print() << std::endl;
     }
+}
+
+/**
+ * Implicit acoustic substepping on a terrain-fitted mesh with erf.use_variable_beta_s not given
+ * in the inputs: turn on erf.use_variable_beta_s, for all levels and the rest of the run, if
+ * erf.beta_s is below the large-Courant stability limit min(sigma^2, 1) on any w-face of level
+ * lev (see make_fast_coeffs).  Checked whenever the level has a new set of grids (called by
+ * ComputeDt, and by timeStep right after a regrid so that a new level does not take a step with
+ * the constant beta_s), and every coarse step on a moving terrain.  Once on, the switch is saved
+ * in the checkpoint, so a restarted run keeps it.
+ *
+ * @param[in] lev   level
+ */
+void
+ERF::CheckVariableBetaS (int lev)
+{
+    beta_s_check_grids.resize(finest_level+1);
+
+    const bool fitted = (solverChoice.terrain_type == TerrainType::StaticFittedMesh ||
+                         solverChoice.terrain_type == TerrainType::MovingFittedMesh);
+    const bool moving = (solverChoice.terrain_type == TerrainType::MovingFittedMesh);
+    const bool new_grids = (beta_s_check_grids[lev] != grids[lev]);
+    beta_s_check_grids[lev] = grids[lev];
+
+    if (!fitted || !solverChoice.auto_variable_beta_s || solverChoice.use_variable_beta_s ||
+        solverChoice.timestepping_type[lev] != TimesteppingType::RK3_ImplicitSubstep ||
+        !(new_grids || moving)) {
+        return;
+    }
+
+    const Real sigma2_max = ComputeMaxTerrainSlope(lev);
+    if (VariableBetaSSwitchNeeded(solverChoice.beta_s, sigma2_max)) {
+        solverChoice.use_variable_beta_s = true;
+        Print() << "Level " << lev << ": erf.beta_s = " << solverChoice.beta_s
+                << " is below the acoustic stability limit min(sigma^2, 1) = "
+                << amrex::min(sigma2_max, one) << " (largest sigma^2 = h_xi^2 + h_eta^2 = "
+                << sigma2_max << "); turning on erf.use_variable_beta_s on all levels"
+                << " (set erf.use_variable_beta_s = false to keep erf.beta_s)" << std::endl;
+    }
+}
+
+/**
+ * Return the largest terrain slope sigma^2 = h_xi^2 + h_eta^2 over the w-faces of a level, the
+ * quantity make_fast_coeffs sets the variable beta_s from.  ComputeDt compares it with beta_s on
+ * a terrain-fitted mesh with implicit acoustic substepping (CheckVariableBetaS).
+ *
+ * @param[in] lev   level
+ */
+Real
+ERF::ComputeMaxTerrainSlope (int lev)
+{
+    AMREX_ALWAYS_ASSERT(z_phys_nd[lev]);
+
+    const GpuArray<Real, AMREX_SPACEDIM> dxInv = geom[lev].InvCellSizeArray();
+
+    const MultiFab& w = vars_new[lev][Vars::zvel];
+
+    ReduceOps<ReduceOpMax> reduce_op;
+    ReduceData<Real> reduce_data(reduce_op);
+    using ReduceTuple = typename decltype(reduce_data)::Type;
+
+#ifdef _OPENMP
+#pragma omp parallel if (Gpu::notInLaunchRegion())
+#endif
+    for (MFIter mfi(w, TilingIfNotGPU()); mfi.isValid(); ++mfi)
+    {
+        const Box& bx = mfi.tilebox();
+        const Array4<const Real> z_nd = z_phys_nd[lev]->const_array(mfi);
+        reduce_op.eval(bx, reduce_data, [=] AMREX_GPU_DEVICE (int i, int j, int k) -> ReduceTuple
+        {
+            const Real h_xi   = Compute_h_xi_AtKface (i, j, k, dxInv, z_nd);
+            const Real h_eta  = Compute_h_eta_AtKface(i, j, k, dxInv, z_nd);
+            const Real sigma2 = h_xi*h_xi + h_eta*h_eta;
+            return {sigma2};
+        });
+    }
+
+    ReduceTuple hv = reduce_data.value(reduce_op);
+    Real sigma2_max = amrex::get<0>(hv);
+    ParallelDescriptor::ReduceRealMax(sigma2_max);
+    return sigma2_max;
 }
 
 /**
@@ -567,7 +655,7 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
     estdt_comp_N = (estdt_comp_inv_N > zero) ? (cfl / estdt_comp_inv_N) : bogus_large_value;
 
     //
-    // Anelastic (low Mach) estimate -- purely advective, again terrain aware
+    // Anelastic / pseudo-incompressible (low Mach) estimate -- purely advective, again terrain aware
     // and terrain unaware
     //
     if (solverChoice.terrain_type == TerrainType::EB)
@@ -593,7 +681,7 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
                 Real inv_dt_lowM_N = Compute_InvDt_Anelastic(i,j,k,
                                              u(i,j,k,0), u(i,j,k,1), u(i,j,k,2),
                                              z_nd, mf_mx(i,j,0), mf_my(i,j,0),
-                                             dxinv_EB, false);
+                                             dxinv_EB, false, nxc, nyc);
                 return {inv_dt_lowM_N};
             });
         }
@@ -626,11 +714,11 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
             {
                 Real inv_dt_T = Compute_InvDt_Anelastic(i,j,k,
                                     u_T(i,j,k,0), u_T(i,j,k,1), u_T(i,j,k,2),
-                                    z_nd, mf_mx(i,j,0), mf_my(i,j,0), dxinv, true);
+                                    z_nd, mf_mx(i,j,0), mf_my(i,j,0), dxinv, true, nxc, nyc);
 
                 Real inv_dt_N = Compute_InvDt_Anelastic(i,j,k,
                                     u_N(i,j,k,0), u_N(i,j,k,1), u_N(i,j,k,2),
-                                    z_nd, mf_mx(i,j,0), mf_my(i,j,0), dxinv, false);
+                                    z_nd, mf_mx(i,j,0), mf_my(i,j,0), dxinv, false, nxc, nyc);
 
                 return {inv_dt_T, inv_dt_N};
             });
@@ -686,8 +774,8 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
         erf_auxiliary::MappedFaceFluxRate mapped_carrier;
         mapped_carrier.define(cell_ba, cell_dm, 1, 0);
         std::string sbm_diagnostic;
-        // The same mapped carrier for both integrators: erf_slow_rhs_pre gives the anelastic
-        // transport these faces too, from the current momenta
+        // The same mapped carrier for both integrators: erf_slow_rhs_pre gives the anelastic and
+        // pseudo-incompressible transport these faces too, from the current momenta
         MultiFab sbm_vertical_carrier(zface_ba, cell_dm, 1, 0);
         const bool terrain_fitted =
             solverChoice.mesh_type == MeshType::VariableDz;
@@ -841,7 +929,7 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
      if (cloud_chamber_config.active &&
          cloud_chamber_config.physical_initialization &&
          cloud_chamber_config.has_wall_rate_channel()) {
-         const auto walls = cloud_chamber_config.wall_boundary();
+         const auto walls = cloud_chamber_config.transport_boundary();
          const Box domain = geom[level].Domain();
          max_wall_rate = ReduceMax(ccvel_N, 0,
          [=] AMREX_GPU_HOST_DEVICE (Box const& b,
@@ -850,78 +938,8 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
              Real rate = Real(0.0);
              amrex::Loop(b, [=,&rate] (int i, int j, int k) noexcept
              {
-                 // A free staggered component can receive tangential traction
-                 // from every active perpendicular wall at an edge/corner.
-                 // Fixed and neutral coefficients use the exact local
-                 // velocity-parallel Jacobian row-sum factor.  MOST evaluates
-                 // its current coefficients once per wall/cell and uses that
-                 // state as a frozen-coefficient local rate estimate; it is
-                 // not a nonlinear MOST Jacobian bound.
-                 Real momentum_rate = Real(0.0);
-                 amrex::GpuArray<Real, AMREX_SPACEDIM> low_momentum_rates{};
-                 amrex::GpuArray<Real, AMREX_SPACEDIM> high_momentum_rates{};
-                 // Evaluate each encountered wall/cell state once.  The
-                 // component row sums below only compose these retained
-                 // per-face rates; they must not repeat the MOST solve.
-                 for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
-                     const bool low = (dir == 0 ? i == domain.smallEnd(0) :
-                                       (dir == 1 ? j == domain.smallEnd(1) :
-                                                    k == domain.smallEnd(2)));
-                     const bool high = (dir == 0 ? i == domain.bigEnd(0) :
-                                        (dir == 1 ? j == domain.bigEnd(1) :
-                                                     k == domain.bigEnd(2)));
-                     if (low) {
-                         const auto& wall = walls[2*dir];
-                         if (erf_cloud_chamber_wall_flux::
-                             wall_rate_requires_tangential_speed(wall)) {
-                             const Real U_t =
-                                 erf_cloud_chamber_wall_flux::
-                                 tangential_speed_cell_centered(
-                                     dir, i, j, k, velocity, wall);
-                             const auto runtime =
-                                 erf_cloud_chamber_wall_flux::most_wall_coefficients(
-                                     wall, velocity(i,j,k,3), velocity(i,j,k,4),
-                                     velocity(i,j,k,5), velocity(i,j,k,6), U_t,
-                                     Real(0.5) / dxinv[dir],
-                                     dir == 2 ? 1 : 0);
-                             rate = amrex::max(rate,
-                                 erf_cloud_chamber_wall_flux::wall_rate_for_face(
-                                     wall, U_t, dxinv[dir], runtime));
-                             low_momentum_rates[dir] =
-                                 erf_cloud_chamber_wall_flux::momentum_rate_for_face(
-                                     wall, U_t, dxinv[dir], runtime);
-                         }
-                     }
-                     if (high) {
-                         const auto& wall = walls[2*dir+1];
-                         if (erf_cloud_chamber_wall_flux::
-                             wall_rate_requires_tangential_speed(wall)) {
-                             const Real U_t =
-                                 erf_cloud_chamber_wall_flux::
-                                 tangential_speed_cell_centered(
-                                     dir, i, j, k, velocity, wall);
-                             const auto runtime =
-                                 erf_cloud_chamber_wall_flux::most_wall_coefficients(
-                                     wall, velocity(i,j,k,3), velocity(i,j,k,4),
-                                     velocity(i,j,k,5), velocity(i,j,k,6), U_t,
-                                     Real(0.5) / dxinv[dir],
-                                     dir == 2 ? -1 : 0);
-                             rate = amrex::max(rate,
-                                 erf_cloud_chamber_wall_flux::wall_rate_for_face(
-                                     wall, U_t, dxinv[dir], runtime));
-                             high_momentum_rates[dir] =
-                                 erf_cloud_chamber_wall_flux::momentum_rate_for_face(
-                                     wall, U_t, dxinv[dir], runtime);
-                         }
-                     }
-                 }
-                 for (int component = 0; component < AMREX_SPACEDIM; ++component) {
-                     const Real component_rate =
-                         erf_cloud_chamber_wall_flux::momentum_row_sum_rate(
-                             component, low_momentum_rates, high_momentum_rates);
-                     momentum_rate = amrex::max(momentum_rate, component_rate);
-                 }
-                 rate = amrex::max(rate, momentum_rate);
+                 rate = amrex::max(rate, erf_cloud_chamber_wall_flux::wall_rate_for_cell(
+                     i, j, k, domain, walls, dxinv, velocity));
              });
              return rate;
          });
@@ -1044,7 +1062,7 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
              //
              // Check dt_sub_max BEFORE dividing by it, and the quotient before casting it.
              // Converting a non-finite or wildly out-of-range double to long is undefined
-             // behaviour and in practice traps, and the division itself raises on a zero
+             // behavior and in practice traps, and the division itself raises on a zero
              // denominator under erf's FPE trapping.  A level handed corrupted state
              // arrives here with an enormous sound speed, hence a vanishing estdt_comp_T
              // and a vanishing dt_sub_max; without this the first symptom is a bare signal
@@ -1119,7 +1137,7 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
      if (fixed_dt[level] > zero) {
          return fixed_dt[level];
      } else {
-         // Anelastic (substepping is not allowed)
+         // Anelastic or pseudo-incompressible (substepping is not allowed)
          if (l_anelastic) {
 
             // Make sure that timestep is less than the dt_max

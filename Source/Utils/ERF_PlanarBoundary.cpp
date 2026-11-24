@@ -4,6 +4,7 @@
 #include <ERF_PlanarBoundary.H>
 
 #include <algorithm>
+#include <utility>
 
 using namespace amrex;
 
@@ -31,6 +32,7 @@ PlanarBoundary::define (const BoxArray& ba3d,
     m_nplanar = static_cast<int>(ba2d.size());
     m_src_index.clear();
     m_buffers.clear();
+    m_strips.clear();
 
     // The planar boxes are taken as they are, whatever index they were collapsed to
     BoxList bl_sfc(IndexType::TheCellType());
@@ -83,7 +85,7 @@ PlanarBoundary::fill (MultiFab& mf, const Periodicity& period)
     MultiFab& buf = buffer(mf);
     gather_surface(mf, buf, 0, 0, ncomp);
 
-    // A face-centered buffer's boxes share a face with their neighbours, and the gather above
+    // A face-centered buffer's boxes share a face with their neighbors, and the gather above
     // takes each box's face from its own surface copy, so two boxes can hold different values
     // there.  Give every shared face one value before the ParallelCopy -- OverrideSync's
     // precedence is the lowest global box index, so the result does not depend on the
@@ -93,6 +95,183 @@ PlanarBoundary::fill (MultiFab& mf, const Periodicity& period)
 
     // Fill every copy, valid region and ghost cells, from the computed surface copies
     mf.ParallelCopy(buf, 0, 0, ncomp, IntVect(0), mf.nGrowVect(), period);
+}
+
+/**
+ * Give every copy of a ghost cell outside a non-periodic lateral domain edge the value of
+ * the surface copy that holds the column it faces (see ERF_PlanarBoundary.H).
+ *
+ * @param[in,out] mf   planar MultiFab on the planar BoxArray given to define
+ * @param[in]     geom geometry of the level
+ */
+void
+PlanarBoundary::reconcile_outside_domain (MultiFab& mf, const Geometry& geom)
+{
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(static_cast<int>(mf.size()) == m_nplanar,
+        "PlanarBoundary::reconcile_outside_domain: the MultiFab is not on the planar "
+        "BoxArray given to define");
+
+    if (!mf.ixType().cellCentered() || m_src_index.empty()) { return; }
+
+    EdgeStrips& strips = edge_strips(mf, geom);
+    if (strips.ba.empty()) { return; }
+
+    // Copy each strip from its owner into a buffer, kept for each number of components ...
+    const int ncomp = mf.nComp();
+    MultiFab* bufp = nullptr;
+    for (auto& b : strips.bufs) {
+        if (b->nComp() == ncomp) { bufp = b.get(); break; }
+    }
+    if (bufp == nullptr) {
+        strips.bufs.push_back(std::make_unique<MultiFab>(strips.ba, strips.dm, ncomp, 0));
+        bufp = strips.bufs.back().get();
+    }
+    MultiFab& buf = *bufp;
+
+    // Each strip is on the rank of its owner, so taking it from the owner is a local copy
+    for (MFIter mfi(buf); mfi.isValid(); ++mfi) {
+        const Box& bx = mfi.validbox();
+        const int owner = strips.owner[mfi.index()];
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(mf.DistributionMap()[owner] == ParallelDescriptor::MyProc(),
+            "PlanarBoundary::reconcile_outside_domain: an edge strip is not on the rank of its owner");
+        const auto src = mf.const_array(owner);
+        const auto dst = buf.array(mfi);
+        const int si = strips.shift[mfi.index()][0];
+        const int sj = strips.shift[mfi.index()][1];
+        ParallelFor(bx, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+        {
+            dst(i,j,k,n) = src(i+si,j+sj,k,n);
+        });
+    }
+
+    // ... and then into every copy of those cells, the owner's included
+    mf.ParallelCopy(buf, 0, 0, ncomp, IntVect(0), mf.nGrowVect(), geom.periodicity());
+}
+
+/**
+ * The strips beyond the non-periodic domain edges owned by each surface copy of a planar
+ * layout, built on first use.
+ *
+ * A surface copy that touches a non-periodic edge owns the ghost cells beyond it that face
+ * its valid region, out to the ghost width of the field, and at a domain corner the cells
+ * beyond both edges.  Since the surface copies do not overlap, neither do these strips.
+ *
+ * The remaining cells beyond a non-periodic edge that lie in the ghost region of a surface
+ * copy face a column no grid of the level covers.  Each goes to the surface copy with the
+ * lowest global index that holds it, in the image inside the domain in the periodic
+ * directions, so that the ParallelCopy from the strips reaches all its images.
+ *
+ * @param[in] mf   planar MultiFab
+ * @param[in] geom geometry of the level
+ */
+PlanarBoundary::EdgeStrips&
+PlanarBoundary::edge_strips (const MultiFab& mf, const Geometry& geom)
+{
+    const IntVect ng = mf.nGrowVect();
+    const BoxArray& pba = mf.boxArray();
+    const DistributionMapping& pdm = mf.DistributionMap();
+    for (auto& s : m_strips) {
+        if (s.ngrow == ng && s.planar_ba == pba && s.planar_dm == pdm) { return s; }
+    }
+
+    const Box& dom = geom.Domain();
+    BoxList bl;
+    Vector<int> pmap;
+    Vector<int> owner;
+    Vector<IntVect> shift;
+
+    // The cells that face the valid region of a surface copy
+    for (int ib : m_src_index) {
+        const Box vbx = pba[ib];
+        Box grown = vbx;
+        for (int d = 0; d < 2; ++d) {
+            if (geom.isPeriodic(d) || ng[d] == 0) { continue; }
+            if (vbx.smallEnd(d) == dom.smallEnd(d)) { grown.growLo(d, ng[d]); }
+            if (vbx.bigEnd(d)   == dom.bigEnd(d))   { grown.growHi(d, ng[d]); }
+        }
+        if (grown == vbx) { continue; }
+        for (const Box& b : boxDiff(grown, vbx)) {
+            bl.push_back(b);
+            pmap.push_back(pdm[ib]);
+            owner.push_back(ib);
+            shift.emplace_back(0);
+        }
+    }
+
+    // The cells facing no grid, to the first surface copy that holds them.  taken lists every
+    // cell assigned so far; the surface copies are in increasing global index.
+    Vector<Box> taken(bl.begin(), bl.end());
+    for (int ib : m_src_index) {
+        const Box vbx = pba[ib];
+        Box ghost = vbx;
+        Box inside = vbx;
+        for (int d = 0; d < 2; ++d) {
+            ghost.grow(d, ng[d]);
+            inside.grow(d, ng[d]);
+            if (!geom.isPeriodic(d)) {
+                inside.setSmall(d, std::max(inside.smallEnd(d), dom.smallEnd(d)));
+                inside.setBig  (d, std::min(inside.bigEnd(d),   dom.bigEnd(d)));
+            }
+        }
+        if (inside == ghost) { continue; }
+
+        for (const Box& beyond : boxDiff(ghost, inside)) {
+            // Split along the periodic directions into the parts below, inside and above the
+            // domain, and move each into the domain; the owner's cell is the image's + shift
+            Vector<std::pair<Box,IntVect>> pieces{{beyond, IntVect(0)}};
+            for (int d = 0; d < 2; ++d) {
+                if (!geom.isPeriodic(d)) { continue; }
+                const int len = dom.length(d);
+                Vector<std::pair<Box,IntVect>> split;
+                for (const auto& [b, sh] : pieces) {
+                    Box lo = b; lo.setBig(d, std::min(b.bigEnd(d), dom.smallEnd(d)-1));
+                    Box mid = b; mid.setSmall(d, std::max(b.smallEnd(d), dom.smallEnd(d)));
+                                 mid.setBig  (d, std::min(b.bigEnd(d),   dom.bigEnd(d)));
+                    Box hi = b; hi.setSmall(d, std::max(b.smallEnd(d), dom.bigEnd(d)+1));
+                    IntVect shlo = sh; shlo[d] -= len;
+                    IntVect shhi = sh; shhi[d] += len;
+                    if (lo.ok())  { split.emplace_back(amrex::shift(lo, d,  len), shlo); }
+                    if (mid.ok()) { split.emplace_back(mid, sh); }
+                    if (hi.ok())  { split.emplace_back(amrex::shift(hi, d, -len), shhi); }
+                }
+                pieces = std::move(split);
+            }
+
+            for (const auto& [b, sh] : pieces) {
+                BoxList rest(b);
+                for (const Box& t : taken) {
+                    if (!t.intersects(b)) { continue; }
+                    BoxList next;
+                    for (const Box& r : rest) {
+                        if (r.intersects(t)) { next.join(boxDiff(r, t)); }
+                        else                 { next.push_back(r); }
+                    }
+                    rest = std::move(next);
+                    if (rest.isEmpty()) { break; }
+                }
+                for (const Box& r : rest) {
+                    bl.push_back(r);
+                    pmap.push_back(pdm[ib]);
+                    owner.push_back(ib);
+                    shift.push_back(sh);
+                    taken.push_back(r);
+                }
+            }
+        }
+    }
+
+    EdgeStrips s;
+    s.planar_ba = pba;
+    s.planar_dm = pdm;
+    s.ngrow = ng;
+    if (!bl.isEmpty()) {
+        s.ba = BoxArray(std::move(bl));
+        s.dm = DistributionMapping(std::move(pmap));
+        s.owner = std::move(owner);
+        s.shift = std::move(shift);
+    }
+    m_strips.push_back(std::move(s));
+    return m_strips.back();
 }
 
 /**

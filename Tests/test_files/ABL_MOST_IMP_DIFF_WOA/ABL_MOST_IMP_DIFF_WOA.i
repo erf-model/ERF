@@ -63,6 +63,10 @@ erf.dynamic_viscosity = 1.0
 erf.terrain_type = StaticFittedMesh
 erf.terrain_smoothing = 2 # Sullivan TF
 
+# Keep the constant beta_s that the gold files were made with (no automatic switch
+# to the variable beta_s over the steep hill)
+erf.use_variable_beta_s = false
+
 # PROBLEM PARAMETERS
 prob.custom_terrain_type = "WoA"
 prob.T_0   = 300.0

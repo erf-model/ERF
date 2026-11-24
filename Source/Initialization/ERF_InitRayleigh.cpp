@@ -65,6 +65,20 @@ ERF::initRayleigh_at_level (const int& lev)
     prob->erf_init_rayleigh(h_rayleigh_ptrs[lev], geom[lev], z_phys_nd[lev],
                             solverChoice.dampingChoice.rayleigh_zdamp);
 
+    // With an input sounding, ubar, vbar and thetabar come from it (wbar is zero); the
+    // damping coefficient set by erf_init_rayleigh is still used.  Doing it here, rather
+    // than once at start-up, keeps the sounding on a level a regrid remakes or creates.
+    // Every caller (InitData_post, and RemakeLevel / MakeNewLevelFromCoarse, which run only
+    // from regrid after InitData_post) comes after the sounding is loaded, so a missing
+    // sounding is an error rather than a level to leave with the problem defaults.
+    if (solverChoice.init_type == InitType::Input_Sounding) {
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!input_sounding_data.z_inp_sound.empty() &&
+                                         !input_sounding_data.z_inp_sound[0].empty(),
+            "initRayleigh_at_level: the input sounding must be loaded before the Rayleigh "
+            "reference profiles are set");
+        setRayleighRefFromSounding_at_level(lev);
+    }
+
     // Copy from host vectors to device vectors
     for (int n = 0; n < Rayleigh::nvars; n++) {
         Gpu::copy(Gpu::hostToDevice, h_rayleigh_ptrs[lev][n].begin(), h_rayleigh_ptrs[lev][n].end(),
@@ -75,71 +89,33 @@ ERF::initRayleigh_at_level (const int& lev)
 }
 
 /**
- * Sets the Rayleigh Damping averaged quantities from an
- * externally supplied input sounding data file.
+ * Sets the Rayleigh Damping reference profiles at one level from the input sounding
+ * (sounding 0), at the cell-center heights of that level.  The sounding is the one
+ * sampled at this level's own cell centers (sounding_at_level), as for the level's
+ * initial state, so that the damping targets are the profile the level starts from.
+ * Called from initRayleigh_at_level, before the profiles are copied to the device.  The
+ * sounding is already loaded: at start-up by init_only, on a restart by
+ * MakeNewLevelFromScratch.
  *
- * @param[in] restarting Boolean parameter that indicates whether
-                         we are currently restarting from a checkpoint file.
+ * @param[in] lev Level whose reference profiles to set
  */
 void
-ERF::setRayleighRefFromSounding (bool restarting)
+ERF::setRayleighRefFromSounding_at_level (int lev)
 {
-    // If we are restarting then we haven't read the input_sounding file yet
-    //    so we need to read it here
-    // TODO: should we store this information in the checkpoint file instead?
-    bool is_moist = (solverChoice.moisture_type != MoistureType::None);
-    if (restarting) {
-        input_sounding_data.resize_arrays();
-        for (int n = 0; n < input_sounding_data.n_sounding_files; n++) {
-            input_sounding_data.read_from_file(geom[0], zlevels_stag[0], n, is_moist);
-        }
-    }
+    const InputSoundingData& snd = sounding_at_level(lev);
+    const Real* z_inp_sound     = snd.z_inp_sound[0].dataPtr();
+    const Real* U_inp_sound     = snd.U_inp_sound[0].dataPtr();
+    const Real* V_inp_sound     = snd.V_inp_sound[0].dataPtr();
+    const Real* theta_inp_sound = snd.theta_inp_sound[0].dataPtr();
+    const int   inp_sound_size  = snd.size(0);
 
-    const Real* z_inp_sound     = input_sounding_data.z_inp_sound[0].dataPtr();
-    const Real* U_inp_sound     = input_sounding_data.U_inp_sound[0].dataPtr();
-    const Real* V_inp_sound     = input_sounding_data.V_inp_sound[0].dataPtr();
-    const Real* theta_inp_sound = input_sounding_data.theta_inp_sound[0].dataPtr();
-    const int   inp_sound_size  = input_sounding_data.size(0);
-
-    int refine_fac{1};
-    for (int lev = 0; lev <= finest_level; lev++)
+    const int Nz = geom[lev].Domain().length(2);
+    for (int k = 0; k < Nz; k++)
     {
-        const int klo = geom[lev].Domain().smallEnd(2);
-        const int khi = geom[lev].Domain().bigEnd(2);
-        const int Nz = khi - klo + 1;
-
-        Vector<Real> zcc(Nz);
-        Vector<Real> zlevels_sub(zlevels_stag[0].begin()+klo/refine_fac,
-                                 zlevels_stag[0].begin()+khi/refine_fac+2);
-        expand_and_interpolate_1d(zcc, zlevels_sub, refine_fac, true);
-#if 0
-        amrex::AllPrint() << "lev="<<lev<<" : (refine_fac="<<refine_fac<<",klo="<<klo<<",khi="<<khi<<") ";
-        for (int k = 0; k < zlevels_sub.size(); k++) { amrex::AllPrint() << zlevels_sub[k] << " "; }
-        amrex::AllPrint() << " --> ";
-        for (int k = 0; k < Nz; k++) { amrex::AllPrint() << zcc[k] << " "; }
-        amrex::AllPrint() << std::endl;
-#endif
-
-        for (int k = 0; k < Nz; k++)
-        {
-            h_rayleigh_ptrs[lev][Rayleigh::ubar][k]     = interpolate_1d(z_inp_sound, U_inp_sound, zcc[k], inp_sound_size);
-            h_rayleigh_ptrs[lev][Rayleigh::vbar][k]     = interpolate_1d(z_inp_sound, V_inp_sound, zcc[k], inp_sound_size);
-            h_rayleigh_ptrs[lev][Rayleigh::wbar][k]     = zero;
-            h_rayleigh_ptrs[lev][Rayleigh::thetabar][k] = interpolate_1d(z_inp_sound, theta_inp_sound, zcc[k], inp_sound_size);
-        }
-
-        // Copy from host version to device version
-        Gpu::copy(Gpu::hostToDevice, h_rayleigh_ptrs[lev][Rayleigh::ubar].begin(), h_rayleigh_ptrs[lev][Rayleigh::ubar].end(),
-                         d_rayleigh_ptrs[lev][Rayleigh::ubar].begin());
-        Gpu::copy(Gpu::hostToDevice, h_rayleigh_ptrs[lev][Rayleigh::vbar].begin(), h_rayleigh_ptrs[lev][Rayleigh::vbar].end(),
-                         d_rayleigh_ptrs[lev][Rayleigh::vbar].begin());
-        Gpu::copy(Gpu::hostToDevice, h_rayleigh_ptrs[lev][Rayleigh::wbar].begin(), h_rayleigh_ptrs[lev][Rayleigh::wbar].end(),
-                         d_rayleigh_ptrs[lev][Rayleigh::wbar].begin());
-        Gpu::copy(Gpu::hostToDevice, h_rayleigh_ptrs[lev][Rayleigh::thetabar].begin(), h_rayleigh_ptrs[lev][Rayleigh::thetabar].end(),
-                         d_rayleigh_ptrs[lev][Rayleigh::thetabar].begin());
-
-        if (lev < finest_level) {
-            refine_fac *= ref_ratio[lev][2];
-        }
+        const Real zcc = myhalf * (zlevels_stag[lev][k] + zlevels_stag[lev][k+1]);
+        h_rayleigh_ptrs[lev][Rayleigh::ubar][k]     = interpolate_1d(z_inp_sound, U_inp_sound, zcc, inp_sound_size);
+        h_rayleigh_ptrs[lev][Rayleigh::vbar][k]     = interpolate_1d(z_inp_sound, V_inp_sound, zcc, inp_sound_size);
+        h_rayleigh_ptrs[lev][Rayleigh::wbar][k]     = zero;
+        h_rayleigh_ptrs[lev][Rayleigh::thetabar][k] = interpolate_1d(z_inp_sound, theta_inp_sound, zcc, inp_sound_size);
     }
 }

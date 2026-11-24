@@ -265,7 +265,7 @@ void fill_wind_10m (MultiFab& dst,
                 valid_real(ustar(i,j,0)) && ustar(i,j,0) >= zero &&
                 evaluate_most_momentum_factor(z0(i,j,0), olen(i,j,0), wind_height, factor, sfuns)) {
                 const Real speed = ustar(i,j,0) / KAPPA * factor;
-                // The direction of the wind at the centre of the first cell, relative to
+                // The direction of the wind at the center of the first cell, relative to
                 // the surface, and the current that is added back
                 Real u_cc, v_cc, current_u = zero, current_v = zero;
                 if (have_current) {

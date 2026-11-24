@@ -16,7 +16,7 @@
  * The fire heat flux must already be coarsened to the ATM grid BA
  * by the caller (same ParallelCopy pattern as Phase 3 lofting).
  *
- * @param[in,out] cc_source           ATM cell-centred source MultiFab
+ * @param[in,out] cc_source           ATM cell-centered source MultiFab
  * @param[in]     fire_heat_atm       Fire heat flux coarsened to ATM grid [W/m2]
  * @param[in]     z_phys_nd           Nodal terrain-following heights [m], or nullptr
  *                                    without terrain; the k = 0 cell thickness is

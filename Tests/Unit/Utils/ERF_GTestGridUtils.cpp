@@ -109,10 +109,10 @@ float_backed_axis (double axis_origin, double axis_spacing, int point_count)
     return axis;
 }
 
-// Motivation: a sub-metre canopy raster in a projected coordinate system is
+// Motivation: a sub-meter canopy raster in a projected coordinate system is
 // where float32 quantization is largest relative to the spacing.  At a UTM
 // easting near 5e5 the float32 ulp is 0.03125 m, so on a 0.4 m grid
-// neighbouring intervals deviate from the nominal spacing by up to 0.025 m --
+// neighboring intervals deviate from the nominal spacing by up to 0.025 m --
 // more than 5% of the spacing, but far less than the ulp allowance.  The
 // spacing tolerance must be the larger of the two allowances, or this
 // perfectly uniform grid is rejected with no way for the user to work around

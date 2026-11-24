@@ -65,6 +65,15 @@ public:
     /*! \brief average down moisture multifabs from finest_level to 0 (AMR coverage); no-op for non-Lagrangian models */
     virtual void AverageDownMicroVars (const int /*finest_level*/) { }
 
+    /*! \brief drop the fields of a level that a regrid removes; no-op for models without level fields of their own */
+    virtual void ClearLevel (const int /*lev*/) { }
+
+    /*! \brief diagnostics of the state of all levels at a step (step, time, terrain, file name digits) */
+    virtual void Diagnostics (const int& /*step*/,
+                              const amrex::Real& /*time*/,
+                              const amrex::Vector<std::unique_ptr<amrex::MultiFab>>& /*z_phys_nd*/,
+                              const int /*file_name_digits*/) { }
+
     /*! \brief get scheme-native surface precipitation accumulators and their kg/m^2 conversion factors */
     virtual SurfacePrecipAccumulationSources
     Get_Surface_Precip_Accumulation_Ptrs (const int&) const

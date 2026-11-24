@@ -35,7 +35,7 @@
  *
  * This replaces every ghost cell below the domain with the value computed by the
  * box whose valid columns contain it (or, outside the domain laterally, the box
- * at that boundary), where the lateral stencil is always centred.  Values in the
+ * at that boundary), where the lateral stencil is always centered.  Values in the
  * owning box are unchanged.  The layout of the owning slabs is cached.
  */
 struct BelowGroundGhostSync
@@ -101,6 +101,23 @@ public:
 
     /** Terrain-following inflow profiles per face (xlo.inflow_profile), owned by ERF */
     void set_inflow_profiles (const amrex::Array<InflowProfile,2*AMREX_SPACEDIM>* profiles) { m_inflow_profiles = profiles; }
+
+    /**
+     * The lateral faces of a pseudo-incompressible level that give a primitive inflow theta.
+     * There the constraint holds rho*theta at rho0*theta0, so the ghost cells where the flow
+     * enters take rho = (rho*theta)_interior / theta_in, and every given value is made
+     * conserved with that density (#5265).
+     *
+     * @param[in] face  per face: 0 not such a face, 1 inflow, 2 inflow_outflow
+     * @param[in] theta per face: the given theta (<face>.theta), unless the face's theta comes
+     *                  from th_bc_data (th_file_face 2)
+     */
+    void set_pi_inflow_faces (const amrex::GpuArray<int,AMREX_SPACEDIM*2>& face,
+                              const amrex::GpuArray<amrex::Real,AMREX_SPACEDIM*2>& theta)
+    {
+        m_pi_inflow_face  = face;
+        m_pi_inflow_theta = theta;
+    }
 
     /** Overwrite the lateral ghost cells of profiled inflow faces (theta, tke) */
     void impose_inflow_profile_cons (const amrex::Array4<amrex::Real>& dest_arr,
@@ -168,6 +185,21 @@ public:
                                    int icomp, int ncomp, const double time,
                                    bool do_terrain_adjustment = true);
 
+    /**
+     * True when the face prescribes the ghost density (<face>.density on an inflow or
+     * inflow_outflow face), so that a primitive value set there (a theta file, an inflow
+     * profile) is converted with that density rather than the interior one.  On an
+     * inflow_outflow face it holds where the flow enters, which is the only place such a
+     * value is applied.
+     */
+    bool face_rho_is_extdir (const amrex::Orientation& ori) const {
+        const int dir = ori.coordDir();
+        const int t   = ori.isLow() ? m_domain_bcs_type[BCVars::Rho_bc_comp].lo(dir)
+                                    : m_domain_bcs_type[BCVars::Rho_bc_comp].hi(dir);
+        return (t == ERFBCType::ext_dir || t == ERFBCType::ext_dir_upwind)
+               && m_bc_extdir_vals[BCVars::Rho_bc_comp][ori] > amrex::Real(0.0);
+    }
+
 private:
     int                  m_lev;
     amrex::Geometry      m_geom;
@@ -181,6 +213,8 @@ private:
     amrex::Real*     m_th_bc_data;
     const amrex::Array<InflowProfile,2*AMREX_SPACEDIM>* m_inflow_profiles = nullptr;
     amrex::GpuArray<int,AMREX_SPACEDIM*2> m_th_file_face;
+    amrex::GpuArray<int,AMREX_SPACEDIM*2> m_pi_inflow_face{};
+    amrex::GpuArray<amrex::Real,AMREX_SPACEDIM*2> m_pi_inflow_theta{};
     BelowGroundGhostSync m_below_ground_sync;
 };
 

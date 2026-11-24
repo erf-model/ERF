@@ -36,7 +36,7 @@
 #include <utility>
 
 namespace erf_sbm {
-namespace {
+namespace erf_detail_SBMTransport {
 
 using amrex::Array4;
 using amrex::GpuArray;
@@ -221,7 +221,7 @@ apply_physical_donor_band (erf_auxiliary::MappedFaceFluxRate& high,
     }
 }
 
-// The face slab of one physical boundary within a face-centred valid box.
+// The face slab of one physical boundary within a face-centered valid box.
 amrex::Box
 physical_face_slab (const amrex::Box& face_valid, const amrex::Box& domain,
                     const int dir, const bool low)
@@ -1521,6 +1521,7 @@ sample_probe_face_rates (const SBMAMRStageGhostProbe* probe,
 }
 
 } // namespace
+using namespace erf_detail_SBMTransport;
 
 struct SBMTransport::LevelStorage
 {

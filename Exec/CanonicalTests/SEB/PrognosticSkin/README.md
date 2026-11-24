@@ -13,7 +13,7 @@ python3 plot_prognostic.py faces_solar ibseb_solar.csv --plotfile plt10800 --dt 
 
 ## The scenario
 
-A 40 m cube at the centre of a 320 m periodic domain on a 10 m grid in a
+A 40 m cube at the center of a 320 m periodic domain on a 10 m grid in a
 3 m/s westerly at 300 K, its faces starting at 300 K over 20 cm of concrete
 (k = 1 W/m/K, rho c_p = 1.6e6 J/m3/K, 8 layers) with a 293 K interior.
 Gray sky, ground at 300 K, albedo 0.3, emissivity 0.9. The domain is small

@@ -106,6 +106,32 @@ xlo.density       = 1. sets the inflow density,
 xlo.theta         = 300. sets the inflow potential temperature,
 xlo.scalar        = 2. sets the inflow value of the advected scalar
 
+In a compressible run the face values of theta, scalar, qv, qc and KE are made conserved with
+``<face>.density``, and every conserved variable the face does not give enters with the value 0.
+Without ``<face>.density`` the face takes all its conserved variables from the interior, except a
+primitive theta from a ``dirichlet_file`` (see below), which is applied without it.
+
+In an anelastic or pseudo-incompressible run ``<face>.density`` must be omitted on every face
+(ERF stops if it is given), and ERF sets the inflow density itself:
+
+- In an anelastic run it is the density of the first interior cell at the same height, which is
+  the base-state density :math:`\rho_0(z)`, since the density is held at the base state.
+- In a pseudo-incompressible run, on a lateral face that gives a primitive theta
+  (``<face>.theta``, or a ``dirichlet_file`` read as primitive theta) and no ``inflow_profile``,
+  it is :math:`(\rho\theta)_{\rm interior} / \theta_{\rm in}`. The pseudo-incompressible
+  constraint holds :math:`\rho\theta` at :math:`\rho_0\theta_0`, so this is the density that
+  matches the inflow theta, and :math:`\rho\theta` enters as :math:`\rho_0\theta_0 u`. The
+  momentum on the face is formed with this density too. A face that gives no theta takes the
+  density of the first interior cell.
+
+Each of ``<face>.theta``, ``scalar``, ``qv``, ``qc`` and ``KE`` that is given is multiplied by
+this density, on ``inflow`` and ``inflow_outflow`` faces alike.
+A face that gives any of them brings in 0 of every other conserved variable, as a compressible
+face with ``<face>.density`` does, except theta: a face that does not give ``<face>.theta`` takes
+it from the interior. A face that gives none of them takes them all from the interior.
+
+``inflow_outflow`` is supported on x and y faces only; ERF stops if a z face has it.
+
 Non-reflecting inflow
 ^^^^^^^^^^^^^^^^^^^^^
 
@@ -163,8 +189,9 @@ The inflow therefore follows the terrain along the face and the terrain stays on
 the boundary, as WindNinja's inlets do; ``dirichlet_file`` instead holds one
 value per grid level along the whole face. The option applies to ``inflow`` and
 ``inflow_outflow`` faces; on an ``inflow_outflow`` face only the cells where the
-flow enters take the profile. Density is extrapolated from the interior and the
-vertical velocity keeps its boundary value.
+flow enters take the profile. Density is ``<face>.density`` when that is given
+and is otherwise extrapolated from the interior; theta and tke are converted to
+conserved form with that density. The vertical velocity keeps its boundary value.
 
 ``<face>.inflow_profile = log_law`` tabulates the neutral log law
 
@@ -256,8 +283,10 @@ Supported wall inputs are specified in primitive form. On compressible
 ``slipwall`` and ``noslipwall`` faces, same-face ``density`` may
 be supplied so ERF stores the corresponding conserved value. ``density_grad``
 is supported only on compressible ``slipwall`` faces; supplying it on a
-``noslipwall`` face is an input error. Anelastic solid walls must omit both
-``density`` and ``density_grad``.
+``noslipwall`` face is an input error. Anelastic and pseudo-incompressible solid
+walls must omit both ``density`` and ``density_grad``: at an anelastic level the
+density is held at the base state, and a pseudo-incompressible level, which evolves
+the density as a compressible level does, does not support a wall density yet.
 
 For every supported variable, a fixed value and its corresponding gradient on
 the same face are mutually exclusive.
@@ -306,7 +335,8 @@ Couette regression test example, in which we specify
 Density may be prescribed at a solid wall in the same two ways as potential
 temperature: ``<face>.density`` sets a Dirichlet value and ``<face>.density_grad``
 sets a Neumann gradient.  Only one of the two may be given on a face, and neither
-is accepted for an anelastic run, where the density is not a free variable.
+is accepted for an anelastic run, where the density is not a free variable, or (not yet)
+for a pseudo-incompressible run.
 
 For a ``noslipwall`` face in a simulation with an active moisture model, the
 water-vapor mixing ratio may likewise be prescribed with ``<face>.qv``.  It is
@@ -331,11 +361,14 @@ scalars and the turbulent kinetic energy are extrapolated from the interior with
 zero gradient, and the moisture components other than :math:`q_v`
 (cloud and precipitating hydrometeors) are set to zero; hydrometeors are
 neither read from ``wrfbdy`` nor nudged toward WRF values. For compressible ``WRFInput`` boundaries,
-``erf.use_wrf_bdy_density`` (true by default) uses the converted WRF dry-air
+``erf.use_wrf_bdy_density`` (true by default when level 0 is FullyCompressible,
+false otherwise) uses the converted WRF dry-air
 density as the target for ``rho``, ``rho*theta``, and ``rho*qv`` and relaxes
 ``rho`` in the Davies zone. Pressure is still diagnosed from the ERF equation
 of state rather than directly nudged. This option is not supported for
-MetGrid-only boundaries, generic boundary-plane input, or anelastic runs.
+MetGrid-only boundaries, generic boundary-plane input, or anelastic or
+pseudo-incompressible runs (ERF stops if it is set to true when level 0 is not
+FullyCompressible).
 
 .. |wrfbdy| image:: figures/wrfbdy_BCs.png
            :width: 600

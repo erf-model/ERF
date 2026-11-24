@@ -17,6 +17,7 @@
 #include <ERF_RadiationDiagnostics.H>
 #include <ERF_TwoStreamCanopyForcing.H>
 #include <ERF_ForceRestoreHydrologyState.H>
+#include <ERF_ForceRestoreSnowState.H>
 #include <ERF_SurfacePrecipitation.H>
 
 /**
@@ -79,17 +80,17 @@ public:
      * horizontal BoxArray and fill them with the scalar defaults. A no-op
      * unless rad_choice.rad_type == TwoStream.
      *
-     * Also enforces the model's one grid requirement: every box of @p ba must
-     * span @p domain in z, because the column sweep applies the
-     * top-of-atmosphere and surface boundary conditions at the ends of a box.
-     * Aborting here means a bad refinement patch is rejected when the level is
-     * built (including on regrid), not at the first radiation call.
+     * The column sweep needs every box of @p ba to span @p domain in z,
+     * because it applies the top-of-atmosphere and surface boundary
+     * conditions at the ends of a box. A fine level that does not takes its
+     * fields from its parent; a level 0 that does not is rejected before this
+     * is called (ERF::check_rad_level_grids), and is only asserted here.
      *
      * @param lev        level
      * @param rad_choice the model's inputs
      * @param ba2d       horizontal BoxArray the 2D surface fields live on
      * @param dm         distribution mapping shared with the level's state
-     * @param ba         the level's 3D BoxArray, checked for the z span
+     * @param ba         the level's 3D BoxArray (z span asserted on level 0)
      * @param domain     the level's domain Box
      * @param supply_land_forcing allocate the downwelling SW, downwelling LW and
      *                   cos(zenith) fields the sweep fills for a land-surface model
@@ -147,6 +148,15 @@ public:
      * @param have_datetime true when start_datetime (or a WRF/metgrid start
      *                   date) fixed the calendar; without it a dynamic sun
      *                   cannot be placed and the call aborts
+     * @param land_mask  the level's land mask (ERF::lmask_lev: 0 water, 1 land, 2 a
+     *                   building's column), one 2D box at k = 0 for each box of the
+     *                   state, or nullptr (every column is land). The force-restore
+     *                   balance is a model of soil, so a water column (mask 0) is not
+     *                   its ground: its state is held (the snow layer's water is set to
+     *                   zero), it is left out of the balance's
+     *                   means and of the hydrology, and the sweep takes its surface
+     *                   temperature from @p t_surf (the surface layer's sea surface
+     *                   temperature) and not from the balance's skin.
      */
     void advance (int lev,
                   int nstep,
@@ -167,7 +177,8 @@ public:
                   const amrex::MultiFab* lat_m,
                   const amrex::MultiFab* lon_m,
                   double epoch_time,
-                  bool have_datetime);
+                  bool have_datetime,
+                  const amrex::iMultiFab* land_mask = nullptr);
 
     /**
      * @brief The prognostic surface state of one level, or nullptr when the SEB is
@@ -205,7 +216,7 @@ public:
      * of the current q_s); with erf.radiation.seb_soil_type, the bare-soil resistance and
      * the relative humidity of its pore air at the skin temperature; and
      * with erf.radiation.seb_vegetation_type as well, the vegetated fraction and the canopy
-     * resistance without its vapour-deficit factor (from the net shortwave the balance
+     * resistance without its vapor-deficit factor (from the net shortwave the balance
      * holds divided by (1 - surface albedo) -- the sweep's with seb_use_radiation_fluxes,
      * seb_sw_flux_default otherwise -- and the skin temperature). Absent pieces are a
      * fraction of 0 and resistances of 1e6 s/m. nullptr
@@ -218,8 +229,11 @@ public:
      * @brief Every field of the force-restore state of @p lev that evolves and so must
      * survive a regrid, be filled from the coarse level on a new level and be averaged
      * down: t_sfc and q_sfc; with erf.radiation.seb_deep_prognostic_enable, t_deep and
-     * q_deep; with the hydrology, its running totals (several components). Empty when the
-     * state is not evolved. Each is a 2D field (k = 0) on the level's horizontal grids.
+     * q_deep; with erf.radiation.seb_init_t_deep_from_file, t_deep (it does not evolve
+     * then, but it differs from column to column); with the hydrology, its running totals
+     * (several components); with the snow layer, its water equivalent and totals. Empty
+     * when the state is not evolved. Each is a 2D field (k = 0) on the level's horizontal
+     * grids.
      */
     [[nodiscard]] amrex::Vector<amrex::MultiFab*> seb_prognostic_fields (int lev);
 
@@ -244,6 +258,29 @@ public:
      */
     [[nodiscard]] ForceRestoreSoil force_restore_soil (int lev) const;
 
+    /**
+     * @brief True when the deep temperature is part of the state: it evolves
+     * (erf.radiation.seb_deep_prognostic_enable) or it was set per column from the initial
+     * file (erf.radiation.seb_init_t_deep_from_file). It is then not reset to
+     * erf.radiation.seb_t_deep_default at a radiation step, it is one of
+     * seb_prognostic_fields and it is written to the checkpoint and read back.
+     */
+    [[nodiscard]] bool seb_t_deep_is_state () const {
+        return active() && m_rad->seb_enable &&
+               (m_rad->seb_deep_prognostic_enable ||
+                (m_rad->seb_prognostic_enable && m_rad->seb_init_t_deep_from_file));
+    }
+
+    /**
+     * @brief The deep temperature [K] of @p lev for ERF::init_seb_t_deep_from_file to
+     * write, or nullptr when it is not part of the state (seb_t_deep_is_state) or the
+     * level has not been built.
+     */
+    [[nodiscard]] amrex::MultiFab* seb_t_deep_state (int lev) {
+        return (seb_t_deep_is_state() && lev >= 0 && lev < static_cast<int>(m_t_deep.size()))
+               ? m_t_deep[lev].get() : nullptr;
+    }
+
     /** @brief The deep temperature [K] and column water content of @p lev, or nullptr. Read-only: for output. */
     [[nodiscard]] const amrex::MultiFab* seb_t_deep (int lev) const {
         return (active() && m_rad->seb_enable && lev < static_cast<int>(m_t_deep.size())) ? m_t_deep[lev].get() : nullptr;
@@ -252,14 +289,17 @@ public:
         return (active() && m_rad->seb_enable && lev < static_cast<int>(m_q_deep.size())) ? m_q_deep[lev].get() : nullptr;
     }
 
-    /** @brief The hydrology's rain rate of the last step [kg/m^2/s] (nullptr without seb_precipitation_source) and running totals [kg/m^2] (nullptr without the hydrology). Read-only: for output. */
+    /** @brief The hydrology's rain rate of the last step [kg/m^2/s], in component 0 (nullptr without seb_precipitation_source) and running totals [kg/m^2] (nullptr without the hydrology). Read-only: for output. */
     [[nodiscard]] const amrex::MultiFab* hydrology_rain_rate (int lev) const {
-        return (m_rad && m_rad->seb_precipitation_source != SEBPrecipitationSource::None)
-             ? m_hydro.rain_rate(lev) : nullptr;
+        return m_precip.rate(lev);
     }
     [[nodiscard]] const amrex::MultiFab* hydrology_totals (int lev) {
         return m_hydro.totals(lev);
     }
+
+    /** @brief The snow water equivalent [kg/m^2] and the snow layer's running totals (ForceRestoreSnow::Total components) [kg/m^2]; nullptr without erf.radiation.seb_snow_enable. Read-only: for output. */
+    [[nodiscard]] const amrex::MultiFab* snow_swe (int lev) { return m_snow.swe(lev); }
+    [[nodiscard]] const amrex::MultiFab* snow_totals (int lev) { return m_snow.totals(lev); }
 
     /** @brief True when the force-restore state is being evolved and so needs transferring. */
     [[nodiscard]] bool seb_prognostic_active () const {
@@ -359,7 +399,7 @@ public:
      * Call after define_level(); a later define_level() of the level drops it.
      *
      * @param lev      level, which must have been defined
-     * @param blanking the level's cell-centred blanking (ERF::terrain_blanking), on the
+     * @param blanking the level's cell-centered blanking (ERF::terrain_blanking), on the
      *                 state's grids: 0 in the air, 1 inside a building
      * @param domain   the level's domain Box; its bottom cell is the ground's
      * @param take_ground_walls also take, at the update after the dycore, what the walls
@@ -512,7 +552,7 @@ private:
         // False until a column sweep has filled this level's entry. The post-dycore call
         // reports the cached values rather than sweeping again, and a level whose
         // pre-dycore sweep was skipped -- the interp-from-coarse-pending path, which
-        // returns before the sweep -- would otherwise report the zero-initialised struct
+        // returns before the sweep -- would otherwise report the zero-initialized struct
         // as though the fluxes really were zero.
         bool valid = false;
         amrex::Real SW_surface = 0.0;
@@ -548,8 +588,11 @@ private:
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> m_q_sfc;       // surface moisture, prognostic (see RadChoice::seb_q_sfc_default)
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> m_t_deep;      // deep-soil temperature [K]
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> m_q_deep;      // deep-soil moisture q_s restores to
-    // (both constant at their defaults unless erf.radiation.seb_deep_prognostic_enable)
+    // (both constant at their defaults unless erf.radiation.seb_deep_prognostic_enable; the
+    // deep temperature is also kept per column with erf.radiation.seb_init_t_deep_from_file)
+    ForceRestorePrecipRate m_precip;                                // rain and snowfall of the step (ERF_ForceRestorePrecipRate.H)
     ForceRestoreHydrology m_hydro;                                  // rain, runoff, drainage (ERF_ForceRestoreHydrologyState.H)
+    ForceRestoreSnow m_snow;                                        // snow water equivalent (ERF_ForceRestoreSnowState.H)
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> m_moisture;    // seb_surface_moisture (seb_surface_layer_uses_moisture)
 
     // What the sweep hands to a land-surface model (2D: i,j), allocated when
@@ -599,6 +642,11 @@ private:
     amrex::Vector<int> m_has_cover;
     // Whether the ground balance of the level has updated after a sweep (seb_sw_net()).
     amrex::Vector<int> m_seb_updated;
+    // Whether advance() has looked at the level's land mask for its one message about
+    // water columns: 1 water was found and reported, 0 none was found, -1 not looked at
+    // yet (set by define_level(): the level may have new grids). A message only: every
+    // decision reads the mask itself (ERF_SEBLandMask.H).
+    amrex::Vector<int> m_water_message;
 
     amrex::Vector<FluxDiag> m_flux_diag;
 };

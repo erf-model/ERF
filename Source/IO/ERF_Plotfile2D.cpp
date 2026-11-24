@@ -137,7 +137,7 @@ ERF::setPlotVariables2D (const std::string& pp_plot_var_names, Vector<std::strin
     }
 
     const bool has_surface_layer =
-        phys_bc_type[Orientation(Direction::z, Orientation::low)] == ERF_BC::surface_layer;
+        (phys_bc_type[Orientation::zlo()] == ERF_BC::surface_layer) || use_eb_surface_layer();
     const auto active_lsm_names = lsm.Get_DataNames();
     const auto available_names = plotfile2d::available_diagnostic_names(solverChoice,
                                                                          has_surface_layer,
@@ -624,6 +624,9 @@ ERF::FillPlot2DVars (int lev,
     {
         const bool ts = solverChoice.rad_type == RadiationType::TwoStream;
         const MultiFab* totals = ts ? two_stream_rad.hydrology_totals(lev) : nullptr;
+        // The snow layer (ERF_ForceRestoreSnow.H): -999 without erf.radiation.seb_snow_enable.
+        const MultiFab* snow_swe = ts ? two_stream_rad.snow_swe(lev) : nullptr;
+        const MultiFab* snow_totals = ts ? two_stream_rad.snow_totals(lev) : nullptr;
         const struct { const char* name; const MultiFab* src; int comp; } hydro_vars[] = {
             {"seb_t_deep",         ts ? two_stream_rad.seb_t_deep(lev) : nullptr, 0},
             {"seb_q_deep",         ts ? two_stream_rad.seb_q_deep(lev) : nullptr, 0},
@@ -632,6 +635,10 @@ ERF::FillPlot2DVars (int lev,
             {"seb_runoff_total",   totals, ForceRestoreHydrology::Runoff},
             {"seb_drainage_total", totals, ForceRestoreHydrology::Drainage},
             {"seb_deficit_total",  totals, ForceRestoreHydrology::Deficit},
+            {"seb_snow_swe",       snow_swe, 0},
+            {"seb_snowfall_total", snow_totals, ForceRestoreSnow::Snowfall},
+            {"seb_snow_sublimation_total", snow_totals, ForceRestoreSnow::Sublimation},
+            {"seb_snow_melt_total", snow_totals, ForceRestoreSnow::Melt},
         };
         for (const auto& v : hydro_vars) {
             if (containerHasElement(plot_var_names, v.name)) {
@@ -657,7 +664,7 @@ ERF::FillPlot2DVars (int lev,
 
     if (containerHasElement(plot_var_names, "surf_pres")) {
         // The pressure at the ground, as WRF's PSFC: the lowest cell's pressure plus
-        //    rho g times the height of that cell's centre above the ground, the same
+        //    rho g times the height of that cell's center above the ground, the same
         //    surface pressure the radiation and surface layer use
         bool moist = (solverChoice.moisture_type != MoistureType::None);
         const Real dz = geom[lev].CellSize(2);
@@ -886,7 +893,7 @@ ERF::FillPlot2DVars (int lev,
     }
 
     const int static_output_count = static_cast<int>(plot_var_names.size());
-    // If this level is anelastic then the base state pressure -- not the compressible
+    // If this level is anelastic or pseudo-incompressible then the base state pressure -- not the compressible
     //    EOS -- defines the pressure, both for the sampled "pressure" field and for
     //    the pressure vertical coordinate.  This matches the 3-D plotfile path.
     MultiFab p_hse(base_state[lev], make_alias, BaseState::p0_comp, 1);

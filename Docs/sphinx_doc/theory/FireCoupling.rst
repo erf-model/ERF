@@ -9,7 +9,7 @@ Fire-Atmosphere Coupling
 A wildland fire and the atmosphere drive each other: the wind spreads the
 fire, and the fire's heat drives the wind. ERF provides the atmosphere side of
 that coupling: where the fire grid sits, what the fire is handed each step,
-and how its heat, water vapour and smoke enter the atmosphere. The fire
+and how its heat, water vapor and smoke enter the atmosphere. The fire
 itself, the model that spreads the front and computes the heat it releases,
 is a *fire engine* that plugs into this coupling. Each fire engine lives in
 its own repository, which holds ERF as a git submodule pinned to an ERF release
@@ -142,7 +142,7 @@ a surface layer unless the engine says it reads nothing from one
 
 The engine reads, at the start of each step, the face velocities of the fire
 grid's level (before the dynamical core with ``"passive"`` and ``"lagged"``
-coupling, after it with ``"synchronous"``), the cell-centre heights, the air
+coupling, after it with ``"synchronous"``), the cell-center heights, the air
 temperature and relative humidity of the lowest cell before the dynamical
 core, and, when it asks for it, the surface precipitation of every column
 from the microphysics accumulators (the run then needs a microphysics scheme
@@ -174,7 +174,7 @@ To add an engine:
 #. Register the engine in its ``.cpp``, at namespace scope:
    ``ERF_REGISTER_FIRE_ENGINE(MyEngine, "my_fire")``
    (``ERF_FireEngineRegistry.H``). The registration runs during static
-   initialisation, so that ``.cpp`` must be compiled as source into the
+   initialization, so that ``.cpp`` must be compiled as source into the
    build, not hidden inside a prebuilt static library that nothing
    references; an engine shipping a prebuilt library keeps its registering
    wrapper as source. List the sources in the directory's ``Make.package``
@@ -205,8 +205,8 @@ every Runge-Kutta stage of the next ERF step of the fire grid's level, over
 receives over the run equals the energy the engine released, shifted by one
 step.
 
-**Water.** The latent flux is the energy of the water vapour the fire
-releases. The coupling turns it into a vapour mass flux
+**Water.** The latent flux is the energy of the water vapor the fire
+releases. The coupling turns it into a vapor mass flux
 :math:`F_q = Q_{lat} / L_v` [kg/m²/s], with :math:`L_v` the latent heat of
 vaporisation of ``ERF_Constants.H``, and injects it into
 :math:`\rho_d q_v` with the vertical profile of the heat. An engine that
@@ -219,14 +219,14 @@ a GPU build its data is on the device:
 
 * the fields of ``FireForcing`` are temporaries of the ``advance`` call; an
   engine that needs them on the host copies them during the call
-  (``fire_host_copy`` in ``ERF_FireUtils.H`` copies and synchronises the GPU
+  (``fire_host_copy`` in ``ERF_FireUtils.H`` copies and synchronizes the GPU
   stream);
 * the engine owns every MultiFab it returns (fluxes, plot fields, getters),
   on the fire grid's ``BoxArray`` and ``DistributionMapping``, and keeps it
   alive and unchanged until its next ``advance``; a host-side engine copies
   its results into those device MultiFabs (``fire_host_copy`` the other way)
   before returning;
-* an engine may hold managed or pinned memory internally, but synchronises
+* an engine may hold managed or pinned memory internally, but synchronizes
   the GPU stream before reading on the host what the device may still be
   writing;
 * the coupling never frees, resizes or keeps across steps a pointer an
@@ -234,7 +234,19 @@ a GPU build its data is on the device:
 
 **Shared helpers.** ``fill_fire_wind_from_interpolation``
 (``ERF_FireWindExtract.H``) samples the 3D wind at a height above ground on
-the fire grid; ``extract_fire_wind_k0`` gives the wind of the lowest cell of
+the fire grid. Below the lowest cell center, and when the engine samples
+higher and brings the wind down, it uses the neutral log profile
+:math:`U(z) = U(z_1)\,\ln(z/z_0)/\ln(z_1/z_0)`; :math:`z_0` is one roughness
+length the engine passes, or, when the engine passes a field of roughness per
+atmospheric column, the roughness of each column it samples. Such a field is a
+copy of the surface layer's :math:`z_0` (``SurfaceLayer::get_z0``, which a
+fire engine can call on its const surface layer) on the level's
+:math:`k = 0` slabs, with its interior and periodic ghost cells filled,
+refreshed every step where the sea roughness varies in time. Across a
+non-periodic edge of the fire grid's region a column outside it takes the edge
+column's roughness. When a log profile is used, the sampler aborts unless
+every value is positive and :math:`e\,z_0` does not exceed the lowest height
+the profile is evaluated at. ``extract_fire_wind_k0`` gives the wind of the lowest cell of
 each atmospheric column and its height above that column's ground, for an
 engine driven by the lowest-cell wind; ``compute_fire_surface_height``
 (``ERF_FireSurfaceHeight.H``) gives the ground of each fire cell's column.
@@ -281,27 +293,27 @@ fire grid's level and distributed vertically with an exponential profile,
    H(z) = \frac{Q}{c_p}\, e^{-z/\alpha_g}, \qquad
    \frac{\partial (\rho\theta)}{\partial t} = -\frac{\partial H}{\partial z},
 
-where :math:`z` is height above the first cell centre of the column (the
+where :math:`z` is height above the first cell center of the column (the
 profile's datum, half a cell above the terrain, so the lowest cell takes the
 share :math:`1 - e^{-\Delta z_1/\alpha_g}` of the flux, with
-:math:`\Delta z_1` the distance from the first cell centre to the second, and
+:math:`\Delta z_1` the distance from the first cell center to the second, and
 nothing is lost below it) and
 :math:`\alpha_g` = :cpp:`erf.fire.heat_flux_alfg` (default 45 m) is the
 e-folding depth: 37% of the flux remains at 45 m and less than 1% at 225 m.
 Each cell's tendency is the flux difference between the profile at its own
-centre and at the next one, divided by the cell's own thickness (face to
+center and at the next one, divided by the cell's own thickness (face to
 face, from the nodal heights on a terrain-fitted or stretched grid; only a
 degenerate cell of zero thickness is floored), so the
 column receives :math:`(1 - e^{-z_{top}/\alpha_g})\,Q` on any vertical
-spacing, where :math:`z_{top}` is the height of the top cell centre above the
+spacing, where :math:`z_{top}` is the height of the top cell center above the
 first one plus the mean vertical spacing of the level (the profile closes one
-mean spacing above the top centre). On a uniform grid, heights above the first
-centre equal the heights of the cell faces above the ground, so each cell takes
+mean spacing above the top center). On a uniform grid, heights above the first
+center equal the heights of the cell faces above the ground, so each cell takes
 the profile between its own faces; on a grid stretched by a constant ratio
 :math:`r` the weights (apart from the top cell's) are those of the face-based profile with the e-folding
 depth :math:`2\alpha_g/(1+r)`, which places slightly more of the heat in the
 lowest cells (about 1 % of the flux moves down at :math:`r = 1.05`). The latent
-flux is distributed the same way into the vapour equation (divided by the
+flux is distributed the same way into the vapor equation (divided by the
 latent heat of vaporisation) when :cpp:`erf.fire.inject_latent` is true and a
 moisture model is active.
 
@@ -330,9 +342,9 @@ with neither factor (the factors multiply it by the profile-weighted mean of
 :math:`\rho`, of :math:`1/\Pi`, or of :math:`\rho/\Pi` with both, essentially
 their values near the surface). The Exner factor applies only to sensible
 heating. The latent flux is converted to a water-mass flux by dividing by
-the latent heat of vaporisation :math:`L_v` of ``ERF_Constants.H`` and enters the conserved water-vapour source
+the latent heat of vaporisation :math:`L_v` of ``ERF_Constants.H`` and enters the conserved water-vapor source
 without Exner scaling. The optional legacy density multiplier still scales
-both the sensible and water-vapour tendencies.
+both the sensible and water-vapor tendencies.
 
 :cpp:`erf.fire.fire_atm_feedback` multiplies both fluxes before injection;
 zero gives one-way coupling with the fire still responding to the wind, one
@@ -343,14 +355,14 @@ while any positive value replaces them.
 The cell source is rebuilt by the atmosphere at every Runge-Kutta stage and
 the fire tendency is applied after that rebuild. :cpp:`erf.fire.source_mode`
 selects how: ``"overwrite"`` (default) replaces the potential-temperature and
-vapour slots, which keeps the injected energy independent of the number of
+vapor slots, which keeps the injected energy independent of the number of
 stages but discards any other source already in those slots, such as the
 immersed-forcing scalar relaxation, radiative heating or Rayleigh damping;
 ``"add"`` accumulates the fire tendency into the freshly rebuilt source, once
 per stage, so nothing is lost and nothing is double counted. Use ``"add"``
 whenever another source writes into those slots: immersed forcing applied on
-the slow step (``erf.immersed_forcing_substep = false``, the anelastic
-default), radiative heating, Rayleigh damping. With immersed forcing on the
+the slow step (``erf.immersed_forcing_substep = false``, the default when any
+level is anelastic or pseudo-incompressible), radiative heating, Rayleigh damping. With immersed forcing on the
 acoustic substeps (the compressible default) the scalar relaxation never
 meets the slow-step source and the two modes are identical, as they are with
 no other source. Because the default would silently drop such a source, a run
@@ -362,7 +374,7 @@ start-up and names them; setting the key to either value is the explicit
 choice.
 
 The heat held between steps carries five ghost columns, holding the
-neighbouring box's value (or the edge column's outside a non-periodic face),
+neighboring box's value (or the edge column's outside a non-periodic face),
 for a reader that samples a halo around each tile.
 
 Levels
@@ -394,7 +406,7 @@ of the rest, above the ground. With :cpp:`erf.fire.heat_open_fraction` the
 coupling places the heat accordingly: a cell's share of the exponential profile
 is scaled by :math:`f` where the cell lies below the roof, by one above it, and
 linearly across the cell that holds the roof (the cell's faces measured from
-the ground), and the column is renormalised over the shares that remain,
+the ground), and the column is renormalized over the shares that remain,
 
 .. math::
 
@@ -408,7 +420,7 @@ with neither tendency factor; the factors weigh the lifted heat by the
 plain profile's share in the cells below the roof and
 :math:`L = 1 - e^{-z_{top}/\alpha_g}`, the share placed below the roof falls
 from :math:`B` to :math:`f B L / (L - (1 - f) B)`, more than :math:`f B`
-because the renormalisation also raises the cells below the roof; the rest is
+because the renormalization also raises the cells below the roof; the rest is
 lifted above it. An engine
 that reports no open fraction leaves the plain profile in place, with a
 warning at start-up.

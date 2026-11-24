@@ -70,9 +70,11 @@ fluxes, the momentum sources on these faces, the tangential momenta and :math:`\
 not refluxed. This is done only for fully compressible levels without terrain or EB, and takes the
 map factors to be one.
 
-When using the anelastic approximation, this ensures that the computation of the updates to the
-fine momentum do not use any values of the perturbational pressure from the coarser level since
-the perturbational pressure is not synchronized between levels.
+When using the anelastic or pseudo-incompressible approximation, interpolating the source term for
+the normal momentum on the coarse-fine interface (described above) also ensures that the computation of
+the updates to the fine momentum does not use any values of the perturbational pressure from the coarser
+level.  At these levels each level's projection gives its own perturbational pressure, which is not
+synchronized between levels.
 
 Note that any tagged region will be covered by one or more boxes.  The user may
 specify the refinement criteria and/or region to be covered, but not the decomposition of the region into
@@ -372,6 +374,11 @@ All three terrain solvers (``erf.terrain_poisson_solver``) run such a level.  Th
 coarser level.  With one-way coupling this is all the level needs; two-way coupling of such a
 level over terrain has not been tested yet.
 
+**Pseudo-incompressible runs** treat these faces the same way.  The projection there works on
+:math:`\beta\,\rho u` rather than :math:`\rho_0 u`, so the horizontal momenta outside the level and
+the coarse :math:`\Omega` come in the :math:`\rho u` scaling of the level's own momenta, and are
+multiplied by the level's :math:`\beta` with them, as on the side faces.
+
 .. _subsec:moving-boxes:
 
 Moving Refinement Regions
@@ -418,7 +425,18 @@ Available tests include
 
 -  ``value_less``: :math:`field <= threshold`
 
--  ``adjacent_difference_greater``: :math:`max( | \text{difference between any nearest-neighbor cell} | ) >= threshold`
+-  ``adjacent_difference_greater``: :math:`max( | \text{difference from each of the six face neighbors} | ) >= threshold`.
+   A neighbor across a periodic boundary is the periodic image.  Which other neighbors count depends on the field:
+
+   -  ``density``, the moisture species, ``qt``, ``u``, ``v``, ``w``, ``omega`` and ``terrain_blanking``
+      have ghost cells filled from the boundary conditions and the coarser level, so a cell on a
+      non-periodic domain face is compared with the boundary value, and a cell on the boundary with a
+      coarser level with the value interpolated from it.
+   -  The other fields are computed only on the cells of the level, so such a cell is compared only with
+      its neighbors on the same level.  A jump against a boundary value is then not seen by this test;
+      use ``value_greater`` or ``value_less`` to refine there.
+
+   Either way the tags do not depend on how the level is divided into boxes.
 
 This example adds three user-named criteria –
 hi\_rho: cells with density greater than 1 on level 0, and greater than 2 on level 1 and higher;

@@ -1,7 +1,7 @@
 # Case 2 on bare land (run_comparison.sh --barren): the force-restore balance
 # (inputs_force_restore_common) on the soil at its wilting point and no vegetation. The pore
 # air there is nearly dry (relative humidity about 0.005), so the bare soil does not
-# evaporate and may take up vapour, as in Noah-MP. The land roughness is Noah-MP's bare soil
+# evaporate and may take up vapor, as in Noah-MP. The land roughness is Noah-MP's bare soil
 # (Z0SOIL, 0.002 m).
 FILE = inputs_force_restore_common
 

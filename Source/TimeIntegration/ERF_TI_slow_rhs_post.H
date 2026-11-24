@@ -96,9 +96,7 @@
                           fine_geom, solverChoice, m_SurfaceLayer, domain_bcs_type_d, domain_bcs_type,
                           z_phys_nd[level], z_phys_cc[level], ax[level], ay[level], az[level],
                           detJ_cc[level], new_detJ, stretched_dz_d[level], mapfac[level], get_eb(level),
-#ifdef ERF_USE_EAMXX_SHOC
-                          eamxx_shoc_interface[level].get(),
-#endif
+                          physbnd_mask[IntVars::cons],
                           native_shoc_driver[level].get(),
                           fr_as_crse, fr_as_fine,
                           m_r2d, &base_state[level],
@@ -268,7 +266,8 @@
             // Update state using the updated S_rhs. (NOTE: redistribute_term returns RHS not state variables.)
             //
             // erf_slow_rhs_post has already advanced S_new with the RHS before redistribution, and
-            // in the second stage of anelastic RK2 that update is the Heun average
+            // in the second stage of RK2 at an anelastic or pseudo-incompressible level that update
+            // is the Heun average
             // old + (dt R1 + dt R2) / 2.  So add only the change redistribution makes to this
             // stage's RHS, with this stage's weight: setting S_new = S_old + dt R2 here would
             // drop R1 and make the scalars first order in time (#4876).

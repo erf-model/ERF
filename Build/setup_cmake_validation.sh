@@ -15,8 +15,8 @@ verify_erf_dir() {
     # Check for "Energy Research and Forecasting" in key files
     local found=0
 
-    if [ -f "$dir/README.rst" ]; then
-        if grep -q "Energy Research and Forecasting" "$dir/README.rst" 2>/dev/null || true; then
+    if [ -f "$dir/README.md" ]; then
+        if grep -q "Energy Research and Forecasting" "$dir/README.md" 2>/dev/null || true; then
             found=1
         fi
     fi
@@ -109,7 +109,7 @@ if [ -n "$ERF_DIR_ARG" ]; then
     echo "Using provided ERF_DIR: $ERF_DIR"
     if ! verify_erf_dir "$ERF_DIR"; then
         echo "Error: Provided directory is not a valid ERF repository"
-        echo "Must contain 'Energy Research and Forecasting' in README.rst, LICENSE.md, or CITATION.cff"
+        echo "Must contain 'Energy Research and Forecasting' in README.md, LICENSE.md, or CITATION.cff"
         exit 1
     fi
 else
@@ -119,7 +119,7 @@ else
         echo ""
         echo "Verification checks for:"
         echo "  - CMakeLists.txt and Source/ directory"
-        echo "  - 'Energy Research and Forecasting' in README.rst, LICENSE.md, or CITATION.cff"
+        echo "  - 'Energy Research and Forecasting' in README.md, LICENSE.md, or CITATION.cff"
         exit 1
     fi
 fi

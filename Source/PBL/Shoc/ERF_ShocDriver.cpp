@@ -2,6 +2,7 @@
 #include "ERF_ShocImplicit.H"
 
 #include "ERF_IndexDefines.H"
+#include "ERF_LengthScaleCellSize.H"
 
 #include <AMReX_BLProfiler.H>
 #include <AMReX_Gpu.H>
@@ -29,8 +30,7 @@ shoc_boxarray_spans_full_height (const BoxArray& ba, const Box& domain)
     return true;
 }
 
-namespace
-{
+namespace erf_detail_ShocDriver {
     constexpr int k_shoc_vertical_diff_comp = EddyDiff::Mom_v;
     constexpr int k_shoc_vertical_diff_count = EddyDiff::Q_v - EddyDiff::Mom_v + 1;
 
@@ -303,6 +303,7 @@ namespace
         }
     }
 }
+using namespace erf_detail_ShocDriver;
 
 ShocDriver::ShocDriver (int lev, const SolverChoice& solver_choice)
     : m_lev(lev),
@@ -560,7 +561,9 @@ ShocDriver::advance (MultiFab& cons,
             BL_PROFILE("SHOC::advance::seed_carried_turbulence");
             seed_carried_turbulence(col, mfi, cons, *eddy_diffs);
         }
-        const auto dx = geom.CellSizeArray();
+        // The mixing-length cap sqrt(dx dy) takes dx in place of a dy over one cell, and the
+        // reverse; a single column keeps the dx and dy of the inputs
+        const auto dx = LengthScaleCellSize(geom);
         BL_PROFILE("SHOC::advance::cache_baseline_state");
         ShocImplicit::cache_baseline_state(col);
         ShocDiagnostics::diagnose_pre_implicit(col, m_opts, dx[0], dx[1], dt);

@@ -22,7 +22,7 @@ Face storage
 A wall face lies between a fluid cell, where the blanking is below one
 half, and a solid cell, where it is at or above one half. Each face is
 stored once, on the rank that owns the fluid cell, as a compact list rather
-than a face-centred field: the fluid cell, the face direction, the side the
+than a face-centered field: the fluid cell, the face direction, the side the
 solid is on, the building id, the material id, the area, the skin
 temperature, the slab temperatures, the view fractions and the current
 fluxes, all in device arrays, contiguous per local box. Every input the
@@ -30,9 +30,9 @@ balance needs is in the fluid cell next to the face, so the per-step update
 is one kernel over the list with no communication; only the reports reduce
 across ranks.
 
-Building ids come from labelling the solid columns of the blanking, four
+Building ids come from labeling the solid columns of the blanking, four
 connected in the horizontal, across the periodic seams too, and numbered in scan order; a face carries the
-id of its solid neighbour's column. The per-building report,
+id of its solid neighbor's column. The per-building report,
 :cpp:`erf.ibseb.csv_file`, lists every :cpp:`erf.ibseb.csv_int` steps the
 number of faces, the area, the area-weighted mean skin temperature with
 its range, the mean fluxes, the largest balance residual and the sun of
@@ -45,7 +45,7 @@ every dump), which is what the regtests and the canonical cases read. A
 restart appends from its next report on: the step it starts from is printed
 but not written to the report file or dumped again.
 
-For output the list is scattered into cell-centred fields, ``ibseb_nfaces``
+For output the list is scattered into cell-centered fields, ``ibseb_nfaces``
 and ``ibseb_tskin`` in the plotfile. The checkpoint holds the faces
 themselves: ``Level_N/IBSEBFaces`` carries one record per face, its skin
 temperature, sensible flux and slab temperatures, keyed by the face's cell,
@@ -87,7 +87,7 @@ the sun vector still comes from :cpp:`erf.ibseb.sun_mode`.
 
 On a face with outward normal :math:`\mathbf{n}` the direct beam is
 :math:`I_{dn}\, \max(0, \mathbf{n}\cdot\mathbf{s})` unless the face is in
-shadow. Shadow is decided by a ray cast from the face centre toward the sun
+shadow. Shadow is decided by a ray cast from the face center toward the sun
 against the height of every column of the level, a two-dimensional walk over
 the columns the ray crosses: buildings stand on the ground and the ray only
 rises, so the ray is blocked wherever its height on entering a column is
@@ -97,7 +97,7 @@ the level's own boxes like any other field (so the grids must not be split
 in z, which :cpp:`amr.no_box_split_dir = 2`, the ERF default, keeps them from
 being). Each rank's ray cast reads its
 own *patch* of that map: the rank's boxes grown by a halo, filled once at
-initialisation by a parallel copy, so the test needs no communication and
+initialization by a parallel copy, so the test needs no communication and
 costs a few operations per column crossed, and nothing of the size of the
 domain is replicated on every rank. The halo is exact rather than a cut-off:
 a rising ray stops once it passes the tallest column and a descending one
@@ -129,7 +129,7 @@ account (`The ground a face sees, sunlit and shaded`_).
 View fractions and longwave
 ---------------------------
 
-Once, at initialisation, every face samples a cosine-weighted hemisphere
+Once, at initialization, every face samples a cosine-weighted hemisphere
 around its outward normal: :cpp:`erf.ibseb.view_n_az` azimuths by
 :cpp:`erf.ibseb.view_n_el` elevations, stratified with
 :math:`\theta = \arcsin\sqrt{u}` from the normal so that every ray carries
@@ -178,7 +178,7 @@ reaches a face through the sunlit part of its ground view only. The input is
 off by default, and a run without it is unchanged.
 
 **What is counted.** Every view ray of a face that ends on the ground lands
-in a column. That column's ground is shaded when the ray from the centre of
+in a column. That column's ground is shaded when the ray from the center of
 its ground toward the sun meets a building: the test of the shadow on the
 faces, and the one the two-stream ground balance uses for its own shadow
 (`The two-stream columns and the buildings`_). The sunlit ground view
@@ -273,7 +273,7 @@ the ground view takes the column's whole reflection, as without the input.
 
 **Approximations and limits.**
 
-- *One ray per landing column*, from the centre of its ground, by the walk
+- *One ray per landing column*, from the center of its ground, by the walk
   of the ground's own shadow (:cpp:`erf.ibseb.two_stream_buildings`) from
   the same point, so within the reach below a column is shaded for the
   faces when it is shaded in the plotfile's ground shadow. The two are
@@ -362,7 +362,7 @@ surface-temperature inputs must not be set with it.
 The air temperature :math:`T_{air}` and the Exner function :math:`\Pi` of a
 face's fluid cell come from ERF's equation of state, as in the two-stream
 columns. With the cell's dry density :math:`\rho`, dry potential temperature
-:math:`\theta_{air}` and water vapour mixing ratio :math:`q_v`,
+:math:`\theta_{air}` and water vapor mixing ratio :math:`q_v`,
 
 .. math::
 
@@ -371,9 +371,9 @@ columns. With the cell's dry density :math:`\rho`, dry potential temperature
    \Pi = \left( \frac{p}{p_0} \right)^{R_d/c_p} = \frac{T_{air}}{\theta_{air}} ,
 
 with :math:`p_0` the reference pressure, :math:`R_d` and :math:`R_v` the gas
-constants of dry air and water vapour and :math:`\gamma = c_p/(c_p - R_d)`.
+constants of dry air and water vapor and :math:`\gamma = c_p/(c_p - R_d)`.
 A negative :math:`q_v` (an advection undershoot) is read as zero, and
-without a moisture model :math:`q_v = 0`. The vapour matters: at
+without a moisture model :math:`q_v = 0`. The vapor matters: at
 10 g/kg it raises :math:`T_{air}` by about 1.9 K at 300 K. The stability
 correction, the convective velocity scale and the mixed-layer depth still
 use the dry :math:`\theta_{air}`, not the virtual potential temperature,
@@ -392,7 +392,7 @@ Every face carries a slab of :cpp:`erf.ibseb.n_slab_layers` uniform layers
 between its skin and the building interior at :cpp:`erf.ibseb.T_interior`.
 The conduction is solved implicitly with the Thomas algorithm, the form of
 the SLUCM branch's slab solver with the skin temperature as the top
-boundary instead of a flux; the layer centres sit half a layer below the
+boundary instead of a flux; the layer centers sit half a layer below the
 skin and half a layer above the interior, so both boundary fluxes use
 :math:`2k/\Delta z`. The conduction into the slab through the skin,
 
@@ -500,7 +500,7 @@ its natural-convection column. :math:`z_i` follows the diurnal cycle
 rather than a constant: :cpp:`erf.ibseb.z_i_mode = bulk_ri` diagnoses it
 every step on the horizontal-mean profile of level 0 (for the faces of every
 level) by the bulk Richardson method
-(the first cell centre where :math:`Ri_b` exceeds :cpp:`erf.ibseb.ri_crit`,
+(the first cell center where :math:`Ri_b` exceeds :cpp:`erf.ibseb.ri_crit`,
 the domain top for a neutral profile), ``pblh`` reads the surface layer's
 own boundary-layer height at the face's column, and ``fixed`` takes
 :cpp:`erf.ibseb.z_i`. The scale goes as the cube root of the depth, so a
@@ -520,7 +520,7 @@ ground under it.
 
 That is :cpp:`erf.ibseb.stability_scheme = iterative`. With ``louis`` the
 roofs take the explicit factors of Louis (1979) on the bulk Richardson
-number between the skin and the cell centre,
+number between the skin and the cell center,
 
 .. math::
 
@@ -704,7 +704,7 @@ two-stream zenith is the columns' at every hour.
 Radiation from the two-stream columns
 -------------------------------------
 
-The clear-sky formulas above give every wall and roof an idealised sky. When ERF
+The clear-sky formulas above give every wall and roof an idealized sky. When ERF
 also computes the radiation of the air with its two-stream model, the buildings
 can instead take the radiation of the air next to them: the same sunlight, the
 same sky light and the same warmth from the ground. That is what
@@ -895,7 +895,7 @@ things.
   (solid above, air at the bottom) is open ground.
 - **The shaded ground loses the direct beam.** For every column the faces' ray
   cast (the column walk of the shadow on the faces, with the buildings outside a
-  refined level added) follows the ray from the centre of the column's ground
+  refined level added) follows the ray from the center of the column's ground
   toward the sun. Where it meets a building, the column is shaded
   (``ibseb_ground_shadow`` = 1), and the ground balance takes the direct beam off
   the shortwave it absorbs:
@@ -938,8 +938,8 @@ cast at start-up too.
   building for a sun at or above :cpp:`erf.ibseb.sun_min_elev_deg` (2 degrees by
   default), and a lower sun misses the far shadows, whose beam is then a few W/m²
   in a transparent sky and less in a real one. A shadow's edge is sampled at the
-  column centres, so its area is off by up to half a column along its perimeter:
-  within a few per cent in all for the building set below, 20 to 40 per cent for a
+  column centers, so its area is off by up to half a column along its perimeter:
+  within a few percent in all for the building set below, 20 to 40 percent for a
   single 10 or 20 m building on 20 m columns.
 - *What is still counted twice.* The faces absorb sky light and light reflected from
   the ground that the open ground also keeps, and the column reflects the ground's
@@ -968,7 +968,7 @@ cast at start-up too.
   level covers a coarser one, the coarser ground takes the average of the finer
   (held footprints included). An air cell of an interpolated patch that lies inside
   a solid cell of the level below (where the coarser building fills the cell beyond
-  its footprint) takes its heating from that cell's zero and its neighbours, by the
+  its footprint) takes its heating from that cell's zero and its neighbors, by the
   limited linear interpolation, so it can be much smaller than the air's.
 - *A land-surface model* keeps its own ground, which nothing here covers or shades
   (ERF warns at start-up).
@@ -1022,7 +1022,7 @@ reflects is the ground's.
 With the input (off by default) the column under a building starts on the building's
 roof. For a column whose first cell above the building is :math:`k_r`, the sweep runs
 over the layers :math:`k_r` to the top, and its lower boundary is the roof face on that
-cell, a grey, diffuse surface:
+cell, a gray, diffuse surface:
 
 .. math::
    :label: ibseb-roof-boundary
@@ -1153,7 +1153,7 @@ roof's shadow is that of the time given and not that of the faces' last shortwav
 checks the cell on each roof, the sweep on the roofs given, lit and shaded, a
 building whose roof is not given, and a cloud over half of every column. ``Tests/test_files/IBSEB_TwoStreamBuildings`` with
 the input (CTest ``IBSEB_TwoStreamRoofs``) checks, against the adding method and the
-grey longwave written again in Python and run on the column above each roof: the
+gray longwave written again in Python and run on the column above each roof: the
 diffuse light on every roof of the cube, in the sun and in the shadow of its taller
 part; the outgoing longwave over every building column, and the longwave the walls
 above a lower roof take from that roof's column; that the open columns and the walls
@@ -1216,7 +1216,7 @@ and the sky's share is :math:`1 - v_c`. The counts :math:`n_{fc}` are the ground
 landings kept for `The ground a face sees, sunlit and shaded`_ (found once, at
 start-up; this input keeps them too).
 
-**What the walls send.** Each face is taken as a grey, diffuse surface. Its radiosity
+**What the walls send.** Each face is taken as a gray, diffuse surface. Its radiosity
 is the shortwave it reflects and the longwave it emits and reflects,
 
 .. math::
@@ -1278,14 +1278,14 @@ use, and both are -999 in the plotfile a restart writes before its first step.
 
 **Approximations and limits.**
 
-- *The share is a count of rays from the faces' centres.* Summed over the columns it
+- *The share is a count of rays from the faces' centers.* Summed over the columns it
   equals what the faces' ground views give; column by column it carries a fixed
   error, the same every step, that falls with more rays and with thinner cells. For
   a 40 m wall on 10 m columns and cells, the first four columns from the wall's
   foot have the exact shares 0.438, 0.326, 0.236 and 0.172; the default
   :math:`16 \times 8` rays give 0.391, 0.359, 0.234 and 0.219, and
   :math:`32 \times 16` rays 0.418, 0.328, 0.250 and 0.184. With endless rays the
-  face centres alone leave -0.023, +0.013, +0.004 and +0.002, a quarter of that with
+  face centers alone leave -0.023, +0.013, +0.004 and +0.002, a quarter of that with
   5 m cells.
 - *Deep, narrow streets: the share is low.* A face high on a wall sends less than
   one ray in :math:`N` to the floor of a street one column wide, and so sends none.
@@ -1299,7 +1299,7 @@ use, and both are -999 in the plotfile a restart writes before its first step.
   times as high as the street is wide. More rays cost start-up time in proportion
   and little per step (one ray to the sun or one sum per column a face's rays land
   in, not per ray). They do not remove the whole error: each face
-  sends from its centre, so cells as tall as the street is wide leave the share
+  sends from its center, so cells as tall as the street is wide leave the share
   about 0.05 low however many rays there are. Thinner cells remove that part. The
   share of the floor of a street 10 m wide, on 10 m columns:
 
@@ -1449,4 +1449,4 @@ list.
 .. figure:: ../figures/IBSEB_set_faces.png
    :width: 70%
 
-   Every face at 11:00 coloured by skin temperature, seen from above.
+   Every face at 11:00 colored by skin temperature, seen from above.

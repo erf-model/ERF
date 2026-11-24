@@ -367,10 +367,11 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 amrex::Real reference_terminal_velocity (const amrex::Real rho,
                                          const amrex::Real qp) noexcept
 {
-    // MUST MATCH: Kessler terminal-velocity coefficient and exponents.
-    return amrex::Real(36.34)
-        * std::pow(amrex::Real(0.001) * rho * qp, amrex::Real(0.1346))
-        * std::pow(rho / amrex::Real(1.16), -myhalf);
+    // The coefficients are shared with kessler_terminal_velocity; KesslerScalar.TerminalVelocity_PinnedCoefficients
+    // pins their values.
+    return kessler_vt_coeff
+        * std::pow(kessler_vt_rho_to_cgs * rho * qp, kessler_vt_exponent)
+        * std::pow(rho / kessler_vt_rho0, kessler_vt_density_exponent);
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
@@ -378,7 +379,7 @@ amrex::Real reference_terminal_velocity_dqp (const amrex::Real rho,
                                              const amrex::Real qp) noexcept
 {
     const amrex::Real velocity = reference_terminal_velocity(rho, qp);
-    return amrex::Real(0.1346) * velocity / qp;
+    return kessler_vt_exponent * velocity / qp;
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
@@ -386,18 +387,18 @@ amrex::Real reference_terminal_velocity_drho (const amrex::Real rho,
                                               const amrex::Real qp) noexcept
 {
     const amrex::Real velocity = reference_terminal_velocity(rho, qp);
-    return (amrex::Real(0.1346) - myhalf) * velocity / rho;
+    return (kessler_vt_exponent + kessler_vt_density_exponent) * velocity / rho;
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 amrex::Real inverse_qp_from_terminal_velocity (const amrex::Real velocity,
                                                const amrex::Real rho) noexcept
 {
-    // MUST MATCH: invert V = 36.34 * (0.001*rho*qp)^0.1346 * (rho/1.16)^(-1/2).
-    const amrex::Real density_factor = std::pow(rho / amrex::Real(1.16), myhalf);
-    const amrex::Real scaled = velocity * density_factor / amrex::Real(36.34);
-    return std::pow(scaled, amrex::Real(1.0) / amrex::Real(0.1346)) /
-           (amrex::Real(0.001) * rho);
+    // Invert V = coeff * (rho_to_cgs*rho*qp)^exponent * (rho/rho0)^density_exponent.
+    const amrex::Real density_factor = std::pow(rho / kessler_vt_rho0, -kessler_vt_density_exponent);
+    const amrex::Real scaled = velocity * density_factor / kessler_vt_coeff;
+    return std::pow(scaled, amrex::Real(1.0) / kessler_vt_exponent) /
+           (kessler_vt_rho_to_cgs * rho);
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
@@ -413,7 +414,7 @@ amrex::Real reference_precip_flux_dqp (const amrex::Real rho,
                                        const amrex::Real qp) noexcept
 {
     const amrex::Real flux = reference_precip_flux(rho, reference_terminal_velocity(rho, qp), qp);
-    return (amrex::Real(1.0) + amrex::Real(0.1346)) * flux / qp;
+    return (amrex::Real(1.0) + kessler_vt_exponent) * flux / qp;
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
@@ -421,7 +422,7 @@ amrex::Real reference_precip_flux_drho (const amrex::Real rho,
                                         const amrex::Real qp) noexcept
 {
     const amrex::Real flux = reference_precip_flux(rho, reference_terminal_velocity(rho, qp), qp);
-    return (myhalf + amrex::Real(0.1346)) * flux / rho;
+    return (amrex::Real(1.0) + kessler_vt_exponent + kessler_vt_density_exponent) * flux / rho;
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
@@ -439,8 +440,8 @@ int reference_substeps_from_reduced_value (const amrex::Real reduced_value,
                                            const amrex::Real dt,
                                            const amrex::Real dz) noexcept
 {
-    return static_cast<int>(std::ceil((reduced_value + std::numeric_limits<amrex::Real>::epsilon())
-                                      * (dt / dz) / kessler_sedimentation_cfl_max));
+    return amrex::max(1, static_cast<int>(std::ceil(reduced_value * (dt / dz)
+                                                    / kessler_sedimentation_cfl_max)));
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
@@ -448,8 +449,8 @@ int reference_velocity_cfl_substeps (const amrex::Real terminal_velocity,
                                      const amrex::Real dt,
                                      const amrex::Real dz) noexcept
 {
-    return static_cast<int>(std::ceil((terminal_velocity + std::numeric_limits<amrex::Real>::epsilon())
-                                      * (dt / dz) / kessler_sedimentation_cfl_max));
+    return amrex::max(1, static_cast<int>(std::ceil(terminal_velocity * (dt / dz)
+                                                    / kessler_sedimentation_cfl_max)));
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
@@ -501,7 +502,6 @@ inline SolverChoice make_solver_choice (const MoistureType moisture_type,
     sc.rdOcp = kRdOcp;
     sc.ave_plane = 2;
     sc.moisture_type = moisture_type;
-    sc.use_eamxx_shoc = false;
     sc.use_native_shoc = use_shoc;
     sc.turbChoice.resize(1);
     sc.turbChoice[0].pbl_type = use_shoc ? PBLType::NATIVE_SHOC : PBLType::None;
@@ -690,7 +690,6 @@ inline void run_kessler_public_flow (Kessler& kessler,
 {
     run_and_sync([&] {
         kessler.Define(sc);
-        kessler.Set_dzmin(geom.CellSize(2));
         kessler.Init(cons, cons.boxArray(), geom, dt, z_phys_nd, detJ_cc);
         kessler.Copy_State_to_Micro(cons);
         kessler.Advance(dt, sc);

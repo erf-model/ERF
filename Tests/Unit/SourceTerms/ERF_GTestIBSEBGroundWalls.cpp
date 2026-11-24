@@ -145,7 +145,7 @@ TEST(IBSEBGroundWalls, LongWallClosedForm)
         const double x0 = 10.0 * n, x1 = 10.0 * (n + 1);
         const double expect = 0.5 * (1.0 - (std::sqrt(x1 * x1 + H * H) - std::sqrt(x0 * x0 + H * H)) / (x1 - x0));
         for (int j = 0; j < ny; ++j) {
-            // Every face sends from its centre: the column at the wall's foot, which the
+            // Every face sends from its center: the column at the wall's foot, which the
             // lowest face sees from 5 m up, comes out 0.02 low (0.418 for 0.438), and the
             // columns behind it up to 0.014 high (0.250 for 0.236) or 0.010 low farther out.
             // The sum over all the columns is that of the faces' ground views.

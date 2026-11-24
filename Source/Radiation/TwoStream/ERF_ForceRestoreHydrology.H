@@ -8,6 +8,7 @@
 #include <cmath>
 
 #include <ERF_MicrophysicsConstants.H>   // rhor, the density of water
+#include <ERF_NumericalConstants.H>     // zero, one
 
 /**
  * @file ERF_ForceRestoreHydrology.H
@@ -145,8 +146,6 @@ force_restore_hydrology_step (amrex::Real& q_s, amrex::Real& q_deep, amrex::Real
                               const ForceRestoreHydrologyParams& prm) noexcept
 {
     ForceRestoreHydrologyFluxes out;
-    const amrex::Real zero(0.0);
-    const amrex::Real one(1.0);
     if (!prm.rain) { p = zero; }
     if (!amrex::Math::isfinite(p)) { p = zero; }
     if (!amrex::Math::isfinite(e)) { e = zero; }

@@ -163,8 +163,10 @@ def main():
         if d["qv"] is not None:
             # bulk_coeff surface fluxes, with q_surf = q_sat over sea
             wsp = np.hypot(d["u"][0], -d["v"][0])
-            qs = _q_surf_over_sea(287.15, d["p"][0])
-            wth = 0.0012 * wsp * (287.15 - d["theta"][0])
+            # erf.most.abs_surf_temp = 287.0 K, as theta at the surface pressure
+            th_s = 287.0 * (1.0e5 / d["p"][0]) ** (287.0 / 1004.5)
+            qs = _q_surf_over_sea(th_s, d["p"][0])
+            wth = 0.0012 * wsp * (th_s - d["theta"][0])
             wq = 0.0012 * wsp * (qs - d["qv"][0])
             H = d["rho"][0] * 1004.5 * wth
             LE = d["rho"][0] * 2.5e6 * wq

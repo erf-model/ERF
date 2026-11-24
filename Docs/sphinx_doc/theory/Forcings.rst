@@ -12,8 +12,9 @@ Physical Forcings
 
 Physical forcings available in ERF comprise the standard source terms for atmospheric modeling.
 These include Coriolis and geostrophic forcing; Rayleigh damping and sponge layer(s); subsidence;
-simplified radiative thermal sources; solution nudging towards a prescribed input sounding; and
-nudging towards observations at stations (:ref:`sec:ObsNudging`).
+simplified radiative thermal sources; solution nudging towards a prescribed input sounding;
+nudging towards observations at stations (:ref:`sec:ObsNudging`); and a localized mass
+source of gas with an optional tracer, for fully compressible runs (:ref:`sec:MassSourceInputs`).
 
 ERF also supports models for wind farm parametrization in which the effects of wind turbines are represented
 by imposing a momentum sink on the mean flow and/or turbulent kinetic energy (TKE).
@@ -271,7 +272,7 @@ and is unchanged). Each column meets the air in its *wall cell*: a partially imm
 it, or, when the surface lies on a cell face, the free cell sitting on the fully immersed cell. With :math:`\beta`
 the immersed fraction of the wall cell (zero for a free wall cell), the surface is at
 :math:`h = z_{bot} + \beta \Delta z`, the fluid centroid of the wall cell at :math:`d_1 = (1 - \beta)\Delta z/2`
-above it and the centre of the cell above at :math:`d_2 = (3/2 - \beta)\Delta z`. The friction velocity mixes
+above it and the center of the cell above at :math:`d_2 = (3/2 - \beta)\Delta z`. The friction velocity mixes
 the wall cell's own estimate and the one of the better resolved cell above by the fraction,
 
 .. math::
@@ -292,7 +293,7 @@ with :math:`u_t` the horizontal velocity, and the vertical diffusive momentum fl
 the wall cell is switched off (explicit stress and implicit solve), so the column loses exactly :math:`u_*^2`
 through the wall. Fully immersed cells and partial cells below the wall cell keep the drag above; the wall cell
 has none. The solver differences the face above the wall cell over :math:`\Delta z`, although the wall cell's
-fluid centroid and the centre of the cell above are :math:`d_2 - d_1 = (1 - \beta/2)\Delta z` apart; left alone
+fluid centroid and the center of the cell above are :math:`d_2 - d_1 = (1 - \beta/2)\Delta z` apart; left alone
 this acts like a smaller roughness (a constant speed offset aloft, 1.5 to 3 % in the neutral ABL). The diffusive
 coupling through that face (momentum, strain, :math:`\theta`, TKE, scalars, moisture) is therefore scaled by
 :math:`\Delta z / \Delta z_{eff}` with, by default (``erf.if_wall_face_spacing = log``),
@@ -324,23 +325,23 @@ stencils of the flat surface (the strain of the face above; the wall cell itself
 surface on a cell face reproduces flat ground. With a moisture model the microphysics species the host
 transports keep their initial value in fully immersed cells, as :math:`\rho` and :math:`\theta` do (the
 lateral faces of a slope stay open to diffusion, as for :math:`\theta`), and the wall law carries a
-surface moisture condition for the water vapour, as the flat surface layer does: ``erf.if_surf_moist_flux``
+surface moisture condition for the water vapor, as the flat surface layer does: ``erf.if_surf_moist_flux``
 (a kinematic moisture flux :math:`F_q` [kg/kg m/s], :math:`q_* = -F_q/u_*`, as ``erf.most.surf_moist_flux``) or
 ``erf.if_surf_moist`` (a surface mixing ratio :math:`q_s` [kg/kg], as ``erf.most.surf_moist``, with
 :math:`q_* = (1-\beta)\kappa(q - q_s)/\phi_h(d_1) + \beta\kappa(q_{ref} - q_s)/\phi_h(d_2)`, mixed as
 :math:`\theta_*`); without either :math:`q_* = 0` (no evaporation or deposition). The wall moisture flux
 :math:`-u_* q_*` is spread over the cell height of the wall cell (integrated exactly toward :math:`q_s` when
-a surface mixing ratio is given), written on the wall face as the water-vapour flux the TKE buoyancy and the
+a surface mixing ratio is given), written on the wall face as the water-vapor flux the TKE buoyancy and the
 output read, and the Obukhov length is formed from the virtual potential temperature, as the flat surface layer
 forms it: :math:`L = u_*^2 \theta_v / (\kappa g \theta_{v*})` with :math:`\theta_v = \theta(1 + \epsilon_v q)` and
-:math:`\theta_{v*} = \theta_*(1 + \epsilon_v q) + \epsilon_v \theta q_*` (water vapour only; the flat surface
+:math:`\theta_{v*} = \theta_*(1 + \epsilon_v q) + \epsilon_v \theta q_*` (water vapor only; the flat surface
 layer's :math:`\theta_v` subtracts rain water too), iterated with :math:`u_*` also when only
 a moisture condition is given; a given ``erf.if_Olen`` sets :math:`\theta_{v*}`, and
 :math:`\theta_* = (\theta_{v*} - \epsilon_v \theta q_*)/(1 + \epsilon_v q)`. Under ``erf.rans_moist_buoyancy`` the wall TKE below uses
 :math:`B = -g u_* \theta_{v*}/\theta_v`, as ``erf.dirichlet_k`` does on flat ground. With the k-equation closure, ``erf.rans_moist_buoyancy`` makes the
-TKE buoyancy production read the water-vapour flux too (see :ref:`RANS <RANS>`), so a heated, evaporating
+TKE buoyancy production read the water-vapor flux too (see :ref:`RANS <RANS>`), so a heated, evaporating
 surface on a cell face reproduces flat ground. The option needs ``erf.if_use_most = true``, a
-constant-:math:`\Delta z` mesh and the anelastic model (the compressible fast substep does not carry the wall
+constant-:math:`\Delta z` mesh and the anelastic or pseudo-incompressible model on every level (the compressible fast substep does not carry the wall
 heat flux and the wall TKE); ``erf.if_stability_correction`` belongs to the legacy law. With a RANS closure the
 geometric length scale over the immersed surface is :math:`\kappa (d + z_0)` with ``erf.if_z0``, as it is
 :math:`\kappa (d + z_0)` with the surface layer's roughness on flat ground.
@@ -356,7 +357,7 @@ TKE with the length scale of flat ground's first cell (``erf.if_flat_wall_dissip
 this law): its own length, at :math:`d_1`, would make a nearly solid wall cell dissipate several times faster
 than the wall value restores it. See `erf-model/ERF#4134 <https://github.com/erf-model/ERF/issues/4134>`_.
 
-With the anelastic model the solid cells are also held by the projection. By default the drag of the
+With the anelastic or pseudo-incompressible model the solid cells are also held by the projection. By default the drag of the
 solid is a source term, the projection (which treats the solid as fluid) then adds a pressure
 correction there, and the faces between two fully solid cells are set to zero after it. The face
 between a solid and a fluid cell keeps its projected flux, so the solid cell under it is left with a
@@ -372,9 +373,63 @@ drag inside the projection instead. On each face
 
 with :math:`r = \beta_f\, C_{d,m} / \sqrt[3]{\Delta x_1 \Delta x_2 \Delta x_3}` the drag rate of the source
 term (:math:`\beta_f` the solid fraction of the face, without the cap :math:`\min(1, U)` the source term
-applies) and :math:`r = 0` on the faces where the MOST wall law acts instead. The variable-coefficient
-equation is solved with GMRES, preconditioned by the FFT Poisson solve, so it needs a
-constant-:math:`\Delta z` mesh with map factors of one and a build with FFT. The source term then drops
+applies) and :math:`r = 0` on the faces where the MOST wall law acts instead. The solver of the
+variable-coefficient equation follows the mesh
+(`erf-model/ERF#4887 <https://github.com/erf-model/ERF/issues/4887>`_):
+
+- constant :math:`\Delta z`, map factors of one, an anelastic level, a build with FFT and every
+  refined region a rectangle: GMRES, preconditioned by the FFT Poisson solve;
+- constant :math:`\Delta z`, map factors of one and an anelastic level, in a build without FFT
+  or with a refined region that is not a rectangle: geometric multigrid with :math:`\sigma` as
+  its face coefficient;
+- stretched :math:`\Delta z`, map factors other than one (on level 0 or on a refined level), or
+  a pseudo-incompressible level: the multigrid of the
+  terrain Poisson solver, which takes :math:`\sigma` through its face area factors. A refined
+  region that is not a rectangle is solved with the multigrid for such regions on a flat mesh
+  (`erf-model/ERF#5332 <https://github.com/erf-model/ERF/pull/5332>`_), which takes the same
+  area factors. On a stretched mesh every projection of the level uses these solvers, also the
+  ones without the drag (the initial projection, and after a regrid), so no FFT is needed.
+
+The choice follows the build and the mesh, not ``erf.use_fft``. Refined regions that meet
+across a periodic boundary are solved as one region with multigrid on the level's periodic
+geometry: with the second solver on a constant :math:`\Delta z`, and with the multigrid for
+regions that are not rectangles otherwise (:ref:`subsec:LinearSolvers`). The third solver
+multiplies the largest real number by 1.5 while it sets up its coarse levels, so a run with
+``amrex.fpe_trap_overflow = 1`` stops there; run it with that trap off.
+
+Thin immersed bodies (``erf.zero_xflux_faces``, ``erf.zero_yflux_faces``, ``erf.zero_zflux_faces``)
+have their own projection, which does not take :math:`\sigma`. The option is refused with them
+when the inputs are read.
+
+On a pseudo-incompressible level (:ref:`PseudoIncompressibleEquations`) the projection acts on
+:math:`m = \beta_{pi}\,(\rho\mathbf{u})` with :math:`\beta_{pi} = \rho_0\theta_0/\rho` on the
+faces. This is the coefficient written :math:`\beta` in that section; the subscript keeps it apart
+from the solid fraction :math:`\beta_f` of the drag rate. The two coefficients multiply:
+
+.. math::
+
+    m^{n+1} = \sigma\left(m^* - \beta_{pi}\,\nabla\phi\right), \qquad
+    \nabla\cdot\left(\sigma\beta_{pi}\,\nabla\phi\right) =
+    \nabla\cdot\left(\sigma m^*\right) - S,
+
+with :math:`\phi` as above (the pressure correction times :math:`\Delta t`) and :math:`S` the
+source term of the pseudo-incompressible constraint, which :math:`\sigma` does not multiply. The
+solid faces are not zeroed afterwards, so :math:`\rho\theta` stays at :math:`\rho_0\theta_0` in
+the cells next to the solid as it does elsewhere. The
+``ImmersedBuildingHeatBalance_PseudoIncompressible`` tests check this: after 20 steps
+:math:`\max|\rho\theta - \rho_0\theta_0| / (\rho_0\theta_0)` is
+:math:`6 \times 10^{-11}` with the drag in the projection and :math:`4 \times 10^{-2}` with the
+solid faces zeroed after it. With a stratified sounding and no LES closure the same measure is
+:math:`10^{-8}` (:math:`3 \times 10^{-2}` with the solid faces zeroed). That value follows the
+heat terms of the immersed forcing, which enter :math:`S` one stage late: it is a quarter at half
+the time step, half without the scalar drag of the solid, and the same with a tighter solve. On
+a refined level the two-way coupling leaves a drift of its own, with or without immersed forcing
+(see :ref:`PseudoIncompressibleEquations`).
+
+A terrain-fitted mesh is not supported. A ``FullyCompressible``
+level has no projection: in a hierarchy that mixes the two, the option acts on the levels that
+project and the ``FullyCompressible`` levels keep the drag in the source term; at least one level
+must project. On the levels that project the source term then drops
 its drag, and the solid faces are not zeroed after the projection: the projected momenta are
 divergence free in every cell, the solid included. The pressure gradient kept for the next step is
 :math:`\nabla\phi / \Delta t` itself. The same option applies to immersed-forcing buildings (see
@@ -474,7 +529,8 @@ the fine cells are weighted by their fluid mass,
 
 with :math:`V_f` the fine cell volume (:math:`\det J / (m_x m_y)`, the weight the plain average carries) and
 :math:`\rho_c` the coarse density: the coarse cell's own base-state density when the density is not averaged
-(anelastic), and the fluid-volume-weighted mean of the fine density when it is (compressible). Coarse cells that
+(anelastic), and the fluid-volume-weighted mean of the fine density when it is (compressible or
+pseudo-incompressible, which both evolve the density). Coarse cells that
 are solid on their own level, or with no fluid fine cell under them, keep their value. The coarse value is the
 fluid mean over the whole coarse cell, so the integral of :math:`\rho\phi` over a covered partial cell is
 :math:`1/(1-\beta_c)` times the fine fluid integral: this average is not conservative over the covered region,
@@ -488,7 +544,7 @@ treatment of the solid (``erf.if_implicit_projection = false``, the default) the
 divergence free and the solid is frozen afterwards, so the partial cells at the patch edges keep a divergence of
 their own, which advects a uniform :math:`\theta` into a spurious source. With ``erf.if_implicit_projection = true``
 the drag is applied inside the projection and the solid is not frozen, and the momenta stay divergence free in the
-partial cells: multi-level anelastic runs with immersed forcing should use it. The ``ImmersedLES2LevHeatBalance``
+partial cells: multi-level anelastic and pseudo-incompressible runs with immersed forcing should use it. The ``ImmersedLES2LevHeatBalance``
 test (a plane at 45 m, a two-level patch, 20 steps) requires the fluid-mass-weighted mean :math:`\theta` of the
 domain to stay within 1e-6 K of its uniform start with the implicit projection, and checks that the explicit
 freeze exceeds that. Where the surface lies on the mid-plane of a coarse cell, the two levels describe different
@@ -574,7 +630,7 @@ Inputs that can be used with immersed forcing for buildings are as follows:
 
 .. _sec:IFBuildingsImplicitProjection:
 
-With the anelastic solver the building faces are held by the projection as the terrain faces are
+With the anelastic or pseudo-incompressible solver the building faces are held by the projection as the terrain faces are
 (see above). By default the drag is a source term and the faces between two solid cells are set to
 zero after the projection, so the partial cells at the walls and the roof (and, when a box edge is
 not on a cell mid-plane, the solid cells next to them) keep a divergence that advects a uniform
@@ -588,9 +644,10 @@ wall law (a partial wall face of :math:`u` or :math:`v` not under the MOST law, 
 explicit treatment zeroes after the projection. The MOST wall law itself adds no weight: a
 horizontal wall-law face has :math:`w = 0`, and a :math:`w`-face on the roof row that carries a side
 wall law keeps the roof weight :math:`\beta_f`. The kernels then apply the wall law only, on the
-partial faces that carry it, and the solid faces are not zeroed afterwards. The requirements are
-those of the terrain case: a constant-:math:`\Delta z` mesh, map factors of one, ``erf.compressibility_type`` not ``FullyCompressible``
-on every level and a build with FFT. A level coarser than the 50 m cutoff of the building forcing
+partial faces that carry it, and the solid faces are not zeroed afterwards. The requirements and
+the choice of solver are those of the terrain case: a mesh without terrain-fitted coordinates
+and ``erf.compressibility_type`` not ``FullyCompressible`` on at least
+one level (a ``FullyCompressible`` level keeps the drag in the source term). A level coarser than the 50 m cutoff of the building forcing
 (:math:`\sqrt{\Delta x \Delta y} > 50` m) has no building blanking, and its faces keep
 :math:`\sigma = 1`. As for terrain, the faces on a non-periodic lateral domain boundary and on a
 coarse/fine boundary keep :math:`\sigma = 1` and take their data from the boundary condition or the
@@ -609,11 +666,14 @@ value. Dropping the cap also makes the drag on a partial face in a slow wake (:m
 stronger than the source term's. See
 `erf-model/ERF#4887 <https://github.com/erf-model/ERF/issues/4887>`_.
 
-The default drag coefficients are different when using the fully compressible solver compared to the anelastic solver.
-This is because the timestep used for the anelastic solver is typically much coarser compared to the substep timestep for the fully compressible solver.
+The default drag coefficients are different when using the fully compressible solver compared to the anelastic or
+pseudo-incompressible solver (the latter defaults apply if any level is anelastic or pseudo-incompressible).
+This is because the timestep of these two solvers, which get their pressure from a projection and so take no acoustic
+substeps, is typically much coarser than the substep timestep of the fully compressible solver.
 A larger drag coefficient will more quickly force a cell to the desired value; however, there is a stability limit related to the timestep due to the explicit form of the drag term.
 The recommended values are ``erf.if_Cd_scalar = 50.0`` and ``erf.if_Cd_momentum = 500.0`` for the fully compressible solver and
-``erf.if_Cd_scalar = 5.0`` and ``erf.if_Cd_momentum = 50.0`` (note that these are the default values).
+``erf.if_Cd_scalar = 5.0`` and ``erf.if_Cd_momentum = 50.0`` for the anelastic and pseudo-incompressible solvers
+(note that these are the default values).
 The immersed forcing formulation for buildings has been rigorously tested at grid spacings of 5.0 m and less.
 Caution is needed when using immersed forcing at coarser grid spacings.
 If immersed forcing is causing your simulations to become unstable, the first recommendation is to reduce the drag coefficients.

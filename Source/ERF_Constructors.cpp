@@ -422,6 +422,8 @@ ERF::ERF_shared ()
 
     rhotheta_src.resize(nlevs_max);
     rhoqt_src.resize(nlevs_max);
+    h_w_subsid.resize(nlevs_max);
+    d_w_subsid.resize(nlevs_max);
 
     // NOTE: size canopy model before readparams (if file exists, we construct)
     m_forest_drag.resize(nlevs_max);
@@ -494,15 +496,6 @@ ERF::ERF_shared ()
         if (pp_structures.contains("model")) {
             amrex::Abort("erf.structures.model needs ERF built with the structure coupling"
                          " (ERF_ENABLE_MOVING_BODIES=ON in CMake, USE_MOVING_BODIES=TRUE in GNU make)");
-        }
-    }
-#endif
-
-#ifdef ERF_USE_EAMXX_SHOC
-    eamxx_shoc_interface.resize(nlevs_max);
-    for (int lev = 0; lev <= max_level; ++lev) {
-        if (solverChoice.turbChoice[lev].uses_eamxx_shoc()) {
-            eamxx_shoc_interface[lev] = std::make_unique<SHOCInterface>(lev, solverChoice);
         }
     }
 #endif
@@ -629,11 +622,7 @@ ERF::ERF_shared ()
     const std::string prob_name_ci = amrex::toLower(prob_name);
     if (prob_name_ci == "cloud chamber" || prob_name_ci == "cloudchamber") {
         cloud_chamber_config = erf_cloud_chamber::parse_config(
-            geom[0].ProbLo(), geom[0].ProbHi(), solverChoice.moisture_type);
-        const amrex::GpuArray<Real, AMREX_SPACEDIM> cloud_chamber_dx = {
-            geom[0].CellSize(0), geom[0].CellSize(1), geom[0].CellSize(2)};
-        erf_cloud_chamber::validate_wall_roughness_geometry(
-            cloud_chamber_config.wall_boundary(), cloud_chamber_dx);
+            geom[0], solverChoice.moisture_type, solverChoice.diffChoice);
     }
     {
         int budget_interval = 0;
@@ -837,6 +826,7 @@ ERF::ERF_shared ()
     // Size lat long arrays and default to null pointers
     lat_m.resize(nlevs_max);
     lon_m.resize(nlevs_max);
+    wrf_surface_fields.resize(nlevs_max);
     for (int lev = 0; lev < max_level; ++lev) {
         lat_m[lev] = nullptr;
         lon_m[lev] = nullptr;

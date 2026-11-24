@@ -66,39 +66,47 @@ public:
           const amrex::BoxArray& ba,
           amrex::MultiFab* cons_in) override
     {
-        // Check for nested patches: fine levels that don't reach the model top
-        // These need special handling since radiation requires complete atmospheric columns
-        int klo = geom.Domain().smallEnd(2);
-        int khi = geom.Domain().bigEnd(2);
-
-        // Detect nested patches: a nested fine level doesn't span the full domain vertically.
-        // Use ba.minimalBox() which gives the bounding box of all grids on this level.
-        // If that box doesn't reach the domain top or bottom, it's a nested patch.
-        amrex::Box minimal_box = ba.minimalBox();
-        bool is_nested_patch = (minimal_box.smallEnd(2) > klo) || (minimal_box.bigEnd(2) < khi);
+        // Detect nested patches: a fine level on which some box does not span the domain
+        // vertically, so no sweep is possible and the heating is interpolated from the parent.
+        // rad_boxes_span_column is the same test ERF::rad_level_needs_interpolation applies.
+        // A level 0 that fails it is rejected when its grids are built
+        // (ERF::check_rad_level_grids), since it has no parent to interpolate from.
+        bool is_nested_patch = !rad_boxes_span_column(ba, geom.Domain());
 
         // Update the nested patch flag - must be set/cleared on every Init call
         // so that levels that stop being nested after regrid will resume radiation computation
         m_is_nested_patch = is_nested_patch;
 
-        // Skip radiation on nested patches - heating rates will be interpolated from coarser level
+        // Skip radiation on nested patches - heating rates will be interpolated from coarser level.
+        // Clear the column layout first, so nothing left from an earlier grid indexes this one.
         if (is_nested_patch) {
+            m_nlay = 0;
+            m_ncol = 0;
+            m_ncol_chunk = 0;
+            m_col_offsets.clear();
             return;
         }
 
         // Reset vector of offsets for columnar data
         m_nlay = geom.Domain().length(2);
 
+        // Check the O3 profile here, where nlay is first known for this level,
+        // rather than at the first radiation update
+        if (m_o3vmr.size() != 1 && int(m_o3vmr.size()) != m_nlay) {
+            amrex::Abort("erf.o3vmr has " + std::to_string(m_o3vmr.size()) +
+                         " values, but level " + std::to_string(m_lev) + " has " +
+                         std::to_string(m_nlay) + " vertical cells: give one value, or one" +
+                         " value per vertical cell of every level that runs radiation.");
+        }
+
         m_ncol = 0;
         m_col_offsets.clear();
         m_col_offsets.resize(int(ba.size()));
         for (amrex::MFIter mfi(*cons_in); mfi.isValid(); ++mfi) {
             const amrex::Box& vbx = mfi.validbox();
-            // This assertion catches true vertical MPI decomposition (individual boxes that don't
-            // span the full domain height). The nested patch case is handled above by returning early.
-            AMREX_ALWAYS_ASSERT_WITH_MESSAGE((klo == vbx.smallEnd(2)) &&
-                                             (khi == vbx.bigEnd(2)),
-                                             "Vertical decomposition with radiation is not allowed.");
+            // Every box spans the column: a level where one does not returned above
+            AMREX_ASSERT(vbx.smallEnd(2) == geom.Domain().smallEnd(2) &&
+                         vbx.bigEnd(2)   == geom.Domain().bigEnd(2));
             int nx = vbx.length(0);
             int ny = vbx.length(1);
             m_col_offsets[mfi.index()] = m_ncol;
@@ -256,12 +264,6 @@ public:
         return m_lsm_output_names;
     }
 
-    // Check if this is a nested patch (doesn't reach model top)
-    bool is_nested_patch () const override
-    {
-        return m_is_nested_patch;
-    }
-
     // Populate datalog structures
     void
     populateDatalogMF ();
@@ -280,7 +282,7 @@ private:
     bool m_is_nested_patch = false;
 
     // Grid level
-    int m_lev;
+    int m_lev = -1;
 
     // Step number
     int m_step;
@@ -349,8 +351,40 @@ private:
     amrex::Real m_lat_cons;
     amrex::Real m_lon_cons;
 
-    // Holds output from KOKKOS views used in the datalog
+    // Holds output from KOKKOS views used in the datalog: cell-centered profiles, and the
+    // fluxes on the surface and top-of-atmosphere faces (one cell thick in z)
     amrex::MultiFab datalog_mf;
+    amrex::MultiFab datalog_bdy_mf;
+
+    // Datalog layout. Fluxes come in sets of sw up, sw dn, sw dn dir, lw up and lw dn: the
+    // all-sky and clear-sky sets are always written, the clean-sky and clean-clear-sky sets
+    // only when enabled. Every count below derives from these, so nDatalogFluxComp() can
+    // never exceed max_datalog_flux, which sizes the per-cell flux arrays in populateDatalogMF.
+    static constexpr int n_flux_per_set       = 5;
+    static constexpr int n_flux_sets_base     = 2;
+    static constexpr int n_flux_sets_optional = 2;
+    static constexpr int max_datalog_flux     = n_flux_per_set * (n_flux_sets_base + n_flux_sets_optional);
+
+    // Cell-centered components that are not fluxes: height, heating rates (4) and mu0
+    static constexpr int n_datalog_nonflux = 6;
+
+    // Number of flux fields in the datalog for the enabled diagnostics
+    int nDatalogFluxComp () const
+    {
+        const int n_opt = (m_extra_clnsky_diag ? 1 : 0) + (m_extra_clnclrsky_diag ? 1 : 0);
+        return n_flux_per_set * (n_flux_sets_base + n_opt);
+    }
+
+    // Cell-centered datalog components: the non-flux fields and the fluxes
+    int nDatalogComp () const { return n_datalog_nonflux + nDatalogFluxComp(); }
+
+    // Layout of datalog_bdy_mf: fluxes on the surface face, fluxes on the top face, then the
+    // top-face height. Usable in device code.
+    AMREX_GPU_HOST_DEVICE static constexpr int bdySfcComp  (int n)            { return n; }
+    AMREX_GPU_HOST_DEVICE static constexpr int bdyToaComp  (int n, int nflux) { return nflux + n; }
+    AMREX_GPU_HOST_DEVICE static constexpr int bdyZtopComp (int nflux)        { return 2*nflux; }
+
+    int nDatalogBdyComp () const { return bdyZtopComp(nDatalogFluxComp()) + 1; }
 
     // Path, data file, and coefficient file for K-distribution
     std::string rrtmgp_file_path       = ".";
@@ -372,7 +406,8 @@ private:
 
     // Prescribed greenhouse gas surface concentrations in moles / moles air
     amrex::Real m_co2vmr = amrex::Real(388.717e-6);
-    amrex::Vector<amrex::Real> m_o3vmr;
+    // One value applies to the whole column; otherwise one value per layer (nlay)
+    amrex::Vector<amrex::Real> m_o3vmr{amrex::Real(3.0e-8)};
     amrex::Real m_n2ovmr = amrex::Real(323.141e-9);
     amrex::Real m_covmr  = amrex::Real(1.0e-7);
     amrex::Real m_ch4vmr = amrex::Real(1807.851e-9);

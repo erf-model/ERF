@@ -1,4 +1,5 @@
 #include <ERF_SLM.H>
+#include <algorithm>
 #include "ERF_SLM_DefaultParams.H"
 #include "ERF_EOS.H"
 #include "ERF_TileNoZ.H"
@@ -1230,6 +1231,12 @@ SLM::Lsm_Regrid_Level (const int& lev,
         saved_unmapped[ivar] = std::make_unique<MultiFab>(
             lsm_fab_vars[unmapped_fields[ivar]]->deepCopy());
     }
+    // The 2D surface state (canopy and puddle water, ...), which Init sets again (issue 5177)
+    const int nsurface = static_cast<int>(surface_state_fields().size());
+    Vector<std::unique_ptr<MultiFab>> saved_surface(nsurface);
+    for (int n = 0; n < nsurface; ++n) {
+        saved_surface[n] = std::make_unique<MultiFab>(surface_state_fields()[n]->deepCopy());
+    }
 
     Init(lev, cons_in, u_in, v_in, geom, geom0, domain_bcs_type,
          refRatio, dt, z_phys_nd_in, nc_init_file);
@@ -1241,8 +1248,11 @@ SLM::Lsm_Regrid_Level (const int& lev,
         for (int ivar = 0; ivar < m_lsm_data_size; ++ivar) {
             lsm_fab_vars[LsmDataMap[ivar]]->ParallelCopy(*saved_data[ivar], 0, 0, 1);
         }
+        // The surface-layer stress reads the flux one column beyond each grid, so the ghost
+        // cells at the edges between the new grids must hold their neighbors' values too
         for (int ivar = 0; ivar < m_lsm_flux_size; ++ivar) {
             lsm_fab_flux[LsmFluxMap[ivar]]->ParallelCopy(*saved_flux[ivar], 0, 0, 1);
+            lsm_fab_flux[LsmFluxMap[ivar]]->FillBoundary(m_geom.periodicity());
         }
     } else {
         source_data.resize(m_lsm_data_size, nullptr);
@@ -1257,6 +1267,10 @@ SLM::Lsm_Regrid_Level (const int& lev,
         for (int ivar = 0; ivar < static_cast<int>(unmapped_fields.size()); ++ivar) {
             source_unmapped[ivar] = saved_unmapped[ivar].get();
         }
+        source_surface_state.resize(nsurface, nullptr);
+        for (int n = 0; n < nsurface; ++n) {
+            source_surface_state[n] = saved_surface[n].get();
+        }
         source_has_atmos_state = has_atmos_state;
 
         Lsm_Interpolate_From_Source(old_geom, old_lsm_geom,
@@ -1269,12 +1283,24 @@ SLM::Lsm_Regrid_Level (const int& lev,
     for (int ivar = 0; ivar < static_cast<int>(unmapped_fields.size()); ++ivar) {
         lsm_fab_vars[unmapped_fields[ivar]]->ParallelCopy(*saved_unmapped[ivar], 0, 0, 1);
     }
+    // The same for the surface state: the old level's where its grids were, and elsewhere what
+    // the transfer gave.  initialize_processed_state sets most of it again, so put it back after.
+    Vector<MultiFab> surface_now;
+    for (int n = 0; n < nsurface; ++n) {
+        surface_state_fields()[n]->ParallelCopy(*saved_surface[n], 0, 0, 1);
+        surface_now.push_back(surface_state_fields()[n]->deepCopy());
+    }
     initialize_processed_state(true);
     initialize_zrefxy();
+    for (int n = 0; n < nsurface; ++n) {
+        MultiFab::Copy(*surface_state_fields()[n], surface_now[n], 0, 0, 1,
+                       surface_now[n].nGrowVect());
+    }
 
     source_data.clear();
     source_flux.clear();
     source_unmapped.clear();
+    source_surface_state.clear();
 }
 
 namespace {
@@ -1414,7 +1440,7 @@ SLM::Lsm_Interpolate_From_Source (const Geometry& source_geom,
     }
 
     // Every other field is interpolated without mixing land and water (#4390): a land cell's
-    // slopes come from land neighbours only and a water cell's from water ones, as WRF's
+    // slopes come from land neighbors only and a water cell's from water ones, as WRF's
     // masked nest interpolation does, so a coastal land cell is not pulled toward the water
     // value (SLM holds soilw = 1 and soilt = SST there). The surface type comes from the
     // source level's vegetation type at the top soil level (slm_surface_type), for every soil
@@ -1477,6 +1503,43 @@ SLM::Lsm_Interpolate_From_Source (const Geometry& source_geom,
         unpack(flux, flux_dst);
     }
 
+    // The 2D surface state SLM keeps outside lsm_fab_vars (canopy and puddle water, the canopy,
+    // canopy-air and ground temperatures, snow albedo and age), by surface type like the rest of
+    // the state (issue 5177).  initialize_processed_state below sets most of it again, so it is
+    // saved here and put back afterwards.
+    const auto surface = surface_state_fields();
+    const int nsurface = static_cast<int>(surface.size());
+    const bool transfer_surface = static_cast<int>(source_surface_state.size()) == nsurface &&
+        std::all_of(source_surface_state.begin(), source_surface_state.end(),
+                    [] (const MultiFab* p) { return p != nullptr; });
+    Vector<MultiFab> transferred_surface;
+    if (transfer_surface) {
+        Vector<Transfer> surf;
+        for (int n = 0; n < nsurface; ++n) {
+            surf.push_back({surface[n], source_surface_state[n]});
+        }
+        // The surface state has no ghost cells, but the interpolation reads one coarse cell
+        // around each (TypedConsLinear::CoarseBox), so the packed source gets one in x and y,
+        // filled from the neighboring grids; a ghost cell no grid covers stays NaN, with no type
+        const MultiFab& s0 = *source_surface_state[0];
+        MultiFab surf_src(s0.boxArray(), s0.DistributionMap(), nsurface+1, IntVect(1,1,0));
+        surf_src.setVal(std::numeric_limits<Real>::quiet_NaN());
+        for (int n = 0; n < nsurface; ++n) {
+            surf_src.ParallelCopy(*source_surface_state[n], 0, n, 1, IntVect(0),
+                                  surf_src.nGrowVect(), source_geom.periodicity());
+        }
+        surf_src.ParallelCopy(surface_type_2d, 0, nsurface, 1, surface_type_2d.nGrowVect(),
+                              surf_src.nGrowVect(), source_geom.periodicity());
+        {
+            MultiFab surf_dst = pack_dst(surf, nsurface+1);
+            interp_by_type_packed(surf_dst, surf_src, 1, source_geom, m_geom, rr2d, bc);
+            unpack(surf, surf_dst);
+        }
+        for (int n = 0; n < nsurface; ++n) {
+            transferred_surface.push_back(surface[n]->deepCopy());
+        }
+    }
+
     // tref, qref and pref were interpolated from the source, so they are only as
     // good as the source's. A level made at initialization, before any
     // Update_Lsm_Vars, gets zeros, and init_slm_vars must then run again once
@@ -1492,6 +1555,16 @@ SLM::Lsm_Interpolate_From_Source (const Geometry& source_geom,
         first_step = false;
         wrfinput_initialized = use_wrfinput;
         init_from_atmos_pending = !has_atmos_state;
+
+        // Once the source has stepped, its surface state is the evolved one, so keep it rather
+        // than the values init_slm_vars derived from the air and the soil.  Before that the
+        // source's is its own initial values, and init_from_atmos_pending sets it again anyway.
+        if (transfer_surface && has_atmos_state) {
+            for (int n = 0; n < nsurface; ++n) {
+                MultiFab::Copy(*surface[n], transferred_surface[n], 0, 0, 1,
+                               surface[n]->nGrowVect());
+            }
+        }
     }
 }
 
@@ -1532,6 +1605,29 @@ SLM::initialize_processed_state (const bool preserve_checkpoint_fields)
 {
     const int d_khi_lsm = khi_lsm;
     const int islake = 21;
+
+    // The reference-level forcing lives in the k = 0 plane, a z ghost cell of the SLM grid that
+    // the transfer from the source (InterpFromCoarseLevel, ParallelCopy) does not fill, so it
+    // still holds the zeros of Init.  Copy_State_to_Lsm and set_precip_input mirror it into the
+    // khi plane, which is transferred, so take it back from there: init_slm_vars below starts
+    // the canopy from tref, qref and pref at k = 0, which would otherwise be 0 K on a level made
+    // or remade after the atmosphere was coupled (issue 5163).  Before the atmosphere has been
+    // coupled the khi plane is zero too, and init_from_atmos_pending sets the canopy again later.
+    // This is done first so that the fields saved below for preserve_checkpoint_fields have it.
+    for (const int var : {LsmVar_SLM::tref, LsmVar_SLM::qref, LsmVar_SLM::pref, LsmVar_SLM::dref,
+                          LsmVar_SLM::uref, LsmVar_SLM::vref, LsmVar_SLM::precipref,
+                          LsmVar_SLM::swdsvisxyref, LsmVar_SLM::swdsnirxyref,
+                          LsmVar_SLM::swdsvisdxyref, LsmVar_SLM::swdsnirdxyref,
+                          LsmVar_SLM::lwref, LsmVar_SLM::coszrsxy})
+    {
+        for (MFIter mfi(*lsm_fab_vars[var], TileNoZ()); mfi.isValid(); ++mfi) {
+            const Box box = mfi.tilebox().makeSlab(2, 0);
+            auto ref_arr = lsm_fab_vars[var]->array(mfi);
+            ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept {
+                ref_arr(i, j, 0) = ref_arr(i, j, d_khi_lsm);
+            });
+        }
+    }
 
     MultiFab saved_tsurf = lsm_fab_vars[LsmVar_SLM::tsurf]->deepCopy();
     MultiFab saved_soilt = lsm_fab_vars[LsmVar_SLM::soilt]->deepCopy();
@@ -1595,7 +1691,13 @@ SLM::initialize_processed_state (const bool preserve_checkpoint_fields)
         });
     }
 
-    init_slm_vars();
+    // The soil nudging targets were transferred with the rest of the state.  Keep them once the
+    // source level has set its own (its first Update_Lsm_Vars sets has_atmos_state and the
+    // targets together, and a checkpoint is written after it), so that this level nudges toward
+    // the run's targets rather than toward the soil state at the time it was made (issue 5178).
+    // Before that the transferred targets are not set yet, so take them from the soil state, as
+    // init_from_atmos_pending will again once this level has the atmospheric state.
+    init_slm_vars(!has_atmos_state);
 
     if (preserve_checkpoint_fields) {
         for (int ivar = 0; ivar < m_lsm_data_size; ++ivar) {
@@ -2224,7 +2326,7 @@ void SLM::init_soil_vars ()
     }
 }
 
-void SLM::init_slm_vars ()
+void SLM::init_slm_vars (bool reset_soil_targets)
 {
     const int d_khi_lsm = khi_lsm;
 
@@ -2285,8 +2387,10 @@ void SLM::init_slm_vars ()
     }
 
     // initialize nudging profiles for soil based on the initial soilt and soilw
-    MultiFab::Copy(*lsm_fab_vars[LsmVar_SLM::soilt_obs], *lsm_fab_vars[LsmVar_SLM::soilt], 0, 0, 1, 0);
-    MultiFab::Copy(*lsm_fab_vars[LsmVar_SLM::soilw_obs], *lsm_fab_vars[LsmVar_SLM::soilw], 0, 0, 1, 0);
+    if (reset_soil_targets) {
+        MultiFab::Copy(*lsm_fab_vars[LsmVar_SLM::soilt_obs], *lsm_fab_vars[LsmVar_SLM::soilt], 0, 0, 1, 0);
+        MultiFab::Copy(*lsm_fab_vars[LsmVar_SLM::soilw_obs], *lsm_fab_vars[LsmVar_SLM::soilw], 0, 0, 1, 0);
+    }
 
     initialize_surface_outputs();
 }
@@ -5252,10 +5356,10 @@ void SLM::Copy_Lsm_to_State (MultiFab& cons_in)
     cons_in.FillBoundary(m_geom.periodicity());
 }
 
-void SLM::writeSLM_Data (const PlotFileType plotfile_type, const amrex::Real cur_time, const std::string plot_prefix, const int level_step, const int /*lev*/, const int /*finest_lev*/, amrex::MultiFab &fab, amrex::Geometry &geom, amrex::Vector<std::string> &varnames)
+void SLM::writeSLM_Data (const PlotFileType plotfile_type, const amrex::Real cur_time, const std::string plot_prefix, const int level_step, const int lev, const int /*finest_lev*/, amrex::MultiFab &fab, amrex::Geometry &geom, amrex::Vector<std::string> &varnames)
 {
 #ifndef ERF_USE_NETCDF
-    amrex::ignore_unused(cur_time, plot_prefix, level_step);
+    amrex::ignore_unused(cur_time, plot_prefix, level_step, lev);
 #endif
     geom.define(amrex::makeSlab(m_lsm_geom.Domain(), 2, 0), m_lsm_geom.ProbDomain(), m_lsm_geom.Coord(), m_lsm_geom.isPeriodic());
 
@@ -5403,7 +5507,7 @@ void SLM::writeSLM_Data (const PlotFileType plotfile_type, const amrex::Real cur
 #endif
 #ifdef ERF_USE_NETCDF
     } else if (plotfile_type == PlotFileType::Netcdf) {
-        writeSLM_NetCDF(fab, varnames, cur_time, plot_prefix, level_step);
+        writeSLM_NetCDF(fab, varnames, cur_time, plot_prefix, level_step, lev);
 #endif
     } else {
         Abort("Dont know this plot_filetype");
@@ -5659,7 +5763,7 @@ void SLM::twostream_noahmp (int ib, int ic, int /*vegtyp*/, amrex::Real cosz, am
     amrex::Real thetap;   //angle conversion from SZA
     amrex::Real fa;       //foliage volume density (m-1)
     amrex::Real newvai;   //effective LSAI (-)
-    // Set below for opt_rad = 1, 2 or 3 (the only values); initialised so that no
+    // Set below for opt_rad = 1, 2 or 3 (the only values); initialized so that no
     // path reads them unset.
     amrex::Real kopen = one; //gap fraction for diffue light (-)
     amrex::Real gap   = one; //total gap fraction for beam ( <=1-shafac )

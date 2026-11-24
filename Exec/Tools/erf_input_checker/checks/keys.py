@@ -11,6 +11,8 @@ from ..findings import Severity
 # Inputs that SolverChoice refuses (Docs: "Deprecated and Removed Inputs")
 RETIRED_KEYS = {
     "erf.use_terrain": "set erf.terrain_type instead",
+    "erf.shoc.apply_tms": "it was an option of the EAMxx SHOC, which has been removed; native SHOC does not use it",
+    "erf.shoc.check_flux_state": "it was an option of the EAMxx SHOC, which has been removed; native SHOC does not use it",
     "erf.use_moist_background": "set erf.init_type = MoistBaseState instead",
     "erf.moisture_type": "renamed: set erf.moisture_model instead",
     "erf.no_substepping": "set erf.timestepping_type = RK3_NoSubstepping instead",
@@ -29,10 +31,11 @@ DEPRECATED_KEYS = {
 }
 RETIRED_VALUES = {
     "erf.init_type": {"real": "WRFInput", "ideal": "WRFInput"},
+    "erf.pbl_type": {"eamxx_shoc": "NATIVE_SHOC"},
 }
 RENAMED_VALUES = {
     "erf.terrain_type": {"static": "StaticFittedMesh", "moving": "MovingFittedMesh"},
-    "erf.pbl_type": {"shoc": "EAMXX_SHOC"},
+    "erf.pbl_type": {"shoc": "NATIVE_SHOC"},
 }
 
 # Prefixes whose keys are defined per problem or per sub-model, not in the
@@ -58,6 +61,7 @@ def _find_docs() -> Optional[str]:
 
 
 _DOC_KEY_RE = re.compile(r"\*\*([A-Za-z0-9_.<>]+)\*\*")
+_RST_COMMENT_RE = re.compile(r"\.\.(?:\s*$|\s+(?![_\[|])(?!\S+::))")
 _DOC_CODE_RE = re.compile(r"``((?:erf|amr|geometry|xlo|xhi|ylo|yhi|zlo|zhi)\.[A-Za-z0-9_.]+)``")
 
 
@@ -108,6 +112,12 @@ def documented_keys(docs_path: Optional[str] = None) -> Set[str]:
     return keys
 
 
+_DOC_PAIR_RE = re.compile(r"\*\*([A-Za-z0-9_.]+\.[A-Za-z0-9_]+)_lo/hi\*\*")
+# keys under a prefix named in the deck: erf.<station>.* and erf.obs_nudging.<station>.*
+_STATION_LEAVES = {"field", "x", "y", "lat", "long", "lon", "height_agl", "height_abs"}
+_OBS_LEAVES = {"file", "x", "y", "lat", "long"}
+
+
 def _documented_keys(path):
     """Keys named in Inputs.rst and every other .rst page beside it."""
     keys: Set[str] = set()
@@ -119,14 +129,43 @@ def _documented_keys(path):
         pages.extend(os.path.join(dirpath, f) for f in files if f.endswith(".rst"))
     for page in pages:
         with open(page, errors="replace") as fh:
+            in_comment = False
             for line in fh:
+                # An RST comment (".. text" that is not a directive, target, footnote or
+                # substitution) runs through its indented and blank lines; keys in it, such
+                # as a table row commented out with a deactivated feature, are not documented.
+                if in_comment and (not line.strip() or line[0] in " \t"):
+                    continue
+                in_comment = bool(_RST_COMMENT_RE.match(line))
+                if in_comment:
+                    continue
                 for m in _DOC_KEY_RE.finditer(line):
                     k = m.group(1)
                     if "." in k:
                         keys.add(k)
                 for m in _DOC_CODE_RE.finditer(line):
                     keys.add(m.group(1))
+                # a table row may name a pair as **erf.sample_line_lo/hi**
+                for m in _DOC_PAIR_RE.finditer(line):
+                    keys.add(m.group(1) + "_lo")
+                    keys.add(m.group(1) + "_hi")
     return keys
+
+
+@register
+class GluedComment(Checker):
+    """A '#' inside a word of a value: ParmParse keeps it, and the text after it, in the value."""
+
+    name = "keys.glued_comment"
+
+    def run(self) -> None:
+        for key in sorted(self.deck.glued_keys):
+            words = self.deck.raw(key) or []
+            glued = [w for w in words if "#" in w]
+            if glued:
+                self.warn(key, "the value holds %r: ParmParse starts a comment only after a blank, so the '#' "
+                               "and the words after it are read as part of the value" % glued[0],
+                          "Put a blank before the '#'.")
 
 
 @register
@@ -239,6 +278,8 @@ class UnknownKeys(Checker):
                 "Run ERF from the deck's directory, or give the path relative to the run directory."))
         indicators = [s.lower() for s in self.deck.get_strs("erf.refinement_indicators")]
         faces = ("xlo", "xhi", "ylo", "yhi", "zlo", "zhi")
+        stations = [s.lower() for s in self.deck.get_strs("erf.station_names")]
+        obs_stations = [s.lower() for s in self.deck.get_strs("erf.obs_nudging.stations")]
         for key in self.deck.keys():
             kl = key.lower()
             if key in known:
@@ -264,6 +305,15 @@ class UnknownKeys(Checker):
                 probe = "erf.<indicator>." + ".".join(parts[2:])
                 if probe in known_l:
                     continue
+                # a condition of the indicator: erf.<indicator>.<condition>.<key>
+                conds = [s.lower() for s in self.deck.get_strs("erf.%s.conditions" % key.split(".")[1])]
+                if len(parts) == 4 and parts[2] in conds and "erf.<indicator>." + parts[3] in known_l:
+                    continue
+            if parts[0] == "erf" and len(parts) == 3 and parts[1] in stations and parts[2] in _STATION_LEAVES:
+                continue
+            if parts[:2] == ["erf", "obs_nudging"] and len(parts) == 4 and parts[2] in obs_stations \
+                    and parts[3] in _OBS_LEAVES:
+                continue
             if parts[0] not in ("erf", "amr", "geometry") and parts[0] not in faces:
                 continue
             # per-level suffixes and numbered keys such as plot_int_1 are documented

@@ -21,7 +21,7 @@ class ProblemBase;
 // above it.
 //
 
-// The nodal boxes of the bottom slab under each cell-centred box of ba
+// The nodal boxes of the bottom slab under each cell-centered box of ba
 amrex::BoxArray bottom_node_slab (const amrex::BoxArray& ba, const amrex::Geometry& geom);
 
 // Fill zs (defined on bottom_node_slab) with the terrain surface that prob gives

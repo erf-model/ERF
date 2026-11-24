@@ -3,7 +3,9 @@
 
 #include <cmath>
 #include <limits>
+#include <sstream>
 
+#include <AMReX.H>
 #include <AMReX_Array4.H>
 #include <AMReX_GpuQualifiers.H>
 
@@ -893,7 +895,7 @@ SAMFaceState sam_face_average_state (const int& k,
         result.qp_avg = zero;
     } else {
         // Sedimentation only moves mass down, out of cell k: keep rho and T
-        // centred on the face but take the transported mixing ratios from that
+        // centered on the face but take the transported mixing ratios from that
         // donor cell, so the flux does not depend on the receiving cell below
         // (a dry donor sends nothing).
         result.rho_avg = myhalf * (rho_km1 + rho_k);
@@ -918,16 +920,103 @@ int sam_precip_face_donor_k (const int& face_k,
     return face_k;
 }
 
+// The largest fall Courant number a sedimentation substep may take; SAM::CFL_MAX is this value.
+static constexpr amrex::Real sam_sedimentation_cfl_max = myhalf;
+
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-int sam_substep_count_from_reduced_flux (const amrex::Real& reduced_flux,
-                                         const amrex::Real& dt,
-                                         const amrex::Real& dz) noexcept
+int sam_precip_face_receiver_k (const int& face_k,
+                                const int& k_lo,
+                                const int& k_hi) noexcept
 {
-    // Substeps follow the legacy reduced-flux rule based on the maximum
-    // density-corrected precip flux, not directly on a terminal fall speed.
-    // Property tests characterize this behavior before any intended change.
-    // MUST MATCH: SAM::CFL_MAX.
-    return static_cast<int>(std::ceil(reduced_flux * (dt / dz) / myhalf));
+    // The cell a face drains into, the one below it.  The surface face drains out of the
+    // domain and the top face carries nothing, so both return their donor cell instead.
+    if (face_k <= k_lo || face_k >= k_hi + 1) {
+        return sam_precip_face_donor_k(face_k, k_lo, k_hi);
+    }
+    return face_k - 1;
+}
+
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+amrex::Real sam_fall_sizing_detJ (const amrex::Real& detJ_donor,
+                                  const amrex::Real& detJ_receiver) noexcept
+{
+    // The cell height (in units of the reference dz) a face's fall Courant number is taken
+    // over when sizing the substeps: the smaller of the cell the face drains and the cell it
+    // drains into.  The substep count is fixed at the start of the step, from cells that
+    // already hold precipitation; the cells below the front are dry then and do not count,
+    // but they become donors in later substeps.  Looking one cell below covers the first
+    // cell the front enters.  If within one step the front crosses several cells thinner
+    // than the ones above, the Courant number there can still exceed CFL_MAX; the donor cap
+    // (sam_limit_precip_component_flux) is the backstop and keeps the mixing ratios
+    // non-negative.
+    return amrex::min(detJ_donor, detJ_receiver);
+}
+
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+int sam_sedimentation_substep_count (const amrex::Real& max_courant) noexcept
+{
+    // max_courant is the largest fall Courant number over the faces for the full step,
+    // v*dt over the cell height of sam_fall_sizing_detJ (#5168): enough substeps that no
+    // species falls more than CFL_MAX of that cell per substep, and always at least one.
+    // The caller checks that max_courant is finite and the count sane
+    // (sam_check_sedimentation_substeps).
+    return amrex::max(1, static_cast<int>(std::ceil(max_courant / sam_sedimentation_cfl_max)));
+}
+
+// A host-side check of the global maximum fall Courant number before it becomes a substep
+// count: a NaN, an infinity or an absurd count would be undefined behavior in the cast to int,
+// or would hang the substep loop, and points to a state that is not usable.
+inline void
+sam_check_sedimentation_substeps (const char* routine, const amrex::Real max_courant)
+{
+    // Far above anything a healthy state gives: under the compressible time step (dt of a
+    // few seconds) the count stays at about 20 or less
+    constexpr amrex::Real max_substeps = amrex::Real(1000.0);
+    if (!std::isfinite(max_courant) || (max_courant / sam_sedimentation_cfl_max > max_substeps)) {
+        std::ostringstream message;
+        message.precision(17);
+        message << routine << ": cannot form the sedimentation substep count: the largest fall"
+                << " Courant number is " << max_courant << " (CFL_MAX = " << sam_sedimentation_cfl_max
+                << ", at most " << max_substeps << " substeps allowed)."
+                << " The fall speeds or the cell heights are not usable.";
+        amrex::Abort(message.str());
+    }
+}
+
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+amrex::Real sam_fall_courant (const amrex::Real& fall_speed,
+                              const amrex::Real& dt,
+                              const amrex::Real& dz,
+                              const amrex::Real& detJ) noexcept
+{
+    // The fall Courant number at a face: the distance fallen in dt over the physical height
+    // dz*detJ of a cell.  The substep sizing passes sam_fall_sizing_detJ, the smaller of the
+    // cell the face drains and the cell it drains into.
+    return fall_speed * dt / (dz * detJ);
+}
+
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+amrex::Real sam_precip_component_max_fall_speed (const SAMPrecipComponentFaceState& face_state,
+                                                 const amrex::Real& vrain,
+                                                 const amrex::Real& vsnow,
+                                                 const amrex::Real& vgrau,
+                                                 const amrex::Real& rho_0) noexcept
+{
+    // The largest fall speed of rain, snow and graupel at a face: each density-corrected
+    // flux of sam_precip_component_fluxes_from_face_state divided by its rho_avg*q, so
+    // v*(rho_avg*q)^c*sqrt(rho_0/rho_avg). A component with no mass does not fall.
+    const amrex::Real density_correction = std::sqrt(rho_0 / face_state.rho_avg);
+    amrex::Real vmax = zero;
+    if (face_state.qpr_avg > zero) {
+        vmax = amrex::max(vmax, vrain * std::pow(face_state.rho_avg * face_state.qpr_avg, crain));
+    }
+    if (face_state.qps_avg > zero) {
+        vmax = amrex::max(vmax, vsnow * std::pow(face_state.rho_avg * face_state.qps_avg, csnow));
+    }
+    if (face_state.qpg_avg > zero) {
+        vmax = amrex::max(vmax, vgrau * std::pow(face_state.rho_avg * face_state.qpg_avg, cgrau));
+    }
+    return vmax * density_correction;
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
@@ -953,7 +1042,7 @@ SAMPrecipFaceState sam_precip_face_state (const int& SAM_moisture_type,
         result.tabs_avg = tabs_array(i,j,k-1);
         result.qp_avg = zero;
     } else {
-        // Centred rho and T, donor (upwind) qp from the cell above the face.
+        // Centered rho and T, donor (upwind) qp from the cell above the face.
         result.rho_avg = myhalf * (rho_array(i,j,k-1) + rho_array(i,j,k));
         result.tabs_avg = myhalf * (tabs_array(i,j,k-1) + tabs_array(i,j,k));
         result.qp_avg = qp_array(i,j,k);
@@ -997,7 +1086,7 @@ SAMPrecipComponentFaceState sam_precip_component_face_state (const amrex::Array4
         result.qps_avg = zero;
         result.qpg_avg = zero;
     } else {
-        // Centred rho and T, donor (upwind) qpr/qps/qpg from the cell above the face.
+        // Centered rho and T, donor (upwind) qpr/qps/qpg from the cell above the face.
         result.rho_avg = myhalf * (rho_array(i,j,k-1) + rho_array(i,j,k));
         result.tabs_avg = myhalf * (tabs_array(i,j,k-1) + tabs_array(i,j,k));
         result.qpr_avg = qpr_array(i,j,k);

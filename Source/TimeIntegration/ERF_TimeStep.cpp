@@ -82,9 +82,11 @@ ERF::timeStep (int lev, double time, int /*iteration*/)
                 if (bdy_data_xlo[itime].size() == 0 && need_itime) {
                     bool is_anelastic = (solverChoice.compressibility_type[0] != CompressibilityType::FullyCompressible);
                     read_and_convert_from_wrfbdy(itime,nc_bdy_file,bdy_data_xlo,bdy_data_xhi,bdy_data_ylo,bdy_data_yhi,
-                                                 wrf_MUB, wrf_C1H, wrf_C2H, wrf_RDNW, wrf_PHB, z_phys_cc[lev], z_phys_nd[lev],
+                                                 wrf_MUB, wrf_C1H, wrf_C2H, wrf_C1F, wrf_C2F, wrf_RDNW, wrf_PHB,
+                                                 mapfac[lev],
+                                                 z_phys_cc[lev], z_phys_nd[lev],
                                                  vars_new[lev][Vars::xvel], vars_new[lev][Vars::yvel], vars_new[lev][Vars::cons],
-                                                 r_hse, area_vec, geom[lev], use_moist, solverChoice.rebalance_wrf_input, domain_bcs_type,
+                                                 r_hse, area_vec, geom[lev], use_moist, use_theta_m_bdy, solverChoice.rebalance_wrf_input, domain_bcs_type,
                                                  real_width, bdy_time_interval, is_anelastic);
                 }
             } // use_erfbdy
@@ -124,8 +126,7 @@ ERF::timeStep (int lev, double time, int /*iteration*/)
                 update_sst_tsk(lev, itime, geom[lev], ba2d[lev],
                                sst_lev[lev], tsk_lev[lev],
                                m_SurfaceLayer[Orientation(Direction::z, Orientation::low)], low_data_zlo,
-                               S_new, *mf_PSFC[lev],
-                               solverChoice.rdOcp, lmask_lev[lev][0], use_moist);
+                               S_new, lmask_lev[lev][0], use_moist);
 
                 // Give the finer levels this slice too, coarsest first, and point the surface
                 // layer at it: a level with a wrflow file of its own (erf.nc_low_file_<lev>)
@@ -254,6 +255,12 @@ ERF::timeStep (int lev, double time, int /*iteration*/)
                 // if there are newly created levels, set the time step
                 for (int k = old_finest+1; k <= finest_level; ++k) {
                     dt[k] = dt[k-1] / static_cast<double>(nsubsteps[k]);
+                }
+
+                // A regridded level over steep terrain may need the variable beta_s before
+                // its first substep, not at the next ComputeDt
+                for (int k = lev+1; k <= finest_level; ++k) {
+                    CheckVariableBetaS(k);
                 }
 
                 // The terrain under each regridded level has moved with its

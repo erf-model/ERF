@@ -23,6 +23,9 @@
 #include "ERF_PlotfileSelection.H"
 #include "ERF_Utils.H"
 #include "ERF_PlanarBoundary.H"
+#include "ERF_SEBLandAverageDown.H"
+#include "ERF_SEBLandFill.H"
+#include "ERF_SEBSkinInit.H"
 #include "ERF_TerrainMetrics.H"
 #include "ERF_TerrainFileChecks.H"
 #include "ERF_SrcHeaders.H"
@@ -56,6 +59,7 @@ double ERF::stop_time     = std::numeric_limits<double>::max();
 #ifdef ERF_USE_NETCDF
 double ERF::start_bdy_time     =  0.0;
 double ERF::final_bdy_time     = -1.0;
+bool   ERF::use_theta_m_bdy    = false;
 
 double ERF::start_low_time     =  0.0;
 double ERF::final_low_time     = -1.0;
@@ -162,6 +166,8 @@ ERF::Evolve ()
 #ifdef ERF_USE_FIRE
     if (m_fire_coupler && istep[0] == 0 && (m_fire_plot_int > 0 || m_fire_plot_per > zero)) {
         m_fire_coupler->engine().write_plotfile(m_fire_plot_file, cur_time, istep[0]);
+        // the next fire plot is one period on, as for the other initial outputs
+        if (m_fire_plot_per > zero) {last_fire_plot_time += m_fire_plot_per;}
         if (m_fire_coupler->params().fire_debug) {
             amrex::Print() << "[FIRE] Initial fire output written at time 0" << std::endl;
         }
@@ -424,9 +430,9 @@ ERF::ResetIntervalMeans ()
 // different horizontal regions has a bounding box reaching both domain ends while no single
 // box holds a column.
 //
-// RRTMGP records its own predicate at Init and it stays authoritative for that model. The
-// two-stream model has no IRadiation object -- reading rad[] would dereference a null
-// pointer -- so derive it from the grids.
+// Every model uses this same per-box test, rad_boxes_span_column (RRTMGP and RadiationSimple
+// in their Init, the two-stream solver in its advance), so derive it from the grids here. That
+// also covers the two-stream model, which has no IRadiation object to ask.
 //
 // This lives here, rather than as a lambda in one caller, because three places have to
 // agree about it: advance_radiation (which routes such a level through
@@ -436,13 +442,58 @@ bool
 ERF::rad_level_needs_interpolation (int lev) const
 {
     if (lev <= 0) { return false; }
-    if (solverChoice.rad_uses_interface() && rad[lev]) { return rad[lev]->is_nested_patch(); }
+    return !rad_boxes_span_column(grids[lev], geom[lev].Domain());
+}
+
+// Called from init_stuff, so on every level build (from scratch, from coarse, and regrid) and
+// before any radiation model sees the grids, which makes it the one place every model rejects
+// a level 0 split in z.
+//
+// A fine level that fails the per-box test takes coarse radiation. That is intended for a
+// partial-height patch, but a level whose boxes together reach both the ground and the top --
+// full-height boxes chopped in z by max_grid_size, or full-column boxes beside partial ones --
+// could have been swept, so say so rather than let it take coarse radiation unnoticed. Warned
+// once per level each time it starts to be interpolated, so a regrid that turns another
+// layout into one is reported too.
+void
+ERF::check_rad_level_grids (int lev, const BoxArray& ba)
+{
+    if (solverChoice.rad_type == RadiationType::None) { return; }
+
     const Box& dom = geom[lev].Domain();
-    for (int ibox = 0; ibox < grids[lev].size(); ++ibox) {
-        const Box& b = grids[lev][ibox];
-        if (b.smallEnd(2) != dom.smallEnd(2) || b.bigEnd(2) != dom.bigEnd(2)) { return true; }
+    const bool spans = rad_boxes_span_column(ba, dom);
+
+    if (lev == 0) {
+        if (!spans) {
+            amrex::Abort("Radiation cannot run on a level 0 whose grids are decomposed in z: "
+                         "a box there holds only part of a column, and level 0 has no parent "
+                         "to interpolate from. Set amr.max_grid_size_z to at least the number "
+                         "of cells in z, or leave amr.no_box_split_dir at its default of 2 so "
+                         "grids are never split in z.");
+        }
+        return;
     }
-    return false;
+
+    if (lev >= static_cast<int>(m_rad_cut_in_z_warned.size())) {
+        m_rad_cut_in_z_warned.resize(lev + 1, 0);
+    }
+    const Box bbox = ba.minimalBox();
+    const bool cut_in_z = !spans && bbox.smallEnd(2) == dom.smallEnd(2)
+                                 && bbox.bigEnd(2)   == dom.bigEnd(2);
+    if (cut_in_z) {
+        if (!m_rad_cut_in_z_warned[lev]) {
+            Print() << "WARNING: level " << lev << " has grids reaching both the bottom and the "
+                       "top of the domain, but not every box spans the column (grids split in z, "
+                       "e.g. by amr.max_grid_size, or full-column boxes beside partial-height "
+                       "ones). Radiation cannot sweep it, so its radiation is interpolated from "
+                       "level " << lev - 1 << ". To compute it on this level, set "
+                       "amr.max_grid_size_z there to at least its number of cells in z, or "
+                       "leave amr.no_box_split_dir at its default of 2.\n";
+            m_rad_cut_in_z_warned[lev] = 1;
+        }
+    } else {
+        m_rad_cut_in_z_warned[lev] = 0;
+    }
 }
 
 // Two-way coupling of the two-stream surface energy balance with the zlo surface layer
@@ -504,7 +555,44 @@ ERF::check_seb_surface_layer ()
 {
     m_seb_surface_layer_checked = true;
     const RadChoice& rc = solverChoice.radChoice;
+    // RadChoice reads the two-stream inputs only with the two-stream model, so a deck that
+    // sets this one with another model would run with it unread.
+    if (solverChoice.rad_type != RadiationType::TwoStream) {
+        ParmParse pp(pp_prefix);
+        bool skin_from_file = false;
+        pp.query("radiation.seb_init_skin_from_file", skin_from_file);
+        if (skin_from_file) {
+            Abort("erf.radiation.seb_init_skin_from_file = true needs erf.radiation_model = "
+                  "TwoStream: the skin temperature it sets belongs to the two-stream balance");
+        }
+        bool t_deep_from_file = false;
+        pp.query("radiation.seb_init_t_deep_from_file", t_deep_from_file);
+        if (t_deep_from_file) {
+            Abort("erf.radiation.seb_init_t_deep_from_file = true needs erf.radiation_model = "
+                  "TwoStream: the deep temperature it sets belongs to the two-stream balance");
+        }
+    }
     if (solverChoice.rad_type != RadiationType::TwoStream || !rc.seb_enable) { return; }
+    // Checked here and not in init_seb_skin_from_file, so that a restart is checked too, and
+    // because the surface model does not exist yet when the level is made. At a fresh start
+    // InitData calls this after MakeNewLevelFromScratch, so the skin has been written by
+    // then; the run stops here before the first step.
+    if (rc.seb_init_skin_from_file &&
+        (solverChoice.lsm_type != LandSurfaceType::None ||
+         solverChoice.urban_type != UrbanType::None || m_SurfaceModel)) {
+        Abort("erf.radiation.seb_init_skin_from_file = true cannot be used with a land-surface, "
+              "urban or surface model: it owns the surface temperature, and the two-stream "
+              "balance does not advance its skin then");
+    }
+    // The same combinations: the balance does not restore its skin toward the deep
+    // temperature then, and the initial file's soil fields go to the land model.
+    if (rc.seb_init_t_deep_from_file &&
+        (solverChoice.lsm_type != LandSurfaceType::None ||
+         solverChoice.urban_type != UrbanType::None || m_SurfaceModel)) {
+        Abort("erf.radiation.seb_init_t_deep_from_file = true cannot be used with a "
+              "land-surface, urban or surface model: it owns the surface temperature, and the "
+              "two-stream balance does not restore its skin toward the deep temperature then");
+    }
     SurfaceLayer* surface_layer = m_SurfaceLayer[Orientation::zlo()].get();
 
     // The balance takes H and LE from the surface layer wherever it has a flux field,
@@ -534,6 +622,15 @@ ERF::check_seb_surface_layer ()
                        "only the vertical-face part of the surface layer's flux, cos(slope) of "
                        "H and LE, as the sensible_heat_flux and latent_heat_flux outputs report.\n";
         }
+    }
+
+    // On a restart the initial file's value is not read again: the skin temperature of
+    // every level comes from the checkpoint, or is erf.rad_t_sfc when the checkpoint was
+    // written without the balance. Said once, since the input is still in the deck.
+    if (rc.seb_init_skin_from_file && !restart_chkfile.empty()) {
+        Print() << "NOTE: erf.radiation.seb_init_skin_from_file is not used on a restart: the "
+                   "skin temperature comes from the checkpoint, or is erf.rad_t_sfc where "
+                   "the checkpoint holds none.\n";
     }
 
     if (!rc.seb_surface_layer_uses_skin) { return; }
@@ -597,56 +694,247 @@ ERF::fill_seb_from_coarse (int lev)
     if (!two_stream_rad.seb_prognostic_active()) { return; }
 
     const IntVect rr2d(refRatio(lev-1)[0], refRatio(lev-1)[1], 1);
-    const Box& crse_dom = geom[lev-1].Domain();
+    // The coarse land mask is read here, each time a level is built or regridded: one
+    // reduction and one collective. With no water column on the parent every fine column
+    // is interpolated with slopes, as before the mask. With water, the slopes are dropped
+    // only where the stencil touches a water column, and a fine land column over coarse
+    // water takes its value from coarse land columns (ERF_SEBLandFill.H). The fine mask
+    // does not choose the path: a fine water column holds its value in any case.
+    iMultiFab* crse_lmask = lmask_lev[lev-1].empty() ? nullptr : lmask_lev[lev-1][0].get();
+    const iMultiFab* fine_lmask = lmask_lev[lev].empty() ? nullptr : lmask_lev[lev][0].get();
+    const bool crse_has_water = seb_land_mask_has_water(crse_lmask);
+    // The 3 x 3 test reads the mask's ghost columns; the WW3 coupling rewrites the valid
+    // columns only.
+    if (crse_has_water) { crse_lmask->FillBoundary(geom[lev-1].periodicity()); }
+    Long n_no_land_source = 0;
+    bool counted = false;
     auto fill_one = [&] (MultiFab* fine, MultiFab* crse)
     {
         if (!fine || !crse) { return; }
-        // The coarse halo feeds the interpolation stencil, so fill it first. FillBoundary
-        // covers the interior and periodic ghosts only; the slope stencil
-        // (0.5*(u(i+1)-u(i-1)), evaluated for every BC type) also reaches outside the
-        // domain at a non-periodic face. define_level setVal'd the whole array, so those
-        // cells still hold erf.rad_t_sfc while the interior has evolved, and a fine level
-        // abutting such a face would get its edge column interpolated from a stencil
-        // biased toward the scalar. Extend the surface outward by clamping into the valid
-        // region first -- the same zeroth-order extension init_from_wrfinput gives the
-        // fields whose halos this interpolater is documented to require.
-        //
-        // Only across a NON-periodic face. Across a periodic one FillBoundary has already
-        // put the periodic image there, and InterpFromCoarseLevel's ParallelCopy reads
-        // that cell twice -- from this halo and from the periodic image of the valid cell
-        // it mirrors. Clamping it would make the two sources disagree, and ParallelCopy
-        // does not say which one wins: the answer then depended on the box layout, and a
-        // level created mid-run came out different on 1 and 2 ranks.
-        crse->FillBoundary(geom[lev-1].periodicity());
-        const bool clamp_x = !geom[lev-1].isPeriodic(0);
-        const bool clamp_y = !geom[lev-1].isPeriodic(1);
-        for (MFIter mfi(*crse, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-            const Box& gbx = mfi.growntilebox();
-            const Array4<Real>& a = crse->array(mfi);
-            const auto dlo = lbound(crse_dom);
-            const auto dhi = ubound(crse_dom);
-            ParallelFor(gbx, crse->nComp(), [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
-            {
-                const int ic = clamp_x ? amrex::max(dlo.x, amrex::min(dhi.x, i)) : i;
-                const int jc = clamp_y ? amrex::max(dlo.y, amrex::min(dhi.y, j)) : j;
-                if (ic != i || jc != j) { a(i,j,k,n) = a(ic,jc,k,n); }
-            });
-        }
+        // The coarse halo feeds the interpolation stencil (seb_extend_halo): interior and
+        // periodic ghost columns from FillBoundary, the nearest column inside the domain
+        // across a non-periodic face.
+        seb_extend_halo(*crse, geom[lev-1]);
         // Every component takes the boundary conditions of the first cons component, as the
         // one-component fields always did: the running totals have none of their own.
         const Vector<BCRec> bcs(fine->nComp(), domain_bcs_type[BCVars::cons_bc]);
-        InterpFromCoarseLevel(*fine, fine->nGrowVect(),
-                              IntVect(0,0,0),          // no ghosts outside the domain
-                              *crse, 0, 0, fine->nComp(),
-                              geom[lev-1], geom[lev],
-                              rr2d, &cell_cons_interp,
-                              bcs, 0);
+        if (!crse_has_water) {
+            InterpFromCoarseLevel(*fine, fine->nGrowVect(),
+                                  IntVect(0,0,0),          // no ghosts outside the domain
+                                  *crse, 0, 0, fine->nComp(),
+                                  geom[lev-1], geom[lev],
+                                  rr2d, &cell_cons_interp,
+                                  bcs, 0);
+        } else {
+            const Long n = seb_fill_from_coarse_over_land(*fine, *crse, *crse_lmask, fine_lmask,
+                                                          geom[lev-1], geom[lev], rr2d, bcs);
+            // The same columns for every field: counted once.
+            if (!counted) { n_no_land_source = n; counted = true; }
+        }
     };
     // t_sfc, q_sfc and, with the force-restore hydrology, its deep state and running totals.
     const Vector<MultiFab*> fine_fields = two_stream_rad.seb_prognostic_fields(lev);
     const Vector<MultiFab*> crse_fields = two_stream_rad.seb_prognostic_fields(lev-1);
     AMREX_ALWAYS_ASSERT(fine_fields.size() == crse_fields.size());
     for (int n = 0; n < fine_fields.size(); ++n) { fill_one(fine_fields[n], crse_fields[n]); }
+    if (crse_has_water) {
+        // One more collective, only with water on the parent.
+        ParallelDescriptor::ReduceLongSum(n_no_land_source);
+        if (n_no_land_source > 0) {
+            amrex::Print() << "ERF::fill_seb_from_coarse: level " << lev << ": " << n_no_land_source
+                           << " land column(s) lie over a coarse water column with no land column"
+                           << " next to it. They take the coarse water column's held values"
+                           << " (RemakeLevel then puts back the old values of the columns the"
+                           << " level already had).\n";
+        }
+    }
+}
+
+// With erf.radiation.seb_init_skin_from_file, start the two-stream balance's skin
+// temperature of level lev from the skin temperature of the level's initial file: TSK of a
+// wrfinput file, SKINTEMP of a metgrid file, both held in tsk_lev as an absolute
+// temperature [K].
+//
+// Called once per level at a fresh start, after init_only read the file and the land mask
+// and after fill_seb_from_coarse. Level 0 and a finer level with a file of its own take
+// the file's value on land. A finer level with no file keeps what fill_seb_from_coarse
+// gave it from its parent, whose skin was set here before. A water column is not written:
+// the balance does not run there (ERF_SEBLandMask.H). At level 0 it keeps erf.rad_t_sfc and
+// at a finer level what fill_seb_from_coarse gave it.
+//
+// Not called for a level made later in the run (MakeNewLevelFromCoarse, RemakeLevel): by
+// then the parent's skin has evolved and is the newer value. Not called on a restart.
+//
+// Nothing runs when the input is false.
+void
+ERF::init_seb_skin_from_file (int lev)
+{
+    const RadChoice& rc = solverChoice.radChoice;
+    if (!rc.seb_init_skin_from_file) { return; }
+    // The combinations the input cannot be used in are refused in check_seb_surface_layer.
+    if (lev > 0) {
+        if (!has_own_init_file(lev)) { return; }
+        // A level that takes its radiation from its parent does not advance a skin.
+        if (rad_level_needs_interpolation(lev)) { return; }
+        // With erf.nc_low_file and no erf.nc_low_file_<lev>, init_fine_low_slices replaced the
+        // skin temperature the level read from its file by the parent's, interpolated, which
+        // holds the sea surface temperature in the parent's water columns. That is not the
+        // file's field, so the level keeps what fill_seb_from_coarse gave it.
+        if (!nc_low_file.empty() && !has_own_low_file(lev)) {
+            Print() << "ERF::init_seb_skin_from_file: level " << lev << ": the skin temperature "
+                       "is that of level " << lev-1 << ", interpolated: with erf.nc_low_file and "
+                       "no erf.nc_low_file_" << lev << " the level's surface temperature "
+                       "follows its parent's.\n";
+            return;
+        }
+    }
+
+    const MultiFab* file_skin = tsk_lev[lev].empty() ? nullptr : tsk_lev[lev][0].get();
+    if (!file_skin) {
+        Abort("erf.radiation.seb_init_skin_from_file = true: the initial file of level " +
+              std::to_string(lev) + " gave no skin temperature. It needs erf.init_type = "
+              "WRFInput with TSK in the file, or erf.init_type = Metgrid with SKINTEMP");
+    }
+    MultiFab* t_sfc = two_stream_rad.seb_t_sfc(lev);
+    if (!t_sfc) {
+        Abort("erf.radiation.seb_init_skin_from_file = true: the two-stream balance has no "
+              "skin temperature at level " + std::to_string(lev));
+    }
+    const iMultiFab* lmask = lmask_lev[lev].empty() ? nullptr : lmask_lev[lev][0].get();
+
+    SEBSkinInitReport report = seb_init_skin_from_file(*t_sfc, *file_skin, lmask,
+                                                       rc.seb_prognostic_t_min_k,
+                                                       rc.seb_prognostic_t_max_k);
+    // Three collectives, only with the input and once per level at the start.
+    ParallelDescriptor::ReduceLongSum({report.n_set, report.n_refused});
+    ParallelDescriptor::ReduceRealMin(report.t_min);
+    ParallelDescriptor::ReduceRealMax(report.t_max);
+    if (report.n_refused > 0) {
+        Abort("erf.radiation.seb_init_skin_from_file = true: at level " + std::to_string(lev) +
+              " the skin temperature of the initial file is not finite or lies outside "
+              "[erf.radiation.seb_prognostic_t_min_k, erf.radiation.seb_prognostic_t_max_k] = [" +
+              std::to_string(rc.seb_prognostic_t_min_k) + ", " +
+              std::to_string(rc.seb_prognostic_t_max_k) + "] K on " +
+              std::to_string(report.n_refused) + " land column(s)");
+    }
+    t_sfc->FillBoundary(geom[lev].periodicity());
+
+    Print() << "ERF::init_seb_skin_from_file: level " << lev << ": the skin temperature of "
+            << report.n_set << " land column(s) starts from the initial file";
+    if (report.n_set > 0) {
+        Print() << " (" << report.t_min << " K to " << report.t_max << " K)";
+    }
+    if (lev == 0) {
+        Print() << "; water columns keep erf.rad_t_sfc = " << rc.rad_t_sfc << " K.";
+    } else {
+        Print() << "; water columns keep what level " << lev-1 << " gave them.";
+    }
+    // With erf.radiation.seb_init_t_deep_from_file the restoring temperature of the land
+    // columns is the file's too, and init_seb_t_deep_from_file reports it.
+    if (rc.seb_init_t_deep_from_file) {
+        Print() << "\n";
+        return;
+    }
+    // The restoring temperature is still one value: say how far the start lies from it.
+    Print() << " The restoring temperature stays erf.radiation.seb_t_deep_default = "
+            << rc.seb_t_deep_default << " K in every column";
+    if (report.n_set > 0) {
+        const Real far = std::max(std::abs(report.t_min - rc.seb_t_deep_default),
+                                  std::abs(report.t_max - rc.seb_t_deep_default));
+        Print() << ", up to " << far << " K from the values set";
+    }
+    Print() << "; the skin relaxes toward it.\n";
+}
+
+// The first value of the two-stream force-restore balance's deep (restoring) temperature
+// from the initial file, with erf.radiation.seb_init_t_deep_from_file. Called from
+// MakeNewLevelFromScratch after fill_seb_from_coarse and init_seb_skin_from_file, at a
+// fresh start only.
+//
+// The file's field is TMN, the soil temperature at the lower boundary, which
+// wrf_surface_fields holds as the wrfinput file gave it (erf.init_type = WRFInput; a
+// metgrid file is not read for it). Land columns (lmask_lev >= 1) take it. Water columns
+// keep what they hold: erf.radiation.seb_t_deep_default at level 0, the parent's value on a
+// finer level. The balance does not run on water, so that value is not used there.
+//
+// A finer level takes TMN only when it read an initial file of its own. One that did not,
+// or that takes its radiation from its parent, keeps what fill_seb_from_coarse gave it:
+// the parent's deep temperature, which is the parent's TMN on land. The erf.nc_low_file
+// case of init_seb_skin_from_file does not apply: the level's TMN is its own file's.
+//
+// With the input the deep temperature is carried state of the balance
+// (TwoStreamRadiation::seb_t_deep_is_state): it is not reset each step, a level made later
+// takes its parent's, and the checkpoint holds it. So this is not called on a restart.
+//
+// Nothing runs when the input is false.
+void
+ERF::init_seb_t_deep_from_file (int lev)
+{
+    const RadChoice& rc = solverChoice.radChoice;
+    if (!rc.seb_init_t_deep_from_file) { return; }
+    // The combinations the input cannot be used in are refused in check_seb_surface_layer.
+    if (lev > 0) {
+        if (!has_own_init_file(lev)) { return; }
+        if (rad_level_needs_interpolation(lev)) { return; }
+    }
+
+    // With a land-surface or urban model the reader hands the file's soil fields to that
+    // model and wrf_surface_fields holds none, so the test below would blame the file. The
+    // surface model does not exist yet; check_seb_surface_layer refuses it afterwards.
+    if (solverChoice.lsm_type != LandSurfaceType::None ||
+        solverChoice.urban_type != UrbanType::None) {
+        Abort("erf.radiation.seb_init_t_deep_from_file = true cannot be used with a "
+              "land-surface, urban or surface model: it owns the surface temperature, and the "
+              "two-stream balance does not restore its skin toward the deep temperature then");
+    }
+    const MultiFab* tmn = wrf_surface_fields.get(lev, WRFSurfaceFields::Field::TMN);
+    if (!tmn) {
+        Abort("erf.radiation.seb_init_t_deep_from_file = true: the initial file of level " +
+              std::to_string(lev) + " gave no usable TMN. It needs erf.init_type = WRFInput "
+              "with TMN in the file, on every column of the level and inside the range the "
+              "reader accepts (see the reader's report above)");
+    }
+    MultiFab* t_deep = two_stream_rad.seb_t_deep_state(lev);
+    if (!t_deep) {
+        Abort("erf.radiation.seb_init_t_deep_from_file = true: the two-stream balance has no "
+              "deep temperature at level " + std::to_string(lev));
+    }
+    const iMultiFab* lmask = lmask_lev[lev].empty() ? nullptr : lmask_lev[lev][0].get();
+
+    // The copy, the land test and the range test are those of the skin temperature.
+    SEBSkinInitReport report = seb_init_skin_from_file(*t_deep, *tmn, lmask,
+                                                       rc.seb_prognostic_t_min_k,
+                                                       rc.seb_prognostic_t_max_k);
+    // Three collectives, only with the input and once per level at the start.
+    ParallelDescriptor::ReduceLongSum({report.n_set, report.n_refused});
+    ParallelDescriptor::ReduceRealMin(report.t_min);
+    ParallelDescriptor::ReduceRealMax(report.t_max);
+    if (report.n_refused > 0) {
+        Abort("erf.radiation.seb_init_t_deep_from_file = true: at level " + std::to_string(lev) +
+              " the TMN of the initial file is not finite or lies outside "
+              "[erf.radiation.seb_prognostic_t_min_k, erf.radiation.seb_prognostic_t_max_k] = [" +
+              std::to_string(rc.seb_prognostic_t_min_k) + ", " +
+              std::to_string(rc.seb_prognostic_t_max_k) + "] K on " +
+              std::to_string(report.n_refused) + " land column(s)");
+    }
+    t_deep->FillBoundary(geom[lev].periodicity());
+
+    Print() << "ERF::init_seb_t_deep_from_file: level " << lev << ": the deep temperature of "
+            << report.n_set << " land column(s) is the TMN of the initial file";
+    if (report.n_set > 0) {
+        Print() << " (" << report.t_min << " K to " << report.t_max << " K)";
+    }
+    if (lev == 0) {
+        Print() << "; water columns keep erf.radiation.seb_t_deep_default = "
+                << rc.seb_t_deep_default << " K.";
+    } else {
+        Print() << "; water columns keep what level " << lev-1 << " gave them.";
+    }
+    if (rc.seb_deep_prognostic_enable) {
+        Print() << " It is the first value of the deep reservoir, which evolves.\n";
+    } else {
+        Print() << " The balance does not evolve it.\n";
+    }
 }
 
 /**
@@ -709,33 +997,16 @@ ERF::post_timestep (int nstep, double time, double dt_lev0)
     }
 #endif
 
+    // Microphysics diagnostics once every level has reached the end of the step
+    if (solverChoice.moisture_type != MoistureType::None) {
+        micro->Diagnostics(nstep + 1, static_cast<Real>(time), z_phys_nd, file_name_digits);
+    }
+
     if (solverChoice.coupling_type == CouplingType::TwoWay)
     {
         int ncomp = vars_new[0][Vars::cons].nComp();
         for (int lev = finest_level-1; lev >= 0; lev--)
         {
-            // The quantity that is conserved is not (rho S), but rather (rho S / m^2) where
-            // m is the map scale factor at cell centers
-            // Here we pre-divide (rho S) by m^2 before refluxing
-            for (MFIter mfi(vars_new[lev][Vars::cons], TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-                const Box& bx = mfi.tilebox();
-                const Array4<      Real> cons_arr = vars_new[lev][Vars::cons].array(mfi);
-                const Array4<const Real>  mfx_arr = mapfac[lev][MapFacType::m_x]->const_array(mfi);
-                const Array4<const Real>  mfy_arr = mapfac[lev][MapFacType::m_y]->const_array(mfi);
-                if (SolverChoice::mesh_type == MeshType::ConstantDz) {
-                    ParallelFor(bx, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
-                    {
-                        cons_arr(i,j,k,n) /= (mfx_arr(i,j,0)*mfy_arr(i,j,0));
-                    });
-                } else {
-                    const Array4<const Real>   detJ_arr = detJ_cc[lev]->const_array(mfi);
-                    ParallelFor(bx, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
-                    {
-                        cons_arr(i,j,k,n) *= detJ_arr(i,j,k) / (mfx_arr(i,j,0)*mfy_arr(i,j,0));
-                    });
-                }
-            } // mfi
-
             // This call refluxes the cell-centered variables from the lev/lev+1 interface onto lev:
             // all "slow" variables, plus (rho theta) on anelastic levels and rho and (rho theta) on
             // pseudo-incompressible levels.  Density is not refluxed on anelastic levels (it is fixed),
@@ -748,24 +1019,36 @@ ERF::post_timestep (int nstep, double time, double dt_lev0)
             } else {
                 reflux_comp = RhoTheta_comp + 1;
             }
-            getAdvFluxReg(lev+1)->Reflux(vars_new[lev][Vars::cons], reflux_comp, reflux_comp, ncomp-reflux_comp);
+            const int nreflux = ncomp - reflux_comp;
 
-            // Here we multiply (rho S) by m^2 after refluxing
+            // The quantity that is conserved is not (rho S), but rather (rho S detJ / m^2), with m
+            // the map scale factor at cell centers.  The reflux correction is to that quantity, so
+            // it goes into a temporary and is added to (rho S) times m^2 / detJ.  Scaling the state
+            // itself and back again is not exact in floating point and changed every cell of the
+            // level by round-off; the correction is zero away from the coarse/fine boundary, so
+            // there the state is left exactly as it is.
+            MultiFab reflux_corr(vars_new[lev][Vars::cons].boxArray(),
+                                 vars_new[lev][Vars::cons].DistributionMap(), nreflux, 0);
+            reflux_corr.setVal(zero);
+            getAdvFluxReg(lev+1)->Reflux(reflux_corr, reflux_comp, 0, nreflux);
+
             for (MFIter mfi(vars_new[lev][Vars::cons], TilingIfNotGPU()); mfi.isValid(); ++mfi) {
                 const Box& bx = mfi.tilebox();
-                const Array4<      Real>   cons_arr = vars_new[lev][Vars::cons].array(mfi);
+                const Array4<      Real> cons_arr = vars_new[lev][Vars::cons].array(mfi);
+                const Array4<const Real> corr_arr = reflux_corr.const_array(mfi);
                 const Array4<const Real>  mfx_arr = mapfac[lev][MapFacType::m_x]->const_array(mfi);
                 const Array4<const Real>  mfy_arr = mapfac[lev][MapFacType::m_y]->const_array(mfi);
                 if (SolverChoice::mesh_type == MeshType::ConstantDz) {
-                    ParallelFor(bx, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+                    ParallelFor(bx, nreflux, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
                     {
-                        cons_arr(i,j,k,n) *= (mfx_arr(i,j,0)*mfy_arr(i,j,0));
+                        cons_arr(i,j,k,reflux_comp+n) += corr_arr(i,j,k,n) * (mfx_arr(i,j,0)*mfy_arr(i,j,0));
                     });
                 } else {
                     const Array4<const Real>   detJ_arr = detJ_cc[lev]->const_array(mfi);
-                    ParallelFor(bx, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+                    ParallelFor(bx, nreflux, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
                     {
-                        cons_arr(i,j,k,n) *= (mfx_arr(i,j,0)*mfy_arr(i,j,0)) / detJ_arr(i,j,k);
+                        cons_arr(i,j,k,reflux_comp+n) += corr_arr(i,j,k,n) * (mfx_arr(i,j,0)*mfy_arr(i,j,0))
+                                                       / detJ_arr(i,j,k);
                     });
                 }
             } // mfi
@@ -821,9 +1104,27 @@ ERF::post_timestep (int nstep, double time, double dt_lev0)
                 const Vector<MultiFab*> crse_fields = two_stream_rad.seb_prognostic_fields(lev);
                 const Vector<MultiFab*> fine_fields = two_stream_rad.seb_prognostic_fields(lev+1);
                 AMREX_ALWAYS_ASSERT(fine_fields.size() == crse_fields.size());
-                for (int n = 0; n < fine_fields.size(); ++n) {
-                    if (crse_fields[n] && fine_fields[n]) {
-                        average_down(*fine_fields[n], *crse_fields[n], 0, fine_fields[n]->nComp(), rr2d);
+                // With a water column on either level the mean is over the fine land
+                // columns, and a coarse water column keeps its values: the balance does not
+                // run on water, which holds what it started with (ERF_SEBLandAverageDown.H).
+                // The masks are read here each time (one or two reductions and collectives
+                // per pair of levels and coarse step): the answer does not wait for the
+                // radiation to have run on a level, and it follows a mask that is rewritten
+                // during the run. With no water the call is amrex::average_down, as before.
+                const iMultiFab* crse_lmask = lmask_lev[lev  ].empty() ? nullptr : lmask_lev[lev  ][0].get();
+                const iMultiFab* fine_lmask = lmask_lev[lev+1].empty() ? nullptr : lmask_lev[lev+1][0].get();
+                const bool land_only = crse_lmask && fine_lmask &&
+                                       (seb_land_mask_has_water(crse_lmask) ||
+                                        seb_land_mask_has_water(fine_lmask));
+                if (land_only) {
+                    // All fields in one call: one count of the land columns, one copy.
+                    const Vector<const MultiFab*> fine_const(fine_fields.begin(), fine_fields.end());
+                    seb_average_down_land(fine_const, crse_fields, *fine_lmask, *crse_lmask, rr2d);
+                } else {
+                    for (int n = 0; n < fine_fields.size(); ++n) {
+                        if (crse_fields[n] && fine_fields[n]) {
+                            average_down(*fine_fields[n], *crse_fields[n], 0, fine_fields[n]->nComp(), rr2d);
+                        }
                     }
                 }
             }
@@ -885,22 +1186,8 @@ ERF::post_timestep (int nstep, double time, double dt_lev0)
       }
     }
 
-    // Write plane/line sampler data
-    if (line_sampler && is_it_time_for_action(nstep+1, time, dt_lev0, line_sampling_interval, line_sampling_per)) {
-        run_line_sampler(*line_sampler);
-    }
-    if (plane_sampler && is_it_time_for_action(nstep+1, time, dt_lev0, plane_sampling_interval, plane_sampling_per)) {
-        plane_sampler->get_sample_data(geom, vars_new, sampling_volfrac());
-        plane_sampler->write_sample_data(t_new, istep, ref_ratio, geom);
-    }
-
-    // Write station time series
-    if (station_sampler &&
-        is_it_time_for_action(nstep+1, time, dt_lev0, station_sampling_interval, station_sampling_per)) {
-        sample_stations(static_cast<Real>(time));
-    }
-
-    // Moving terrain
+    // Moving terrain: the heights at the end of the step, before the samplers below write them
+    // with the state at the end of the step
     if ( solverChoice.terrain_type == TerrainType::MovingFittedMesh )
     {
       for (int lev = finest_level; lev >= 0; lev--)
@@ -916,6 +1203,21 @@ ERF::post_timestep (int nstep, double time, double dt_lev0)
       for (int lev = 0; lev <= finest_level; ++lev) {
         update_zsfc_nd(lev);
       }
+    }
+
+    // Write plane/line sampler data
+    if (line_sampler && is_it_time_for_action(nstep+1, time, dt_lev0, line_sampling_interval, line_sampling_per)) {
+        run_line_sampler(*line_sampler);
+    }
+    if (plane_sampler && is_it_time_for_action(nstep+1, time, dt_lev0, plane_sampling_interval, plane_sampling_per)) {
+        plane_sampler->get_sample_data(geom, vars_new, z_phys_cc, sampling_volfrac());
+        plane_sampler->write_sample_data(t_new, istep, ref_ratio, geom);
+    }
+
+    // Write station time series
+    if (station_sampler &&
+        is_it_time_for_action(nstep+1, time, dt_lev0, station_sampling_interval, station_sampling_per)) {
+        sample_stations(static_cast<Real>(time));
     }
 
     if (solverChoice.io_hurricane_eye_tracker and
@@ -1042,7 +1344,7 @@ ERF::InitData_pre ()
 /**
  * Warn when the terrain next to an inflow or outflow face of level lev is steep and no
  * steep-terrain option is on (erf.smag2d_slope_limiter and erf.smag2d_kh_cap per level).
- * ComputeDt calls it whenever a level has a new set of grids (at initialisation, on the
+ * ComputeDt calls it whenever a level has a new set of grids (at initialization, on the
  * first step after a restart, and after a regrid), so a fine level created later that
  * reaches a face is checked too; each level and face is reported at most once.  Only on a
  * terrain-fitted mesh without real-data lateral boundaries; the band is the cells whose
@@ -1125,11 +1427,12 @@ ERF::InitData_post ()
         //       derived from z_phys_nd, which is not averaged down either, so averaging only
         //       the cell-centered heights made the two disagree inside the refined region.
         //
-        //       detJ IS still averaged down: AverageDownTo weights (rho S) by detJ_cc before
-        //       averaging and divides by it afterwards, so the coarse detJ must be the average
-        //       of the fine detJ for that average-down to telescope and stay conservative.
+        //       detJ IS still averaged down: AverageDownTo weights (rho S) by the cell volume
+        //       detJ_cc/(m_x m_y) before averaging and divides by it afterwards, so the coarse
+        //       volume must be the mean of the fine ones (average_down_detJ) for that
+        //       average-down to telescope, stay conservative and keep a uniform value uniform.
             for (int crse_lev = finest_level-1; crse_lev >= 0; crse_lev--) {
-                average_down(  *detJ_cc[crse_lev+1],   *detJ_cc[crse_lev], 0, 1, refRatio(crse_lev));
+                average_down_detJ(crse_lev);
             }
         }
         for (int crse_lev = finest_level-1; crse_lev >= 0; crse_lev--) {
@@ -1208,7 +1511,7 @@ ERF::InitData_post ()
 
             bdy_time_interval = read_times_from_wrfbdy(nc_bdy_file,
                                                        bdy_data_xlo,bdy_data_xhi,bdy_data_ylo,bdy_data_yhi,
-                                                       start_bdy_time, final_bdy_time);
+                                                       start_bdy_time, final_bdy_time, use_theta_m_bdy);
 
             double time_since_start_bdy = t_new[0] + (start_time - start_bdy_time);
             int n_time_old = static_cast<int>(time_since_start_bdy /  bdy_time_interval);
@@ -1221,9 +1524,11 @@ ERF::InitData_post ()
                 bool is_anelastic = (solverChoice.compressibility_type[0] != CompressibilityType::FullyCompressible);
                 read_and_convert_from_wrfbdy(itime,nc_bdy_file,
                                              bdy_data_xlo,bdy_data_xhi,bdy_data_ylo,bdy_data_yhi,
-                                             wrf_MUB, wrf_C1H, wrf_C2H, wrf_RDNW, wrf_PHB, z_phys_cc[0], z_phys_nd[0],
+                                             wrf_MUB, wrf_C1H, wrf_C2H, wrf_C1F, wrf_C2F, wrf_RDNW, wrf_PHB,
+                                             mapfac[0],
+                                             z_phys_cc[0], z_phys_nd[0],
                                              vars_new[0][Vars::xvel], vars_new[0][Vars::yvel], vars_new[0][Vars::cons],
-                                             r_hse, area_vec, geom[0], use_moist, solverChoice.rebalance_wrf_input, domain_bcs_type,
+                                             r_hse, area_vec, geom[0], use_moist, use_theta_m_bdy, solverChoice.rebalance_wrf_input, domain_bcs_type,
                                              real_width, bdy_time_interval, is_anelastic);
             }
 
@@ -1234,9 +1539,11 @@ ERF::InitData_post ()
                 bool is_anelastic = (solverChoice.compressibility_type[0] != CompressibilityType::FullyCompressible);
                 read_and_convert_from_wrfbdy(itime,nc_bdy_file,
                                              bdy_data_xlo,bdy_data_xhi,bdy_data_ylo,bdy_data_yhi,
-                                             wrf_MUB, wrf_C1H, wrf_C2H, wrf_RDNW, wrf_PHB, z_phys_cc[0], z_phys_nd[0],
+                                             wrf_MUB, wrf_C1H, wrf_C2H, wrf_C1F, wrf_C2F, wrf_RDNW, wrf_PHB,
+                                             mapfac[0],
+                                             z_phys_cc[0], z_phys_nd[0],
                                              vars_new[0][Vars::xvel], vars_new[0][Vars::yvel], vars_new[0][Vars::cons],
-                                             r_hse, area_vec, geom[0], use_moist, solverChoice.rebalance_wrf_input, domain_bcs_type,
+                                             r_hse, area_vec, geom[0], use_moist, use_theta_m_bdy, solverChoice.rebalance_wrf_input, domain_bcs_type,
                                              real_width, bdy_time_interval, is_anelastic);
             } // itime
         } // use_real_bcs
@@ -1258,30 +1565,10 @@ ERF::InitData_post ()
             {
                 read_from_wrflow(itime, nc_low_file, geom[lev].Domain(), low_data_zlo);
 
-                // Need to read PSFC
-                FArrayBox NC_fab_var_file;
-                for (int idx = 0; idx < num_boxes_at_level[lev]; idx++) {
-                    int success, use_theta_m;
-                    read_from_wrfinput(lev, boxes_at_level[lev][idx], nc_init_file[lev][0],
-                                       NC_fab_var_file, "PSFC", geom[lev],
-                                       use_theta_m, success);
-                    auto& var_fab = NC_fab_var_file;
-#ifdef _OPENMP
-#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
-#endif
-                    for ( MFIter mfi(*mf_PSFC[lev], false); mfi.isValid(); ++mfi )
-                    {
-                        FArrayBox &cur_fab = (*mf_PSFC[lev])[mfi];
-                        cur_fab.template copy<RunOn::Device>(var_fab, 0, 0, 1);
-                    }
-                    var_fab.clear();
-                }
-
                 update_sst_tsk(lev, itime, geom[lev], ba2d[lev],
                                sst_lev[lev], tsk_lev[lev],
                                m_SurfaceLayer[Orientation(Direction::z, Orientation::low)], low_data_zlo,
-                               vars_new[lev][Vars::cons], *mf_PSFC[lev],
-                               solverChoice.rdOcp, lmask_lev[lev][0], use_moist);
+                               vars_new[lev][Vars::cons], lmask_lev[lev][0], use_moist);
             } // itime
 
             // The finer levels that read their own init files, coarsest first
@@ -1323,26 +1610,10 @@ ERF::InitData_post ()
         m_r2d->read_input_files(t_new[0]+start_time,dt_dummy,m_bc_extdir_vals);
     }
 
-    if (solverChoice.custom_rhotheta_forcing)
-    {
-        rhotheta_src.resize(max_level+1);
-        for (int lev = 0; lev <= finest_level; lev++) {
-            BoxList bl_src = vars_new[lev][Vars::cons].boxArray().boxList();
-            for (auto& b : bl_src) {
-                if (!solverChoice.spatial_rhotheta_forcing)
-                {
-                    // source is only defined in Z
-                    b.setRange(0, 0, 1);
-                    b.setRange(1, 0, 1);
-                }
-            }
-            BoxArray ba_src(std::move(bl_src));
-            rhotheta_src[lev] = std::make_unique<MultiFab>(ba_src, vars_new[lev][Vars::cons].DistributionMap(), 1, 0);
-            rhotheta_src[lev]->setVal(0.);
-            prob->update_rhotheta_sources(t_new[0],
-                                          rhotheta_src[lev].get(),
-                                          geom[lev], z_phys_cc[lev], zlevels_stag[lev]);
-        }
+    // The custom rhotheta, moisture and subsidence forcing of each level; a level made or
+    //    remade later by a regrid builds its own (MakeNewLevelFromCoarse, RemakeLevel)
+    for (int lev = 0; lev <= finest_level; lev++) {
+        init_custom_forcing(lev, t_new[0]);
     }
 
     if (solverChoice.have_geo_wind_profile)
@@ -1382,42 +1653,6 @@ ERF::InitData_post ()
         }
     }
 
-    if (solverChoice.custom_moisture_forcing)
-    {
-        rhoqt_src.resize(max_level+1);
-        for (int lev = 0; lev <= finest_level; lev++) {
-            BoxList bl_src = vars_new[lev][Vars::cons].boxArray().boxList();
-            for (auto& b : bl_src) {
-                if (!solverChoice.spatial_moisture_forcing)
-                {
-                    // source is only defined in Z
-                    b.setRange(0, 0, 1);
-                    b.setRange(1, 0, 1);
-                }
-            }
-            BoxArray ba_src(std::move(bl_src));
-            rhoqt_src[lev] = std::make_unique<MultiFab>(ba_src, vars_new[lev][Vars::cons].DistributionMap(), 1, 0);
-            rhoqt_src[lev]->setVal(0.);
-            prob->update_rhoqt_sources(t_new[0],
-                                       rhoqt_src[lev].get(),
-                                       geom[lev], z_phys_cc[lev], zlevels_stag[lev]);
-        }
-    }
-
-    if (solverChoice.custom_w_subsidence)
-    {
-        h_w_subsid.resize(max_level+1, Vector<Real>(0));
-        d_w_subsid.resize(max_level+1, Gpu::DeviceVector<Real>(0));
-        for (int lev = 0; lev <= finest_level; lev++) {
-            const int domlen = geom[lev].Domain().length(2) + 1; // lives on z-faces
-            h_w_subsid[lev].resize(domlen, 0.0_rt);
-            d_w_subsid[lev].resize(domlen, 0.0_rt);
-            prob->update_w_subsidence(t_new[0],
-                                      h_w_subsid[lev], d_w_subsid[lev], base_state[lev],
-                                      geom[lev], z_phys_nd[lev], zlevels_stag[lev]);
-        }
-    }
-
     if (solverChoice.large_scale_forcing)
     {
         AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!solverChoice.nudging_from_input_sounding || lsf.tau_lsf > 0.0,
@@ -1432,16 +1667,10 @@ ERF::InitData_post ()
     if (solverChoice.dampingChoice.rayleigh_damp_U ||solverChoice.dampingChoice.rayleigh_damp_V ||
         solverChoice.dampingChoice.rayleigh_damp_W ||solverChoice.dampingChoice.rayleigh_damp_T)
     {
+        // With an input sounding, initRayleigh_at_level takes ubar, vbar and thetabar
+        // from it, at start-up and whenever a regrid remakes or creates a level
         for (int lev = 0; lev <= finest_level; lev++) {
             initRayleigh_at_level(lev);
-        }
-        if (solverChoice.init_type == InitType::Input_Sounding)
-        {
-            // Overwrite ubar, vbar, and thetabar with input profiles;
-            // wbar is assumed to be zero Note: the tau coefficient set by
-            // prob->erf_init_rayleigh() is still used
-            bool restarting = (!restart_chkfile.empty());
-            setRayleighRefFromSounding(restarting);
         }
     }
 
@@ -1604,9 +1833,10 @@ ERF::InitData_post ()
     DiffChoice dc = solverChoice.diffChoice;
     if (dc.molec_diff_type == MolecDiffType::Constant ||
         dc.molec_diff_type == MolecDiffType::ConstantAlpha) {
-        Real delta = std::min({geom[finest_level].CellSize(0),
-                               geom[finest_level].CellSize(1),
-                               dz_min[finest_level]});
+        // A lateral direction with one cell on the level 0 domain carries no diffusion
+        Real delta = dz_min[finest_level];
+        if (geom[0].Domain().length(0) > 1) { delta = std::min(delta, geom[finest_level].CellSize(0)); }
+        if (geom[0].Domain().length(1) > 1) { delta = std::min(delta, geom[finest_level].CellSize(1)); }
         if (dc.dynamic_viscosity == 0) {
             Print() << "Note: Molecular diffusion specified but dynamic_viscosity has not been specified" << std::endl;
         } else {
@@ -1675,9 +1905,22 @@ ERF::InitData_post ()
     for (int lev = 1; lev <= finest_level; ++lev)
     {
         Interp2DArrays(lev,ba2d[lev],dmap[lev]);
+        // A level without a file of its own takes the wrfinput land and soil fields of
+        // level lev-1; nothing changes for a level that already holds them on these grids
+        wrf_surface_fields.remake(lev, ba2d[lev], dmap[lev], geom[lev].periodicity(),
+                                  refRatio(lev-1), !has_own_init_file(lev), verbose);
     } // lev
 
 #ifdef ERF_USE_WW3_COUPLING
+    // read_waves rewrites the land mask from the wave height every step. The average-down
+    // and the fill of the force-restore balance follow the mask as it is. A column that
+    // turns from water to land would resume the balance from the state it held while it
+    // was water, so the two are not combined.
+    if (solverChoice.rad_type == RadiationType::TwoStream &&
+        solverChoice.radChoice.seb_prognostic_enable) {
+        amrex::Abort("erf.radiation.seb_prognostic_enable = true is not supported with the WW3 "
+                     "coupling: the coupling rewrites the land mask during the run");
+    }
     int my_lev = 0;
     amrex::Print() <<  " About to call send_to_ww3 from ERF.cpp" << std::endl;
     send_to_ww3(my_lev);
@@ -1692,7 +1935,7 @@ ERF::InitData_post ()
     }
 
 #ifdef ERF_USE_FIRE
-    // The fire coupling is initialised after the surface layers are built (so its
+    // The fire coupling is initialized after the surface layers are built (so its
     // own prerequisite checks run there). An engine that reads the surface layer
     // (FireEngine::needs_surface_layer, the default) needs one at the bottom, so
     // stop here, with the inputs to set, instead of in the coupler's checks.
@@ -1867,13 +2110,14 @@ ERF::InitData_post ()
     // NOTE: we must set up the MOST routine after calling FillPatch
     //       in order to have lateral ghost cells filled (MOST + terrain interp).
     bool updated_prim = false;
-    // Count number of surface layer boundaries to determine correct parser prefix
+    // Count owners for parser prefixes; record physical SurfaceLayer faces separately.
     int n_faces = 0;
     amrex::GpuArray<int, AMREX_SPACEDIM*2> surface_layer_faces{};
     for (OrientationIter oit; oit; ++oit) {
         Orientation ori = oit();
+        const bool eb_surface_layer = static_cast<int>(ori) == Orientation::zlo() && use_eb_surface_layer();
+        if ((phys_bc_type[ori] == ERF_BC::surface_layer) || eb_surface_layer) { n_faces += 1; }
         if (phys_bc_type[ori] == ERF_BC::surface_layer) {
-            n_faces += 1;
             surface_layer_faces[static_cast<int>(ori)] = 1;
         }
     }
@@ -1885,7 +2129,7 @@ ERF::InitData_post ()
     // live ParmParse table cannot be asked this question here.
     bool use_legacy_zlo_prefix = false;
     if (n_faces > 1 &&
-        phys_bc_type[Orientation::zlo()] == ERF_BC::surface_layer) {
+        ((phys_bc_type[Orientation::zlo()] == ERF_BC::surface_layer) || use_eb_surface_layer())) {
         const bool has_legacy_inputs = has_surface_layer_inputs(pp_prefix);
         const bool has_zlo_inputs = has_surface_layer_inputs(
             pp_prefix + "." + BoundaryFaceName[Orientation::zlo()]);
@@ -1909,7 +2153,8 @@ ERF::InitData_post ()
     bool any_surface_layer = false;
     for (OrientationIter oit; oit; ++oit) {
         Orientation ori = oit();
-        if (phys_bc_type[ori] == ERF_BC::surface_layer) {
+        const bool eb_surface_layer = static_cast<int>(ori) == Orientation::zlo() && use_eb_surface_layer();
+        if ((phys_bc_type[ori] == ERF_BC::surface_layer) || eb_surface_layer) {
             any_surface_layer = true;
             bool has_diff = ( (solverChoice.diffChoice.molec_diff_type != MolecDiffType::None) ||
                               (solverChoice.turbChoice[0].les_type  != LESType::None)          ||
@@ -1932,11 +2177,11 @@ ERF::InitData_post ()
             //
             // Build vector of eb pointers for all levels
             amrex::Vector<const eb_*> eb_ptrs;
-            eb_ptrs.resize(finest_level + 1, nullptr);
+            eb_ptrs.resize(max_level + 1, nullptr);
             if (solverChoice.terrain_type == TerrainType::EB) {
                 AMREX_ALWAYS_ASSERT_WITH_MESSAGE(ori.coordDir() == 2 && ori.faceDir() == Orientation::Side::low,
                                                  "Surface layer with EB can only be enabled for the bottom z face");
-                for (int lev = 0; lev <= finest_level; lev++) {
+                for (int lev = 0; lev <= max_level; lev++) {
                     eb_ptrs[lev] = eb[lev] ? eb[lev].get() : nullptr;
                 }
             }
@@ -1992,6 +2237,8 @@ ERF::InitData_post ()
             }
             m_SurfaceLayer[ori]->set_coupled_sst_active(solverChoice.use_coupled_sst &&
                                                         static_cast<int>(ori) == Orientation::zlo());
+            m_SurfaceLayer[ori]->set_coupled_current_active(solverChoice.use_coupled_currents &&
+                                                            static_cast<int>(ori) == Orientation::zlo());
 
             // This call will allocate the arrays at each level. If we regrid later, either changing
             // the number of levels or just the grids at each existing level, we will call an update routine
@@ -2022,6 +2269,25 @@ ERF::InitData_post ()
                               " requires a MOST-consistent u* and Obukhov length;"
                               " it cannot be combined with surface_layer.flux_type = custom or rico"
                               " (note that most.use_sfc_fluxes selects the custom flux type)");
+                    }
+                }
+            }
+
+            // The surface layer computes the MYNN25 PBL height itself, but the YSU and MRF
+            // heights come from those PBL schemes (set_pblh). With any other erf.pbl_type the
+            // PBL height would keep its initial bogus_large_value, which the w* correction
+            // turns into a velocity scale of ~1e50.
+            const auto pblh_type = m_SurfaceLayer[ori]->pblh_type;
+            if (pblh_type == SurfaceLayer::PBLHeightCalcType::YSU ||
+                pblh_type == SurfaceLayer::PBLHeightCalcType::MRF) {
+                const PBLType needed = (pblh_type == SurfaceLayer::PBLHeightCalcType::YSU)
+                                     ? PBLType::YSU : PBLType::MRF;
+                for (const auto& tc : solverChoice.turbChoice) {
+                    if (tc.pbl_type != needed) {
+                        Abort("erf.most.pblh_calc = " + std::string(amrex::getEnumNameString(needed)) +
+                              " takes its PBL height from erf.pbl_type = " +
+                              std::string(amrex::getEnumNameString(needed)) +
+                              ", but erf.pbl_type = " + std::string(amrex::getEnumNameString(tc.pbl_type)));
                     }
                 }
             }
@@ -2088,15 +2354,16 @@ ERF::InitData_post ()
                     if (ori.coordDir() == 2 && ori.faceDir() == Orientation::Side::low) {
                         // Initialize tke(x,y,z) as a function of u*(x,y)
                         if (solverChoice.turbChoice[lev].init_tke_from_ustar) {
-                            Real qkefac = one;
+                            Real tkefac = one;
                             if (solverChoice.turbChoice[lev].pbl_type == PBLType::MYNN25 ||
                                 solverChoice.turbChoice[lev].pbl_type == PBLType::MYNNEDMF)
                             {
                                 // https://github.com/NCAR/MYNN-EDMF/blob/90f36c25259ec1960b24325f5b29ac7c5adeac73/module_bl_mynnedmf.F90#L1325-L1333
+                                // WRF mym_initialize: qke(kts) = 1.5*ust^2*(b1*pmz)^(2/3); ERF carries TKE = qke/2
                                 const Real B1 = solverChoice.turbChoice[lev].pbl_mynn.B1;
-                                qkefac = Real(1.5) * std::pow(B1, two/three);
+                                tkefac = myhalf * Real(1.5) * std::pow(B1, two/three);
                             }
-                            m_SurfaceLayer[ori]->init_tke_from_ustar(lev, vars_new[lev][Vars::cons], z_phys_nd[lev], qkefac);
+                            m_SurfaceLayer[ori]->init_tke_from_ustar(lev, vars_new[lev][Vars::cons], z_phys_nd[lev], tkefac);
                         }
                     }
                 }
@@ -2105,7 +2372,49 @@ ERF::InitData_post ()
         } else {
             m_SurfaceLayer[ori] = nullptr;
         }
-    } // end if (phys_bc_type[Orientation(Direction::z,Orientation::low)] == ERF_BC::surface_layer)
+    } // SurfaceLayer owners
+
+    // most.surface_current is read only by a z-low surface layer, under the prefix that face
+    // takes its inputs from; anywhere else it would be silently ignored
+    {
+        const SurfaceLayer* zlo_layer = m_SurfaceLayer[Orientation::zlo()].get();
+        const std::string zlo_prefix = (n_faces == 1 || use_legacy_zlo_prefix)
+            ? pp_prefix : pp_prefix + "." + BoundaryFaceName[Orientation::zlo()];
+        const std::string zlo_key = zlo_prefix + ".most.surface_current";
+        // Only keys under ERF's own prefix: another code in the same run (a coupled ocean
+        // model, say) may have a key of the same ending. AMReX's
+        // amrex.abort_on_unused_inputs catches unused keys in general; this one is checked
+        // here because, misplaced, it would silently change the physics.
+        const std::string suffix(".most.surface_current");
+        const std::string erf_prefix = pp_prefix + ".";
+        for (const auto& key : user_specified_inputs) {
+            if (key.size() < suffix.size() ||
+                key.compare(key.size() - suffix.size(), suffix.size(), suffix) != 0 ||
+                key.compare(0, erf_prefix.size(), erf_prefix) != 0) {
+                continue;
+            }
+            if (!zlo_layer) {
+                Abort(key + " is read only by a surface_layer boundary at zlo, and zlo is "
+                      "not one: set zlo.type = \"surface_layer\".");
+            }
+            if (key != zlo_key) {
+                Abort(key + " is not read: the surface current applies only to the zlo "
+                      "surface layer, which reads it as " + zlo_key + ".");
+            }
+        }
+
+        // The coupled current has the same reader, and arrives only once coupling starts
+        if (solverChoice.use_coupled_currents) {
+            if (!zlo_layer) {
+                Abort("erf.use_coupled_currents is read only by a surface_layer boundary at "
+                      "zlo, and zlo is not one: set zlo.type = \"surface_layer\".");
+            }
+            if (max_level > 0) {
+                Print() << "WARNING: the coupled surface current is applied on level 0 only; "
+                        << "the surface of the refined levels is at rest." << std::endl;
+            }
+        }
+    }
 
     // A land-surface model hands its fluxes to the atmosphere only through the surface
     // layer (make_SurfaceLayer_at_level is the one consumer of lsm_flux). Without a
@@ -2151,7 +2460,12 @@ ERF::InitData_post ()
         // level-0 steps, and the fire takes one step per step of its own level.
         int fire_steps_per_coarse_step = 1;
         for (int l = 1; l <= fire_lev; ++l) { fire_steps_per_coarse_step *= nsubsteps[l]; }
-        m_fire_coupler->engine().start_run(stop_time, max_step, fire_steps_per_coarse_step);
+        // stop_time is on the absolute clock (it includes start_time, an epoch time with
+        // start_datetime); the engine counts elapsed time, so give it the run's length
+        const amrex::Real fire_stop = (stop_time < std::numeric_limits<double>::max())
+                                    ? static_cast<amrex::Real>(stop_time - start_time)
+                                    : std::numeric_limits<amrex::Real>::max();
+        m_fire_coupler->engine().start_run(fire_stop, max_step, fire_steps_per_coarse_step);
 
         if (restart_chkfile != "") {
             // the engine's state, then the coupling's lagged fluxes
@@ -2317,6 +2631,11 @@ ERF::InitData_post ()
     }
 #endif
 
+    // Microphysics diagnostics of the initial state, once every level is initialized
+    if (solverChoice.moisture_type != MoistureType::None) {
+        micro->Diagnostics(istep[0], static_cast<Real>(t_new[0]), z_phys_nd, file_name_digits);
+    }
+
     // Print max values of lateral gradients of base state pressure at level 0
     if (verbose > 0) {
         for (int lev = 0; lev <= finest_level; ++lev) {
@@ -2325,6 +2644,14 @@ ERF::InitData_post ()
                 compute_max_buoyancy_gradp_diagnostic(lev);
             }
         }
+    }
+
+    // Every level's base state must be in hydrostatic balance; a regrid checks the levels it
+    // makes or remakes again (ERF::rebuild_base_state).  A restart only warns: a checkpoint
+    // written before refined levels' base states were rebuilt holds ones that are not.
+    for (int lev = 0; lev <= finest_level; ++lev) {
+        check_base_state_hse(lev, restart_chkfile.empty() ? "at initialization" : "on restart",
+                             restart_chkfile.empty());
     }
 
     // check for additional plotting variables that are available after particle containers
@@ -2420,6 +2747,13 @@ ERF::InitData_post ()
         pp.queryarr("data_log",datalogname,0,num_datalogs);
         for (int i = 0; i < num_datalogs; i++) {
             setRecordDataInfo(i,datalogname[i]);
+        }
+        // The fourth (stress) log needs the stresses and SFS fluxes, which exist only with
+        // molecular diffusion or a turbulence closure at level 0; the 1D profile writers
+        // leave it empty otherwise
+        if (num_datalogs > 3 && Tau[0][TauType::tau11] == nullptr) {
+            amrex::Print() << "WARNING: erf.data_log names a fourth (stress) log, but there is no molecular"
+                           << " diffusion or turbulence closure at level 0, so it stays empty" << std::endl;
         }
     }
 
@@ -2738,6 +3072,12 @@ ERF::InitData_post ()
                 amrex::Print() << "Writing the geometry to a vtp file.\n" << std::endl;
             }
             WriteEBSurface(grids[finest_level],dmap[finest_level],Geom(finest_level),&EBFactory(finest_level));
+            if (solverChoice.terrain_type == TerrainType::EB) {
+                if (verbose > 0) {
+                    amrex::Print() << "Writing the nodal level set to eb_levelset.vtm.\n" << std::endl;
+                }
+                WriteEBLevelSet();
+            }
         }
     }
 
@@ -2878,9 +3218,8 @@ ERF::interp_mapfac_from_coarse (int lev)
 // leaves it uninitialized; only init_from_wrfinput -- which requires an init file at
 // *this* level -- ever fills it.  A level created by tagging therefore never had a
 // surface pressure at all, and a level that did read a file lost it at the next regrid.
-// update_sst_tsk uses it to convert the sea surface temperature from the wrflowinp file
-// into a potential temperature for the surface layer, and the active land-surface model
-// consumes it as well.
+// A restart from a checkpoint that holds the SST and TSK as potential temperature
+// converts them back with it (convert_legacy_surface_temperature).
 //
 void
 ERF::interp_psfc_from_coarse (int lev)
@@ -2903,12 +3242,18 @@ ERF::interp_psfc_from_coarse (int lev)
     const IntVect rr2d(refRatio(lev-1)[0], refRatio(lev-1)[1], 1);
 
     //
-    // Do NOT fill the ghost cells outside the domain: unlike the fields that
-    // init_from_wrfinput fills by clamping into the valid region, PSFC is copied out of
-    // the file over the intersection with the domain, so the coarse level has nothing
-    // there for us to interpolate.  Nothing reads those cells -- update_sst_tsk clamps
-    // its PSFC index into the domain.
+    // Do NOT fill the fine ghost cells outside the domain: nothing reads those cells --
+    // the conversion of the SST and TSK clamps its PSFC index into the valid box.
     //
+    // The coarse ghost cells are another matter.  PSFC is copied out of the file over the
+    // intersection with the domain, so the coarse ghost cells beyond a domain face hold
+    // nothing, and the slope stencil of the interpolater reads them wherever the fine
+    // level, with its ghost cells, comes within one coarse cell of that face.  They take
+    // the nearest column inside the domain first (seb_extend_halo, which also calls
+    // FillBoundary). During legacy restart migration, the coarse pressure ghosts have
+    // also been prepared before this routine runs.
+    //
+    seb_extend_halo(*mf_PSFC[lev-1], geom[lev-1]);
     InterpFromCoarseLevel(*mf_PSFC[lev], ngv, IntVect(0,0,0),
                           *mf_PSFC[lev-1], 0, 0, 1,
                           geom[lev-1], geom[lev],
@@ -3374,7 +3719,7 @@ ERF::initializeFire (const int& /*a_nlevsmax*/ /*!< number of AMR levels */)
                      " (the smoke tracer is advected with the scalars)");
     }
     // erf.fire.source_mode = overwrite (the default) REPLACES the theta (and,
-    // with latent heat, the vapour) slots of the cell source on the fire level
+    // with latent heat, the vapor) slots of the cell source on the fire level
     // every stage, discarding whatever make_sources put there. With no other
     // source that is the intended result; with one it silently drops physics.
     // Make the choice explicit in that case.
@@ -3458,20 +3803,36 @@ ERF::restart ()
     initializeTracers((ParGDBBase*)GetParGDB(),z_phys_nd,t_new[0]);
 #endif
 
+    // The period trackers hold the next time an output is due (see writeNow).  Put each
+    // on the next k * per after the restart time, with the 0.1*dt tolerance writeNow uses
+    // (a checkpoint written on schedule can carry a time just below k * per); setting them
+    // to the last boundary instead wrote an unscheduled output at the first step.
     double cur_time = t_new[0];
-    if (m_check_per    > zero) {last_check_file_time    = std::floor(cur_time/m_check_per   ) * m_check_per;}
-    if (m_plot2d_per_1 > zero) {last_plot2d_file_time_1 = std::floor(cur_time/m_plot2d_per_1) * m_plot2d_per_1;}
-    if (m_plot2d_per_2 > zero) {last_plot2d_file_time_2 = std::floor(cur_time/m_plot2d_per_2) * m_plot2d_per_2;}
-    if (m_plot3d_per_1 > zero) {last_plot3d_file_time_1 = std::floor(cur_time/m_plot3d_per_1) * m_plot3d_per_1;}
-    if (m_plot3d_per_2 > zero) {last_plot3d_file_time_2 = std::floor(cur_time/m_plot3d_per_2) * m_plot3d_per_2;}
+    auto last_time = [&] (double per) {
+        return std::floor((cur_time + 0.1*dt[0])/per) * per;
+    };
+    auto next_time = [&] (double per) {
+        return last_time(per) + per;
+    };
+    if (m_check_per > zero) {last_check_file_time = next_time(m_check_per);}
 #ifdef ERF_USE_FIRE
-    // the fire plot clock is realigned like the others, so a restart keeps the
-    // k * fire_plot_per instants instead of writing at its first step
-    if (m_fire_plot_per > zero) {last_fire_plot_time = std::floor(cur_time/m_fire_plot_per) * m_fire_plot_per;}
+    // no restart-time fire plot moves this clock on, so it goes to the next instant too
+    if (m_fire_plot_per > zero) {last_fire_plot_time = next_time(m_fire_plot_per);}
 #endif
 
+    // With erf.plot_file_on_restart the plot and subvolume files are written at restart
+    // (InitData_post), which then adds one period to these trackers, so they start from
+    // the last boundary; without it nothing does, so they go to the next one
+    auto plot_time = [&] (double per) {
+        return plot_file_on_restart ? last_time(per) : next_time(per);
+    };
+    if (m_plot2d_per_1 > zero) {last_plot2d_file_time_1 = plot_time(m_plot2d_per_1);}
+    if (m_plot2d_per_2 > zero) {last_plot2d_file_time_2 = plot_time(m_plot2d_per_2);}
+    if (m_plot3d_per_1 > zero) {last_plot3d_file_time_1 = plot_time(m_plot3d_per_1);}
+    if (m_plot3d_per_2 > zero) {last_plot3d_file_time_2 = plot_time(m_plot3d_per_2);}
+
     for (int i = 0; i < m_subvol_per.size(); i++) {
-        if (m_subvol_per[i] > zero) {last_subvol_time[i] = std::floor(cur_time/m_subvol_per[i]) * m_subvol_per[i];}
+        if (m_subvol_per[i] > zero) {last_subvol_time[i] = plot_time(m_subvol_per[i]);}
     }
 
     if (m_check_int    > zero) {last_check_file_step    = istep[0];}
@@ -3520,6 +3881,12 @@ ERF::init_only (int lev, double elapsed_time)
 
         // Now init the base state and the data itself
         init_from_input_sounding(lev);
+
+        // Impose the physical bc's on the base state, as initHSE and restart do: the
+        // sounding fills only the valid cells and (by its column integration) the first
+        // lateral ghost, so without this a non-periodic lateral boundary leaves the base
+        // state's ghosts differing from what a restart rebuilds there
+        (*physbcs_base[lev])(base_state[lev],0,base_state[lev].nComp(),base_state[lev].nGrowVect());
 
         // The base state has been initialized by integrating vertically
         // through the sounding for ideal (like WRF) or isentropic approaches
@@ -3953,6 +4320,10 @@ ERF::ReadParameters ()
         pp.queryAdd("plot2d_per_1",  m_plot2d_per_1);
         pp.queryAdd("plot2d_per_2",  m_plot2d_per_2);
 
+        // Write the 3D/2D plotfiles and subvolumes at the restart time (they then resume
+        // their schedules); off, a restart writes nothing until the next scheduled output
+        pp.queryAdd("plot_file_on_restart", plot_file_on_restart);
+
         // Abort on an invalid cloud-optics setting now, not at the first Plot2D write
         cloud_optics_parameters = plotfile2d::parse_cloud_optics_parameters();
 
@@ -4101,6 +4472,8 @@ ERF::ReadParameters ()
         // Query the set and total widths for crse-fine interior ghost cells
         pp.queryAdd("cf_width", cf_width);
         pp.queryAdd("cf_set_width", cf_set_width);
+        pp.queryAdd("perturbational_interpolation", perturbational_interp);
+        pp.queryAdd("perturbational_average_down", perturbational_avgdown);
 
         // AmrMesh iterate on grids?
         bool iterate(true);
@@ -4113,6 +4486,34 @@ ERF::ReadParameters ()
 #endif
 
     solverChoice.init_params(max_level,pp_prefix);
+
+    m_mass_source = MassSource::from_inputs();
+    if (m_mass_source) {
+        for (int lev = 0; lev <= max_level; ++lev) {
+            if (solverChoice.compressibility_type[lev] != CompressibilityType::FullyCompressible) {
+                amrex::Abort("erf.mass_source needs erf.compressibility_type = FullyCompressible at every "
+                             "level: the anelastic and pseudo-incompressible projections do not admit a mass source");
+            }
+        }
+        // The region is measured up from the bottom of the terrain-fitted (or flat) grid, and
+        // its volume is computed once per set of grids
+        if (solverChoice.terrain_type == TerrainType::EB ||
+            solverChoice.terrain_type == TerrainType::ImmersedForcing ||
+            solverChoice.terrain_type == TerrainType::MovingFittedMesh) {
+            amrex::Abort("erf.mass_source is not supported with erf.terrain_type = EB, ImmersedForcing "
+                         "or MovingFittedMesh");
+        }
+        const auto plo = Geom(0).ProbLoArray();
+        const auto phi = Geom(0).ProbHiArray();
+        if (m_mass_source->x0() < plo[0] || m_mass_source->x0() > phi[0] ||
+            m_mass_source->y0() < plo[1] || m_mass_source->y0() > phi[1]) {
+            amrex::Abort("erf.mass_source.center is outside the domain");
+        }
+        if (!solverChoice.transport_scalar) {
+            amrex::Print() << "WARNING: erf.transport_scalar = false: the passive scalar is not evolved, "
+                           << "so the mass-source tracer is not added" << std::endl;
+        }
+    }
 
     // SurfaceModel output is opt-in for single-provider runs.  When both
     // providers are active, retain the useful combined diagnostic output
@@ -4536,7 +4937,7 @@ ERF::ParameterSanityChecks ()
             Abort("erf.use_wrf_bdy_density requires nc_bdy_file");
         }
         if (!solverChoice.compressibility_type.empty() && solverChoice.compressibility_type[0] != CompressibilityType::FullyCompressible) {
-            Abort("erf.use_wrf_bdy_density is not supported for anelastic simulations");
+            Abort("erf.use_wrf_bdy_density is not supported for anelastic or pseudo-incompressible simulations");
         }
         if (input_bndry_planes) {
             Abort("erf.use_wrf_bdy_density is not supported with generic boundary-plane input");
@@ -5133,4 +5534,71 @@ ERF::has_surface_layer_inputs (const std::string& prefix) const
         }
     }
     return false;
+}
+
+bool
+ERF::use_eb_surface_layer () const
+{
+    return solverChoice.terrain_type == TerrainType::EB &&
+           solverChoice.ebChoice.eb_boundary_type == EBBoundaryType::SurfaceLayer;
+}
+
+/**
+ * Build the custom rhotheta, moisture and subsidence forcing of one level on its current grids,
+ * and fill it at the given time.  Called for every level in InitData_post, and for a level made
+ * or remade by a regrid: the forcing sources live on the level's BoxArray and
+ * DistributionMapping, and SHOC reads the subsidence profile before advance_dycore updates it.
+ *
+ * The geostrophic profile instead is sized for every level up to max_level in InitData_post and
+ * filled in a new level's first advance_dycore.  That cannot work here: the sources need the
+ * level's grids, and the subsidence profile is read by SHOC before advance_dycore and may read
+ * the level's base_state.
+ *
+ * On return the host and device subsidence profiles have length domain length + 1 and hold
+ * whatever update_w_subsidence wrote, zero where it wrote nothing.
+ *
+ * @param[in] lev  level
+ * @param[in] time time at which the forcing is evaluated
+ */
+void
+ERF::init_custom_forcing (int lev, Real time)
+{
+    // The source is only defined in z unless it is spatial
+    auto source_ba = [&] (bool spatial) {
+        BoxList bl_src = vars_new[lev][Vars::cons].boxArray().boxList();
+        if (!spatial) {
+            for (auto& b : bl_src) {
+                b.setRange(0, 0, 1);
+                b.setRange(1, 0, 1);
+            }
+        }
+        return BoxArray(std::move(bl_src));
+    };
+
+    if (solverChoice.custom_rhotheta_forcing) {
+        rhotheta_src[lev] = std::make_unique<MultiFab>(source_ba(solverChoice.spatial_rhotheta_forcing),
+                                                       vars_new[lev][Vars::cons].DistributionMap(), 1, 0);
+        rhotheta_src[lev]->setVal(0.);
+        prob->update_rhotheta_sources(time, rhotheta_src[lev].get(),
+                                      geom[lev], z_phys_cc[lev], zlevels_stag[lev]);
+    }
+
+    if (solverChoice.custom_moisture_forcing) {
+        rhoqt_src[lev] = std::make_unique<MultiFab>(source_ba(solverChoice.spatial_moisture_forcing),
+                                                    vars_new[lev][Vars::cons].DistributionMap(), 1, 0);
+        rhoqt_src[lev]->setVal(0.);
+        prob->update_rhoqt_sources(time, rhoqt_src[lev].get(),
+                                   geom[lev], z_phys_cc[lev], zlevels_stag[lev]);
+    }
+
+    if (solverChoice.custom_w_subsidence) {
+        const int domlen = geom[lev].Domain().length(2) + 1; // lives on z-faces
+        h_w_subsid[lev].assign(domlen, 0.0_rt);
+        // Zero the device copy too: on a remake resize alone would keep the old profile
+        d_w_subsid[lev].resize(domlen);
+        Gpu::copy(Gpu::hostToDevice, h_w_subsid[lev].begin(), h_w_subsid[lev].end(),
+                  d_w_subsid[lev].begin());
+        prob->update_w_subsidence(time, h_w_subsid[lev], d_w_subsid[lev], base_state[lev],
+                                  geom[lev], z_phys_nd[lev], zlevels_stag[lev]);
+    }
 }

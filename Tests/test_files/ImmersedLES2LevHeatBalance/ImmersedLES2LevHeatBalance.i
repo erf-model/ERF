@@ -15,7 +15,13 @@
 # it within 1e-6 K, the freeze run must not. A third leg adds the log-law coarse/fine fill
 # (erf.cf_loglaw_fill) and a mismatch threshold the surface crosses (erf.if_cf_mismatch_warning =
 # 0.4: the fine cell 40-50 m is half solid, a spread of 0.5) and must hold the mean and print the
-# warning. The implicit projection needs an FFT build.
+# warning. The implicit projection uses FFT-preconditioned
+# GMRES in a build with FFT and multigrid in a build without.
+#
+# Further legs override the deck: _MapFactor (erf.test_mapfactor_amp, mean theta as above) and
+# _PseudoIncompressible (erf.compressibility_type; these read the PI DRIFT the run prints,
+# max |rho theta - rho0 theta0| / (rho0 theta0)), also with an L-shaped region and with two
+# regions that meet across the periodic boundary in x.
 #
 erf.prob_name = "ABL"
 

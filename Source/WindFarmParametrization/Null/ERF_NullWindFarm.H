@@ -6,6 +6,25 @@
 #include <AMReX_MultiFab.H>
 #include <AMReX_Gpu.H>
 
+/**
+ * Height above the ground of the horizontal face kf at the center of column (i,j).  With
+ * z_phys_nd (zp) it is the mean of the four nodes of the face minus that of the bottom face
+ * klo; without it, the uniform spacing dz above the domain bottom.  Wind farm hub heights are
+ * measured from the ground, as in WindFarm::fill_SMark_multifab*.
+ */
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+amrex::Real windfarm_face_height_above_ground (const amrex::Array4<const amrex::Real>& zp,
+                                               int i, int j, int kf, int klo, amrex::Real dz) noexcept
+{
+    if (zp) {
+        auto zface = [&] (int k) {
+            return amrex::Real(0.25) * (zp(i,j,k) + zp(i+1,j,k) + zp(i,j+1,k) + zp(i+1,j+1,k));
+        };
+        return zface(kf) - zface(klo);
+    }
+    return (kf - klo) * dz;
+}
+
 class NullWindFarm {
 
 public:
@@ -23,6 +42,8 @@ public:
                           amrex::MultiFab& W_old,
                           const amrex::MultiFab& mf_Nturb,
                           const amrex::MultiFab& mf_SMark,
+                          const amrex::MultiFab* z_phys_nd,
+                          const amrex::MultiFab* z_phys_cc,
                           const double& time) = 0;
 
     virtual void set_turb_spec (const amrex::Real&  rotor_rad, const amrex::Real& hub_height,
@@ -43,6 +64,12 @@ public:
     {
         m_xloc = xloc;
         m_yloc = yloc;
+    }
+
+    //! Ground elevation under each turbine (the hub is hub_height above it)
+    virtual void set_turb_zloc (const amrex::Vector<amrex::Real>& zloc)
+    {
+        m_zloc = zloc;
     }
 
     virtual void set_turb_disk_angle (const amrex::Real& turb_disk_angle)
@@ -179,7 +206,7 @@ bool find_if_marked (amrex::Real x1, amrex::Real x2, amrex::Real y1, amrex::Real
 
 protected:
 
-    amrex::Vector<amrex::Real> m_xloc, m_yloc;
+    amrex::Vector<amrex::Real> m_xloc, m_yloc, m_zloc;
     amrex::Real m_turb_disk_angle;
     amrex::Real m_hub_height, m_rotor_rad, m_thrust_coeff_standing, m_nominal_power;
     amrex::Vector<amrex::Real> m_wind_speed, m_thrust_coeff, m_power;

@@ -21,7 +21,7 @@ using namespace amrex;
 // momentum.  The top row left it out, at the domain top and at a coarse/fine boundary, and the
 // bottom row left out its lower face at a coarse/fine boundary (erf-model/ERF#4822).  The
 // missing flux acted as a momentum source in the top cell whenever gamma reached the domain
-// top, which YSUNew produces when the bulk Richardson number never crosses Ribcr (kpbl = khi).
+// top, which YSU produces when the bulk Richardson number never crosses Ribcr (kpbl = khi).
 
 namespace {
 
@@ -237,7 +237,7 @@ struct Column
 
   // The tridiagonal system the solve should build, written out independently:
   //   h_k rho u_k - DT (D_{k+1/2} - D_{k-1/2}) = h_k rho u*_k - DT (F_{k+1/2} - F_{k-1/2})
-  // with the diffusive flux D = KM du/dz centred between cell centres and the countergradient
+  // with the diffusive flux D = KM du/dz centered between cell centers and the countergradient
   // flux F = KM gamma, gamma averaged to the face.  A domain face carries neither; an interior
   // (coarse/fine) face at the end of the solved range carries both, with the known ghost value.
   std::vector<double> reference (const std::vector<double>& u) const

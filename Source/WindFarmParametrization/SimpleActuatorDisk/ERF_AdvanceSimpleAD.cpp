@@ -1,5 +1,6 @@
 #include <ERF_SimpleAD.H>
 #include <ERF_IndexDefines.H>
+#include <ERF_LengthScaleCellSize.H>
 #include <ERF_Interpolation_1D.H>
 
 using namespace amrex;
@@ -14,10 +15,14 @@ SimpleAD::advance (const Geometry& geom,
                    MultiFab& W_old,
                    const MultiFab& mf_Nturb,
                    const MultiFab& mf_SMark,
+                   const MultiFab* z_phys_nd,
+                   const MultiFab* z_phys_cc,
                    const double& time)
 {
     AMREX_ALWAYS_ASSERT(W_old.nComp() > 0);
     AMREX_ALWAYS_ASSERT(mf_Nturb.nComp() > 0);
+    // The simple actuator disk source does not depend on height
+    amrex::ignore_unused(z_phys_nd, z_phys_cc);
     compute_freestream_velocity(cons_in, U_old, V_old, mf_SMark);
     source_terms_cellcentered(geom, cons_in, mf_SMark, mf_vars_simpleAD);
     update(dt_advance, cons_in, U_old, V_old, mf_vars_simpleAD);
@@ -177,7 +182,8 @@ SimpleAD::source_terms_cellcentered (const Geometry& geom,
     Gpu::copy(Gpu::hostToDevice, xloc.begin(), xloc.end(), d_xloc.begin());
     Gpu::copy(Gpu::hostToDevice, yloc.begin(), yloc.end(), d_yloc.begin());
 
-      auto dx = geom.CellSizeArray();
+      // dx in place of a dy over one cell, and the reverse (only dz is used as a spacing)
+      auto dx = LengthScaleCellSize(geom);
 
   // Domain valid box
       const amrex::Box& domain = geom.Domain();

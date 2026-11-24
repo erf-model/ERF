@@ -7,7 +7,7 @@ Inputs with the ``prob.`` prefix are **not** global ERF options.  Each one is
 read by the problem setup that the executable was built with, so the same name
 means different things in different problems -- ``prob.T_0`` is an initial
 temperature in one setup and a reference temperature in another, and
-``prob.x_c`` is a bubble centre in one and a scalar-blob centre in another.  A
+``prob.x_c`` is a bubble center in one and a scalar-blob center in another.  A
 ``prob.`` input that a given problem does not read is silently ignored.
 
 For that reason this page is an index rather than a reference: it lists, for
@@ -119,7 +119,7 @@ The potential temperature of each cell is raised by
    r = \sqrt{\left(\frac{x - x_c}{x_r}\right)^2 + \left(\frac{y - y_c}{y_r}\right)^2
             + \left(\frac{z - z_c}{z_r}\right)^2} \le 1,
 
-with :math:`(x, y)` the cell centre and :math:`z` the cell-centre height, terrain included
+with :math:`(x, y)` the cell center and :math:`z` the cell-center height, terrain included
 (WRF uses the geopotential height of the mass point, also terrain included). With EB terrain
 the cells are Cartesian and :math:`z` is the cell's own height, so the bubble sits at a fixed
 altitude whatever the ground below it; an ``eb2.geometry = plane`` boundary shifts the heights
@@ -127,7 +127,7 @@ so that the plane lies at zero. Cells with :math:`r > 1` are not changed, and th
 wrapped across periodic boundaries (WRF's is not either): a bubble that crosses a periodic
 boundary is cut there.
 
-- **Compressible:** the bubble is made at constant pressure, as WRF makes it: :math:`\rho\theta`
+- **Evolving density (compressible or pseudo-incompressible):** the bubble is made at constant pressure, as WRF makes it: :math:`\rho\theta`
   and the mixing ratio :math:`q_v` are kept and the density drops to
   :math:`\rho\theta / (\theta + \theta')`, so the bubble starts buoyant and with no pressure
   pulse. Other moisture species are not rescaled. WRF also re-integrates the geopotential of
@@ -137,10 +137,10 @@ boundary is cut there.
   :math:`\rho\theta` alone (:math:`\rho\theta \mathrel{+}= \rho\,\theta'`).
 
 The bubble is added to the random (``T_0_Pert_Mag``) and sinusoidal (``pert_deltaT``)
-perturbations when those are set as well. WRF places the centre on the mass point
-:math:`i_c = (\mathrm{ide}-\mathrm{ids})/2` (rounded down), whose centre is
+perturbations when those are set as well. WRF places the center on the mass point
+:math:`i_c = (\mathrm{ide}-\mathrm{ids})/2` (rounded down), whose center is
 :math:`x_c = (i_c - 1/2)\,\Delta x` from the domain's west edge: for an even number of cells,
-half a cell short of the domain centre (and likewise in y). Use that value to match WRF exactly.
+half a cell short of the domain center (and likewise in y). Use that value to match WRF exactly.
 
 The following table lists the inputs. A start-up line reports the bubble at each level whose
 grids hold the domain's lowest corner (always level 0; a refined patch away from that corner
@@ -149,10 +149,10 @@ gets the bubble without the line).
 +---------------------+-------------------------------------------------------------+--------------------+---------+
 | Input               | Meaning                                                     | Acceptable values  | Default |
 +=====================+=============================================================+====================+=========+
-| ``prob.bubble_dT``  | potential-temperature excess at the bubble centre [K]       | finite Real        | 0 (off) |
+| ``prob.bubble_dT``  | potential-temperature excess at the bubble center [K]       | finite Real        | 0 (off) |
 |                     | (WRF ``delt_perturbation``); 0 adds no bubble               |                    |         |
 +---------------------+-------------------------------------------------------------+--------------------+---------+
-| ``prob.bubble_x_c`` | bubble centre x, y and height z [m] (WRF centres x and y on | finite Real        | 0       |
+| ``prob.bubble_x_c`` | bubble center x, y and height z [m] (WRF centers x and y on | finite Real        | 0       |
 | ``prob.bubble_y_c`` | the domain; z is ``hght_perturbation``)                     |                    |         |
 | ``prob.bubble_z_c`` |                                                             |                    |         |
 +---------------------+-------------------------------------------------------------+--------------------+---------+
@@ -162,7 +162,7 @@ gets the bubble without the line).
 +---------------------+-------------------------------------------------------------+--------------------+---------+
 
 A non-finite value or a radius that is not positive stops the run when ``bubble_dT`` is not 0.
-A centre or radius given without ``bubble_dT`` stops the run; with ``bubble_dT = 0`` it gives a
+A center or radius given without ``bubble_dT`` stops the run; with ``bubble_dT = 0`` it gives a
 warning that they are not used.
 
 Initial velocity perturbation

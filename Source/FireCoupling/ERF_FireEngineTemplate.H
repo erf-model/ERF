@@ -36,7 +36,7 @@
  * What the coupling layer already does for every engine: it builds the fire
  * grid over erf.fire.anchor_level, hands the engine the atmosphere's state
  * each step, averages the engine's fluxes onto the atmospheric columns, holds
- * them one step, injects heat, vapour and smoke, and saves those lagged fluxes
+ * them one step, injects heat, vapor and smoke, and saves those lagged fluxes
  * in the checkpoint. An engine owns only its fire physics and its own state.
  *
  * The call order is the one documented on FireEngine (ERF_FireEngine.H).
@@ -76,12 +76,17 @@ public:
      * depends on stop_time or max_step (output schedules, a check that the
      * ignition happens before the run ends). On a restart, read_checkpoint()
      * comes after this.
+     *
+     * stop_time is the elapsed time at which the run stops [s], on the clock the
+     * engine's step times use (ERF's stop_time less start_time), and
+     * numeric_limits<amrex::Real>::max() when no stop time is set. max_step counts
+     * level-0 steps and is numeric_limits<int>::max() when unset (never negative).
      */
     void start_run (amrex::Real stop_time, int max_step, int steps_per_coarse_step) override;   // optional
 
     /**
      * Advance the fire over one step of the fire grid's level (forcing.dt from
-     * forcing.time). forcing holds the face velocities, the cell-centre
+     * forcing.time). forcing holds the face velocities, the cell-center
      * heights, the lowest cell's temperature and humidity, and the surface
      * rain if wants_surface_precip() is true; sample them onto the fire grid
      * here and keep no pointer to them after this call.
@@ -93,7 +98,7 @@ public:
      * the heat flux into the air on the fire grid [W/m2], positive upward,
      * averaged over exactly [forcing.time, forcing.time + forcing.dt] of the
      * last advance() (sum over any substeps, divided by forcing.dt); leave a
-     * pointer nullptr for none. A vapour mass flux becomes a latent flux by
+     * pointer nullptr for none. A vapor mass flux becomes a latent flux by
      * multiplying by L_v (ERF_Constants.H). The fields must stay valid until the next
      * advance(). Called only when the coupling injects heat or smoke.
      */

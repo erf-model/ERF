@@ -9,12 +9,12 @@ energy, vertical eddy viscosity and the MYNN master length scale, each at the
 The reference curves are pixel-traced from a 400 dpi render of Figs. 7 and 8 of
 the paper at the 25 km offshore location, uncoupled case.  Calibration comes
 from the printed tick labels (each figure uses three side-by-side panels with
-repeated axes).  The two points of the southward-wind curve that the "25km
-offshore" annotation crosses are omitted.  The master length scale is not
+repeated axes; Fig. 7c's labels are 5/10/15 per panel).  Points where the
+"25km offshore" annotation crosses a curve are omitted.  The master length scale is not
 plotted in the paper; it is back-computed from Figs. 8a and 8b using ERF's own
 stability function, so it carries the uncertainty of both.
 
-Usage:  python make_paper_figure.py [run_dir]   (default run_taper1.35)
+Usage:  python make_paper_figure.py [run_dir]   (default run_oneway)
 """
 import sys
 
@@ -26,23 +26,33 @@ import yt
 
 yt.set_log_level("error")
 
-RUN = sys.argv[1] if len(sys.argv) > 1 else "run_taper1.35"
+RUN = sys.argv[1] if len(sys.argv) > 1 else "run_oneway"
 OUT = "perlin_validation.pdf"
 
 # --- traced from Perlin et al. (2007), 25 km offshore, uncoupled ------------
+# Grey (uncoupled) curve.  Where it is hidden under the black (coupled) curve
+# the two coincide to within the line width and the black value is used.
 P = {
-    "theta": ([286.12, 286.14, 286.18, 286.20, 286.23, 286.36, 286.63,
-               286.93, 287.45, 288.26, 289.30],
-              [10, 50, 100, 150, 200, 300, 400, 450, 500, 550, 600]),
-    "u":     ([2.03, 3.98, 4.17, 4.17, 3.06, 1.20, 0.20],
-              [10, 50, 100, 200, 300, 400, 500]),
-    "v":     ([8.4, 11.9, 13.4, 14.9, 15.3, 14.7],
-              [10, 100, 200, 300, 500, 600]),
-    "tke":   ([0.409, 0.369, 0.334, 0.306, 0.257, 0.216, 0.152, 0.118,
-               0.077, 0.015],
-              [25, 50, 75, 100, 150, 200, 300, 350, 400, 450]),
-    "Km":    ([4.37, 4.45, 4.71, 4.58, 4.35, 3.60, 1.80, 0.86, 0.64, 0.41, 0.11],
-              [50, 75, 100, 125, 150, 200, 300, 350, 400, 450, 500]),
+    "theta": ([286.02, 286.04, 286.07, 286.10, 286.13, 286.18, 286.27, 286.34,
+               286.54, 286.83, 287.32, 287.71, 288.21, 288.74, 289.55, 290.18],
+              [10, 50, 100, 150, 200, 250, 300, 350, 400, 450, 475, 500, 525,
+               550, 600, 650]),
+    "u":     ([3.69, 3.96, 4.18, 4.36, 4.35, 4.17, 3.82, 3.13, 2.09, 1.20, 0.76,
+               0.49, 0.21, 0.27, 0.45, 0.61, 0.40, 0.02, -0.07, -0.10],
+              [10, 25, 50, 100, 150, 200, 250, 300, 350, 400, 425, 440, 455,
+               485, 500, 515, 530, 550, 575, 650]),
+    "v":     ([8.9, 9.9, 10.7, 12.0, 13.0, 13.9, 14.7, 15.8, 16.4, 16.4, 16.5,
+               16.1, 15.7, 15.3, 15.6, 15.6, 15.5, 15.2, 15.1],
+              [10, 25, 50, 100, 150, 200, 250, 300, 350, 400, 425, 450, 470,
+               485, 515, 530, 550, 600, 650]),
+    "tke":   ([0.42, 0.40, 0.36, 0.32, 0.30, 0.25, 0.21, 0.18, 0.14, 0.11,
+               0.05, 0.01],
+              [10, 25, 50, 75, 100, 150, 200, 250, 300, 350, 400, 450]),
+    "Km":    ([1.45, 3.93, 4.39, 4.43, 4.23, 3.93, 3.13, 2.25, 1.28, 0.79, 0.54,
+               0.06, 0.0],
+              [15, 50, 75, 100, 125, 150, 200, 250, 300, 350, 400, 450, 500]),
+    # Back-computed from the earlier Km/tke trace (which followed the coupled
+    # curve, about 5% higher in Km); not yet redone from the values above.
     "Lm":    ([12.1, 11.8, 10.5, 6.0, 3.2, 3.0], [100, 150, 200, 300, 350, 400]),
 }
 

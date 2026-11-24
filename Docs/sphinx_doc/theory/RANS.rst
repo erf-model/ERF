@@ -14,7 +14,7 @@ and PBL schemes: the one-equation :math:`k` model of Axell and Liungman
 prognostic and the turbulent length scale :math:`l` is algebraic, built from
 the distance to the ground and the local stratification. The model is
 meant for coarse grids on which the boundary layer is not resolved, i.e.
-horizontal spacings of tens of metres and up, where the closure carries
+horizontal spacings of tens of meters and up, where the closure carries
 the whole turbulent transport. The regression cases in
 ``Exec/CanonicalTests/Canonical_RANS`` exercise it on flat ground (neutral,
 stable and convective) and over 2D and 3D hills.
@@ -42,6 +42,83 @@ stability function in every direction. The diffusivity of :math:`k`
 itself is :math:`\nu_t / \sigma_k` with :math:`\sigma_k = 1` (AL01
 Table I), which the code sets unless ``erf.sigma_k`` is given.
 
+Shear in the production of k
+----------------------------
+
+The shear production of :math:`k` is :math:`2 \nu_t S_{ij} S_{ij}`, with
+:math:`S_{ij} S_{ij}` the cell-centered average of the face and edge strains.
+For :math:`\partial u / \partial z` that average is the central difference
+over the cells below and above. In the logarithmic layer over the ground,
+:math:`u = (u_* / \kappa) \ln((d + z_0) / z_0)` with :math:`d` the wall
+distance and :math:`z_0` the roughness length, the central difference is
+larger than the gradient at the cell center by the factor
+
+.. math::
+
+   F_k = \frac{(d_k + z_0)
+         \ln\left(\dfrac{d_{k+1} + z_0}{d_{k-1} + z_0}\right)}
+         {d_{k+1} - d_{k-1}} ,
+
+which on uniform layers with :math:`z_0 \ll \Delta z` is 1.21 in the second
+cell, 1.06 in the third and 1.03 in the fourth, and
+:math:`1 + \Delta z^2 / (3 d^2)` far from the ground. The production is
+then high by :math:`F_k^2`: 46 %, 12 % and 6 % in those cells (45 %, 12 %
+and 6 % with :math:`z_0 = 0.1` m and :math:`\Delta z = 15.625` m).
+
+With :cpp:`erf.rans_shear_stencil = log_law` (default :cpp:`central`) the
+closure uses, in the cells above the wall cell and below the top cell,
+
+.. math::
+
+   \left.\frac{\partial u}{\partial z}\right|_k =
+   \frac{u_{k+1} - u_{k-1}}
+        {(d_k + z_0) \ln\left(\dfrac{d_{k+1} + z_0}{d_{k-1} + z_0}\right)} ,
+
+and the same for :math:`v`, which is exact for the logarithmic profile over
+flat ground.
+:math:`u` and :math:`v` are averaged to the cell centers, :math:`d_k` is the
+closure's wall distance and :math:`d_{k \pm 1}` are :math:`d_k` plus and
+minus the height differences of the cell centers. Only the
+:math:`\partial u / \partial z` and :math:`\partial v / \partial z` parts
+of :math:`S_{13}` and :math:`S_{23}` change; the horizontal gradients of
+:math:`w` and the other strain components stay as they are. The corrected
+:math:`S_{ij} S_{ij}` enters the shear production and the :math:`S` of the
+realizability cap below. The resolved stress divergence in the momentum
+equations, the buoyancy frequency of the length scale and the wall cell
+(whose two faces carry the one-sided difference :math:`(u_1 - u_0) /
+\Delta z`) keep their forms. The stencil follows
+``turb.shear_stencil = log_law`` of GUST (erf-model/gust-abl#132). It needs
+a surface layer at the bottom (:cpp:`zlo.type = surface_layer`): :math:`z_0`
+is the roughness length that layer holds, :cpp:`erf.most.z0` unless a
+roughness file or model sets it, also when the surface fluxes are not from
+the log law. It is refused with EB or immersed-forcing terrain or buildings
+and with thin immersed bodies, where the nearest wall need not be the ground
+below, and with :cpp:`erf.terrain_type = MovingFittedMesh`. A cell whose
+:math:`d_{k-1} + z_0` would not be positive keeps the central value.
+
+Limits of the stencil:
+
+- It is exact for the logarithmic profile only. For a profile that is linear
+  in :math:`d` it returns the gradient divided by :math:`F_k` (17 %, 6 % and
+  3 % low in the cells 2, 3 and 4), so it is less accurate than the central
+  difference where the profile is closer to linear than to logarithmic: in a
+  stable layer above about :math:`L / 5` (:math:`L` the Obukhov length) and
+  well above the ground, where both errors are below 1 %.
+- On sloping ground :math:`d` is the distance to the wall and the height
+  differences are vertical, so the form is exact to leading order in the
+  slope.
+- The momentum equations keep their central stress divergence, so the
+  converged wind of a run is not the logarithmic profile at the cell centers
+  and neither stencil returns :math:`u_* / l` there. In the 12 h
+  ``Neutral_ABL_Flat`` run (:math:`\Delta z = 15.625` m, :math:`z_0 = 0.1` m)
+  the shear of the production times :math:`l / u_*` is 1.06, 0.96 and 0.93
+  in the cells 2, 3 and 4 with ``central`` and 0.92, 0.95 and 0.93 with
+  ``log_law``: the option removes the excess in the second cell and leaves a
+  deficit of similar size.
+- The production of :math:`k` then no longer equals the loss of mean-flow
+  kinetic energy to the modeled stress cell by cell: that loss is formed
+  with the face stresses, and the two do not match with ``central`` either.
+
 Realizability cap
 -----------------
 
@@ -58,8 +135,10 @@ the form of the limiter in the SST model. :math:`\nu_t'` keeps the ratio
 diffusivity (heat, scalars, moisture, :math:`k`) is built from the capped
 :math:`\nu_t`, so all of them are capped by the same factor; so is the
 shear production of :math:`k`, which uses the capped viscosity. :math:`S`
-is the cell-centred average of the face and edge strains of the velocity at
-the start of the step, the same average the Smagorinsky closure uses. The
+is the cell-centered average of the face and edge strains of the velocity at
+the start of the step, the same average the Smagorinsky closure uses (with
+the log-consistent vertical shear when
+:cpp:`erf.rans_shear_stencil = log_law`). The
 production of :math:`k` recomputes the strain at every Runge-Kutta stage, so
 within a step the capped stress :math:`\nu_t S = C_r k` holds for the
 start-of-step strain only and the cap lags a fast transient by one step;
@@ -126,7 +205,7 @@ integrates for LES,
 
 with the shear production :math:`P_s = 2 \rho \nu_t S_{ij} S_{ij}`, the
 buoyancy production :math:`P_b = (g / \theta_0) \, \overline{w' \theta'}`
-from the modelled heat flux :math:`-\rho \nu_t' \, \partial \theta / \partial z`
+from the modeled heat flux :math:`-\rho \nu_t' \, \partial \theta / \partial z`
 (AL01 Eq. 15, dry air; :math:`\theta_0` is ``erf.theta_ref`` or the local
 :math:`\theta`), and the dissipation (AL01 Eq. 19)
 
@@ -144,9 +223,9 @@ unsaturated air, :math:`\theta_v = \theta (1 + \epsilon_v q_v)` with
    P_b = \frac{g}{\theta_{v0}} \left[ (1 + \epsilon_v q_v) \, \overline{w' \theta'}
          + \epsilon_v \theta \, \overline{w' q_v'} \right],
 
-from the modelled heat and water-vapour fluxes of the same stage (the surface fluxes
+from the modeled heat and water-vapor fluxes of the same stage (the surface fluxes
 of the surface layer or of the immersed wall law on the bottom face); :math:`\theta_{v0}`
-is ``erf.theta_ref`` when that is set, else the local :math:`\theta_v`. Water vapour
+is ``erf.theta_ref`` when that is set, else the local :math:`\theta_v`. Water vapor
 only: the cloud-water flux term and the saturated form are not included. The option
 is the k-equation closure's; the Deardorff LES shares the TKE source and keeps the dry
 form. Pair it with ``erf.thermal_stratification = thetav`` so the buoyancy length scale
@@ -162,7 +241,7 @@ the plotfile ``diss`` holds :math:`\rho \varepsilon` from the start of the
 last step. A floor ``erf.tke_floor`` (default: machine epsilon on
 :math:`\rho k`) bounds :math:`k` from below.
 
-The heat flux in :math:`P_b` at the cell centre is the average of the
+The heat flux in :math:`P_b` at the cell center is the average of the
 fluxes of the :math:`\theta` diffusion at the two vertical faces of the
 cell, in every cell; at the bottom of the domain the face flux is the
 surface-layer flux when a surface layer is used. These are the full face
@@ -175,7 +254,7 @@ are applied later, when the fluxes enter the right-hand side, so over
 sloping terrain both :math:`P_b` and the ``hfx3`` output omit those
 terms. The Deardorff closure shares this source term. The k-eqn closure
 cannot be combined with a PBL scheme that also transports the turbulent
-kinetic energy (``MYJ``, ``MYNN25``, ``MYNNEDMF``, the SHOC schemes);
+kinetic energy (``MYJ``, ``MYNN25``, ``MYNNEDMF``, ``NATIVE_SHOC``);
 the Deardorff closure cannot be combined with any PBL scheme.
 
 Length scale
@@ -293,7 +372,7 @@ equilibrium value of AL01 Eq. 16,
 
 with :math:`u_*` and the buoyancy flux :math:`B = -(g/\theta_0) u_* \theta_*`
 from the surface-layer model and :math:`d_1` the distance of the cell
-centre to the ground; only a destabilising flux enters. The value is set
+center to the ground; only a destabilizing flux enters. The value is set
 at the start of each step and held through every Runge-Kutta stage,
 including the implicit vertical diffusion solve, and the ghost cell
 below the wall carries the same value so no diffusive flux of :math:`k`
@@ -310,7 +389,7 @@ Wall distance
 -------------
 
 On a flat or vertically stretched mesh the distance :math:`d` is the
-height of the cell centre above the ground, :math:`z - z_{lo}`, where
+height of the cell center above the ground, :math:`z - z_{lo}`, where
 :math:`z_{lo}` is ``geometry.prob_lo[2]``. On a terrain-fitted mesh two
 choices are offered through ``erf.wall_dist_type``:
 
@@ -319,12 +398,12 @@ choices are offered through ``erf.wall_dist_type``:
   :math:`\nabla^2 \phi = -1` is solved in terrain-following coordinates
   with :math:`\phi = 0` on the ground and zero normal gradient elsewhere,
   and :math:`d = -|\nabla \phi| + (|\nabla \phi|^2 + 2 \phi)^{1/2}`. The
-  gradient is formed at cell centres from centred differences with the
-  cell-centre metrics. On the canonical hills the mean error against the
+  gradient is formed at cell centers from centered differences with the
+  cell-center metrics. On the canonical hills the mean error against the
   exact distance is about 1 %, with the largest errors, 5 to 10 %, in
   the first cells over a convex crest.
 
-* ``terrain_height``: the height of the cell centre above the local
+* ``terrain_height``: the height of the cell center above the local
   surface, projected on the surface normal,
   :math:`d = (z - z_s) / (1 + h_\xi^2 + h_\eta^2)^{1/2}` with
   :math:`h_\xi, h_\eta` the terrain slopes. It is exact on a plane, within
@@ -349,22 +428,25 @@ solid, or above the surface without reaching the bottom of the domain) the
 distance is measured from the wall height of the coarser level.
 
 The distance is available as the plot variable ``walldist``. It is
-computed at initialisation, also on a restart, and again on every level
+computed at initialization, also on a restart, and again on every level
 that a regrid adds or remakes.
 
 Limitations
 -----------
 
 * The buoyancy production is dry unless ``erf.rans_moist_buoyancy`` is set,
-  and then water vapour only (no cloud-water flux, no saturated form);
+  and then water vapor only (no cloud-water flux, no saturated form);
   :math:`N^2` follows ``erf.thermal_stratification``.
 * All levels must use the closure; a hybrid RANS-LES set-up is refused.
 * Embedded and thin-body boundaries are not supported by the Poisson wall
   distance.
-* Under the anelastic integrator all vertical diffusion is explicit, so
-  the time step is bounded by :math:`\Delta z^2 / (2 K)`; with the eddy
-  viscosities a convective boundary layer produces (tens of m\ :sup:`2`/s)
-  this is the binding constraint, not the closure.
+* With ``erf.timestepping_type = RK2`` at an anelastic or
+  pseudo-incompressible level the implicit vertical solve is turned off,
+  so all vertical diffusion is explicit and the time step is bounded by
+  :math:`\Delta z^2 / (2 K)`; with the eddy viscosities a convective
+  boundary layer produces (tens of m\ :sup:`2`/s) this is the binding
+  constraint, not the closure.  The default ``MidPoint`` integrator keeps
+  the implicit solve in its first stage and is not bounded this way.
 * The closure is local: a convective layer keeps a superadiabatic lapse
   of order :math:`-F/K_h` through its depth where a countergradient
   scheme or LES would mix it out.
@@ -393,7 +475,7 @@ Inputs
 +----------------------------------------+------------------------------------------------------------+------------------+
 | **erf.tke_floor**                      | floor on :math:`k` [m\ :sup:`2`/s\ :sup:`2`]               | 0 (epsilon)      |
 +----------------------------------------+------------------------------------------------------------+------------------+
-| **erf.implicit_tke_dissipation**       | linearised implicit dissipation                            | false            |
+| **erf.implicit_tke_dissipation**       | linearized implicit dissipation                            | false            |
 +----------------------------------------+------------------------------------------------------------+------------------+
 | **erf.rans_consistent_diffusivities**  | heat, scalar and moisture diffusivities from :math:`c_\mu'`| false            |
 +----------------------------------------+------------------------------------------------------------+------------------+

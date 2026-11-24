@@ -671,11 +671,11 @@ Real compute_p_k_in_zone (Real &p_k, const Real p_k_minus_1, Real &theta_k, Real
 /**
  * Column integration shared by the two versions of init_isentropic_hse_no_terrain.
  *
- * @param[in] z_cc  z_cc(k) is the height of the centre of cell k above the surface.
+ * @param[in] z_cc  z_cc(k) is the height of the center of cell k above the surface.
  * @param[in] dz_cc dz_cc(k) is the distance used for the hydrostatic step to cell k:
- *                  for k = 0, twice the absolute height of the centre of cell 0 (half of
+ *                  for k = 0, twice the absolute height of the center of cell 0 (half of
  *                  it is taken), so that the column starts from p_0 at z = 0, as in the
- *                  other HSE initializers; for k > 0, the distance between the centres
+ *                  other HSE initializers; for k > 0, the distance between the centers
  *                  of cells k-1 and k.
  *
  * The other arguments are those of init_isentropic_hse_no_terrain.
@@ -694,7 +694,7 @@ init_isentropic_hse_no_terrain_column (Real *theta, Real* r, Real* p, Real *q_v,
 {
     // theta_0, theta_tr and T_tr are used only when T_from_theta is set. Their
     // defaults are still physical temperatures: compute_theta is inlined into
-    // the Newton loops and optimised builds evaluate its arm speculatively, so
+    // the Newton loops and optimized builds evaluate its arm speculatively, so
     // zeros would raise an FPE (g/(Cp_d*0), then 0*exp(inf)) on a discarded value.
     Real T_b, T_dp;
 

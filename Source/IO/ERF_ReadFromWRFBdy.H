@@ -18,7 +18,9 @@ read_times_from_wrfbdy (const std::string& nc_bdy_file,
                         amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_xhi,
                         amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_ylo,
                         amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_yhi,
-                        double& start_bdy_time, double& final_bdy_time);
+                        double& start_bdy_time,
+                        double& final_bdy_time,
+                        bool&   use_theta_m_bdy);
 
 void
 read_and_convert_from_wrfbdy (const int itime, const std::string& nc_bdy_file,
@@ -29,8 +31,11 @@ read_and_convert_from_wrfbdy (const int itime, const std::string& nc_bdy_file,
                               std::unique_ptr<amrex::MultiFab>& wrf_MUB,
                               std::unique_ptr<amrex::MultiFab>& wrf_C1H,
                               std::unique_ptr<amrex::MultiFab>& wrf_C2H,
+                              std::unique_ptr<amrex::MultiFab>& wrf_C1F,
+                              std::unique_ptr<amrex::MultiFab>& wrf_C2F,
                               std::unique_ptr<amrex::MultiFab>& wrf_RDNW,
                               std::unique_ptr<amrex::MultiFab>& wrf_PHB,
+                              const amrex::Vector<std::unique_ptr<amrex::MultiFab>>& mapfac,
                               std::unique_ptr<amrex::MultiFab>& z_phys_cc,
                               std::unique_ptr<amrex::MultiFab>& z_phys_nd,
                               const amrex::MultiFab& xvel,
@@ -38,11 +43,15 @@ read_and_convert_from_wrfbdy (const int itime, const std::string& nc_bdy_file,
                               const amrex::MultiFab& cons,
                               const amrex::MultiFab& rho0,
                               amrex::Array<amrex::MultiFab*, AMREX_SPACEDIM>& area_vec,
-                              const amrex::Geometry& geom, const bool& use_moist,
+                              const amrex::Geometry& geom,
+                              const bool& use_moist,
+                              const bool& use_theta_m_bdy,
                               const bool rebalance_wrf_state,
                               const amrex::Vector<amrex::BCRec>& domain_bcs_type_h,
-                              int real_width, double bdy_time_interval,
-                              bool is_anelastic, bool do_conversion = true);
+                              int real_width,
+                              double bdy_time_interval,
+                              bool is_anelastic,
+                              bool do_conversion = true);
 
 double
 read_times_from_wrflow (const std::string& nc_low_file,
@@ -65,8 +74,6 @@ update_sst_tsk (const int lev,
                 std::unique_ptr<SurfaceLayer>& SurfLayer,
                 const amrex::Vector<amrex::Vector<amrex::FArrayBox>>& low_data_zlo,
                 const amrex::MultiFab& cons,
-                const amrex::MultiFab& mf_PSFC_lev,
-                const amrex::Real rdOcp,
                 std::unique_ptr<amrex::iMultiFab>& lmask,
                 const bool use_moist);
 

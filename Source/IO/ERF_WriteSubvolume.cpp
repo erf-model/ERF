@@ -77,6 +77,14 @@ ERF::setSubVolVariables (const std::string& pp_subvol_var_names,
         tmp_plot_names.push_back("z_velocity");
     }
 
+    // The physical height of each cell center, on any mesh: the plotfile itself holds only
+    // the computational coordinates, which are not the height on a stretched or terrain-fitted
+    // mesh, so there it is always written
+    if (containerHasElement(subvol_var_names, "z_phys") ||
+        SolverChoice::mesh_type != MeshType::ConstantDz) {
+        tmp_plot_names.push_back("z_phys");
+    }
+
     //
     // If the model we are running doesn't have the variable listed in the inputs file,
     //     just ignore it rather than aborting
@@ -86,9 +94,9 @@ ERF::setSubVolVariables (const std::string& pp_subvol_var_names,
     //       "derived_names" order.  "derived_subvol_names" is the unordered allow-list of
     //       the derived quantities WriteSubvolume knows how to fill.
     //
-    // NOTE: there are no terrain-dependent names to gate here -- "z_phys", "detJ" and
-    //       "terrain_IB_mask" are not in "derived_subvol_names", so WriteSubvolume
-    //       cannot fill them and they never reach this loop.
+    // NOTE: there are no terrain-dependent names to gate here -- "z_phys" is handled
+    //       above, and "detJ" and "terrain_IB_mask" are not in "derived_subvol_names", so
+    //       WriteSubvolume cannot fill them and they never reach this loop.
     //
     for (int i = 0; i < derived_names.size(); ++i) {
         if ( containerHasElement(subvol_var_names,     derived_names[i]) &&
@@ -179,6 +187,14 @@ ERF::WriteSubvolume (int isub,Vector<std::string> subvol_var_names)
         amrex::Abort("WriteSubvolume:Box requested is larger than the existing domain");
     }
 
+    // The fields are copied from the valid cells of this level, so its grids must cover the
+    // box (always true at level 0; a refined level may cover only part of the domain)
+    if (!grids[lev_for_sub].contains(bx))
+    {
+        amrex::Abort("WriteSubvolume:Box requested is not covered by the grids of level " +
+                     std::to_string(lev_for_sub) + ", whose resolution it matches");
+    }
+
     Vector<int> cs(AMREX_SPACEDIM);
     int count = pp.countval("chunk_size");
     if (count > 0) {
@@ -214,7 +230,9 @@ ERF::WriteSubvolume (int isub,Vector<std::string> subvol_var_names)
             // the component behind the name, rather than its place in the name list
             const int cons_comp = erf_plotfile::plot3d_conserved_component_index(cons_names[i]);
             AMREX_ALWAYS_ASSERT(cons_comp >= 0 && cons_comp < vars_new[lev_for_sub][Vars::cons].nComp());
-            mf.ParallelCopy(vars_new[lev_for_sub][Vars::cons],cons_comp,mf_comp,1,1,0);
+            // valid cells only: the subvolume lies inside the domain, so every output cell is a
+            // valid source cell, and a ghost cell of a neighboring box may be out of date
+            mf.ParallelCopy(vars_new[lev_for_sub][Vars::cons],cons_comp,mf_comp,1,0,0);
             mf_comp++;
         }
     }
@@ -242,6 +260,13 @@ ERF::WriteSubvolume (int isub,Vector<std::string> subvol_var_names)
             mf.ParallelCopy(mf_cc_vel,2,mf_comp,1,0,0);
             mf_comp++;
         }
+    }
+
+    // *****************************************************************************************
+
+    if (containerHasElement(subvol_var_names, "z_phys")) {
+        mf.ParallelCopy(*z_phys_cc[lev_for_sub],0,mf_comp,1,0,0);
+        mf_comp++;
     }
 
     // *****************************************************************************************

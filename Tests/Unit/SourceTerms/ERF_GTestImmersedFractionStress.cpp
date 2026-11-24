@@ -304,7 +304,7 @@ TEST(ImmersedFractionStress, WallFaceMasksCloseTheBottomFaceOfTheWallCell)
     }
 }
 
-// Node and cell-centre heights of the flat mesh, dz apart
+// Node and cell-center heights of the flat mesh, dz apart
 void fill_flat_mesh (MultiFab& z_nd, MultiFab& z_cc)
 {
     const Real h = dz;
@@ -382,7 +382,7 @@ std::vector<Real> run_xmom (const Mesh& m, MomFields& f, const SolverChoice& sc,
         ImmersedForcingTerrain_Xmom_FractionStress(mfi.validbox(), f.u.const_array(mfi), f.v.const_array(mfi),
                                                    f.w.const_array(mfi), f.cons.const_array(mfi),
                                                    f.beta.const_array(mfi), Array4<const Real>{},
-                                                   f.src.array(mfi), m.geom, sc, dt, Real(0.));
+                                                   f.src.array(mfi), m.geom, sc, dt, Real(0.), false);
     }
     Gpu::streamSynchronize();
     return to_host(f.src, convert(m.domain, IntVect(1,0,0)));
@@ -496,7 +496,7 @@ TEST(ImmersedFractionStress, SurfaceTemperatureFollowsTheHeatingRate)
     auto expected = [&] (Real theta_s) {
         ib_wall::WallCond c; c.type = ib_wall::WallCond::surface_temp; c.theta_s = theta_s;
         auto speed = [] (int k) { const Real u = Real(1.) + Real(0.3) * k; return std::sqrt(u*u + Real(0.25)); };
-        // the kernel averages the staggered u to the cell centre: u(k) is uniform in x here
+        // the kernel averages the staggered u to the cell center: u(k) is uniform in x here
         const ib_wall::WallState w = ib_wall::wall_state(speed(4), speed(5), Real(300.), Real(300.),
                                                          Real(0.5), dz, z0, c);
         return Real(1.2) * ib_wall::heat_source(w, Real(300.), c, dz, dt);
@@ -558,7 +558,7 @@ TEST(ImmersedFractionStress, WallTkeIsTheFlatGroundWallValue)
 }
 
 // ---------------------------------------------------------------- moisture (the surface moisture condition)
-// The wall law carries a surface moisture condition for the water vapour (erf.if_surf_moist_flux or
+// The wall law carries a surface moisture condition for the water vapor (erf.if_surf_moist_flux or
 // erf.if_surf_moist) and, with a moisture model, forms the Obukhov length from theta_v and
 // theta_v* = theta* (1 + epsv q) + epsv theta q*, as the flat surface layer does.
 
@@ -580,8 +580,8 @@ TEST(ImmersedFractionStress, DryWallStateIgnoresTheMoistureArguments)
     EXPECT_EQ(dry.qstar, Real(0.));
 }
 
-// With a moisture model and no moisture condition, zero water vapour reproduces the dry state exactly
-// (theta_v = theta, theta_v* = theta*), and a neutral surface keeps L = 0 whatever the vapour
+// With a moisture model and no moisture condition, zero water vapor reproduces the dry state exactly
+// (theta_v = theta, theta_v* = theta*), and a neutral surface keeps L = 0 whatever the vapor
 TEST(ImmersedFractionStress, MoistWallStateWithoutVapourIsTheDryState)
 {
     ib_wall::WallCond c;
@@ -682,7 +682,7 @@ TEST(ImmersedFractionStress, ObukhovLengthWallStateSplitsTheVirtualScale)
     EXPECT_GT(w.qstar, Real(0.));
     const Real thvs = ib_wall::virtual_theta(th, q) * w.ustar * w.ustar * c.Linv / (KAPPA * CONST_GRAV);
     EXPECT_NEAR(ib_wall::virtual_thetastar(w, th, q), thvs, tol_rel() * Real(8.) * std::abs(thvs));
-    // without vapour and without a moisture condition: the dry given-length result
+    // without vapor and without a moisture condition: the dry given-length result
     ib_wall::WallCond cd = c; cd.moist_type = ib_wall::WallCond::moist_none;
     const ib_wall::WallState wd = ib_wall::wall_state(Real(5.), Real(6.), th, th, Real(0.), Real(0.), Real(0.), dz, z0, cd);
     EXPECT_NEAR(wd.thetastar, th * wd.ustar * wd.ustar * c.Linv / (KAPPA * CONST_GRAV), tol_rel() * Real(4.) * std::abs(wd.thetastar));
@@ -721,7 +721,7 @@ TEST(ImmersedFractionStress, WallTkeTakesTheVirtualBuoyancyScale)
     ib_wall::WallState w{};
     w.ustar = Real(0.4); w.thetastar = Real(-0.02); w.qstar = Real(-1.e-4);
     const Real thvs = ib_wall::virtual_thetastar(w, theta, q), thv = ib_wall::virtual_theta(theta, q);
-    EXPECT_LT(thvs, w.thetastar);   // evaporation adds to the destabilising scale
+    EXPECT_LT(thvs, w.thetastar);   // evaporation adds to the destabilizing scale
     const Real B  = -CONST_GRAV * w.ustar * thvs / thv;
     const Real d1 = Real(0.5) * (Real(1.) - Real(0.3)) * dz;
     const Real expect = std::pow(w.ustar*w.ustar*w.ustar + KAPPA * B * d1, Real(2.)/Real(3.)) / (Cmu0*Cmu0);
@@ -732,7 +732,7 @@ TEST(ImmersedFractionStress, WallTkeTakesTheVirtualBuoyancyScale)
 
 namespace {
 
-// The scalar kernel's water vapour source (component qv_comp) and the wall moisture flux it writes
+// The scalar kernel's water vapor source (component qv_comp) and the wall moisture flux it writes
 struct MoistKernelOut { std::vector<Real> src, qfx, hsrc; };
 MoistKernelOut run_moist_kernel (const Mesh& m, MomFields& f, const SolverChoice& sc, int qv_comp, Real dt)
 {
@@ -761,9 +761,9 @@ MoistKernelOut run_moist_kernel (const Mesh& m, MomFields& f, const SolverChoice
 } // namespace
 
 // erf.if_surf_moist_flux in the scalar kernel: the wall cell (cell 4 over a plane at 45 m) gets
-// rho F_q / dz for its water vapour, the kinematic flux F_q is written to the wall-flux array
+// rho F_q / dz for its water vapor, the kinematic flux F_q is written to the wall-flux array
 // there and zero elsewhere, and the solid and the air above get no moisture source; without a
-// condition the vapour is left alone and the array is zero
+// condition the vapor is left alone and the array is zero
 TEST(ImmersedFractionStress, WallMoistureSourceGoesToTheWallCellOnly)
 {
     const Mesh m = make_mesh();
@@ -804,7 +804,7 @@ TEST(ImmersedFractionStress, WallMoistureSourceGoesToTheWallCellOnly)
     }
 }
 
-// The momentum kernels form the wall state with the water vapour of the face, as the scalar kernel
+// The momentum kernels form the wall state with the water vapor of the face, as the scalar kernel
 // does: with a surface mixing ratio and moist air the wall stress on a face-aligned surface is the
 // one of the moist wall state (q* from q - q_s, L from theta_v*), not of a dry state with q = 0
 TEST(ImmersedFractionStress, MomentumWallStressSeesTheFaceVapour)

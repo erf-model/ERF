@@ -4,6 +4,8 @@ updates:
   - package-ecosystem: gitsubmodule
     schedule:
         interval: "monthly"
+    cooldown:
+      default-days: 7
     directory: /
     allow:
       - dependency-name: "Submodules/AMReX"
@@ -11,4 +13,6 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
+    cooldown:
+      default-days: 7
     target-branch: "development"

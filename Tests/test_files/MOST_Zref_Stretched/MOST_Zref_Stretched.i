@@ -7,7 +7,7 @@
 # so this deck exercised two reference-height defects fixed together:
 #   - terrain-fitted lookups rejected a height on a face ("zref not found")
 #   - the no-terrain default took half of the uniform spacing as zref
-# Since erf-model/ERF#4935 the default on every mesh is the centre of the first
+# Since erf-model/ERF#4935 the default on every mesh is the center of the first
 # cell, column by column with terrain. run_most_zref.py runs the deck in several
 # mesh configurations, flat and under a ridge, and checks u* against the log law
 # and against a uniform 10 m column.

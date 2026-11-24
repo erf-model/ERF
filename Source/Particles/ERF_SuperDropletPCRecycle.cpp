@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <random>
 #include <AMReX_PlotFileUtil.H>
 #include "ERF_SuperDropletPC.H"
@@ -7,11 +8,6 @@
 
 using namespace amrex;
 using namespace SDPCDefn;
-
-namespace {
-    // Recycled super-droplet whose vz still carries its physical height
-    constexpr int recycle_pending = -1;
-}
 
 /*! Recycle deactivated particles: particles that have zero multiplicity are
  *  recycled by resetting them to dry aerosol particles and placing them randomly
@@ -118,9 +114,13 @@ void SuperDropletPC::Recycle ( const int             a_lev,
 
         // average multiplicity
         Real mult_avg = zero;
+        // split/merge tag: this level's, or level 0's when a super-droplet density sets the
+        // multiplicity (as for initial super-droplets)
+        int recycle_tag = a_lev + 1;
         if (m_variable_dz) {
             const auto init_counts = initCellCountsHost();
             mult_avg = SD_init_multiplicity(init_counts.data(), static_cast<int>(init_counts.size()), cell_volume);
+            for (const auto& c : init_counts) { if (c.densityMode()) { recycle_tag = 1; } }
         } else {
             // number of super-droplets per cell
             const int num_sd_per_cell = m_num_sd_per_cell;
@@ -165,16 +165,23 @@ void SuperDropletPC::Recycle ( const int             a_lev,
 #endif
             {
                 Vector<Real> multiplicity_h(np, zero_d);
+                Vector<SDSampledWeight> weight_h(sampled_multiplicity ? np : 0);
+                Vector<Real> weight_i(sampled_multiplicity ? np : 0);
+                const Real ndv = init_r.m_numdens * cell_volume;
                 for (int i = 0; i < ctx.num_aerosols; i++) {
                     Vector<Real> aerosol_mass_h;
                     if (sampled_multiplicity) {
+                        std::fill(weight_i.begin(), weight_i.end(), zero_d);
                         init_r.getAerosolDistribution( aerosol_mass_h,
-                                                       multiplicity_h,
+                                                       weight_i,
                                                        cell_volume,
                                                        i,
                                                        np,
                                                        m_aerosol_mat[i]->m_density,
                                                        m_rndeng );
+                        for (int n = 0; n < np; n++) {
+                            weight_h[n].add(init_r.m_aerosol_init_type[i], weight_i[n], ndv);
+                        }
                     } else {
                         init_r.getAerosolDistribution( aerosol_mass_h,
                                                        i,
@@ -188,12 +195,22 @@ void SuperDropletPC::Recycle ( const int             a_lev,
                                aerosol_mass_d.begin() + (i*np) );
                 }
                 if (sampled_multiplicity) {
+                    for (int n = 0; n < np; n++) {
+                        multiplicity_h[n] = weight_h[n].value();
+                    }
                     // compute multiplicity scale
                     ParticleReal mult_sum = zero_d;
                     for (int ctr=0; ctr < multiplicity_h.size(); ctr++) {
                         mult_sum += multiplicity_h[ctr];
                     }
-                    mult_scale = np * mult_avg / mult_sum;
+                    Real scale = one_d;
+                    if (SD_sampled_scale(Real(mult_sum), np * mult_avg, scale)) {
+                        mult_scale = scale;
+                    } else {
+                        // weights too small to scale: every sample gets the average
+                        std::fill(multiplicity_h.begin(), multiplicity_h.end(), one_d);
+                        mult_scale = mult_avg;
+                    }
                     // copy to GPU
                     Gpu::copy( Gpu::hostToDevice,
                                multiplicity_h.begin(),
@@ -272,8 +289,8 @@ void SuperDropletPC::Recycle ( const int             a_lev,
                     ctx.num_species, ctx.num_aerosols, ptrs.sp_sol_arr, ptrs.ae_sol_arr,
                     ptrs.sp_mass_ptrs, ptrs.ae_mass_ptrs, ptrs.sp_rho_arr, ptrs.ae_rho_arr);
 
-                // set as active once placed
-                ptrs.active_ptr[i] = recycle_pending;
+                // pending (vz holds the height) until placed, which flips the sign to the split/merge tag
+                ptrs.active_ptr[i] = -recycle_tag;
 
                 // add to count
                 Gpu::Atomic::Add(np_recycle_ptr, Long(1));
@@ -350,7 +367,7 @@ void SuperDropletPC::placeRecycledParticles ( const Vector<MFPtr>& a_z_phys_nd )
                 {
                     ParticleType& p = p_pbox[i];
                     if (p.id() <= 0) { return; }
-                    if (ptrs.active_ptr[i] != recycle_pending) { return; }
+                    if (ptrs.active_ptr[i] >= 0) { return; }
 
                     const Real x = static_cast<Real>(p.pos(0));
                     const Real y = static_cast<Real>(p.pos(1));
@@ -373,7 +390,7 @@ void SuperDropletPC::placeRecycledParticles ( const Vector<MFPtr>& a_z_phys_nd )
                     } else {
                         p.pos(AMREX_SPACEDIM-1) = static_cast<ParticleReal>(zeta);
                         ptrs.v_ptr[AMREX_SPACEDIM-1][i] = zero;
-                        ptrs.active_ptr[i] = 1;
+                        ptrs.active_ptr[i] = -ptrs.active_ptr[i];
                     }
                 });
                 Gpu::synchronize();

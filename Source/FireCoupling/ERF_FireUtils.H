@@ -141,7 +141,7 @@ void compute_t_from_conservative(amrex::MultiFab& T_out,
 }
 
 /**
- * Copy the k = 0 plane of a cell-centred atmospheric field into a MultiFab on the
+ * Copy the k = 0 plane of a cell-centered atmospheric field into a MultiFab on the
  * same boxes coarsened to one cell in z. A namespace-scope function because nvcc
  * rejects a device kernel inside a private member such as ERF::Advance.
  */
@@ -169,7 +169,7 @@ void fire_copy_k0_plane(amrex::MultiFab& dst_2d, const amrex::MultiFab& src_3d)
  * belongs to the caller (allocate a host copy once with
  * amrex::MFInfo().SetArena(amrex::The_Pinned_Arena()), or The_Managed_Arena(),
  * and reuse it). The copy completes before the call returns: the GPU stream is
- * synchronised, so the host may read dst, or the device read it, right away.
+ * synchronized, so the host may read dst, or the device read it, right away.
  * On a CPU build it is a plain copy.
  */
 inline

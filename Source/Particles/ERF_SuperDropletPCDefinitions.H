@@ -270,7 +270,7 @@ static amrex::ParticleReal SD_effective_radius ( const int a_idx, /*!< Particle 
             rho_p += a_ae_rho[j]*a_ae_mass[j][a_idx];
         }
     }
-    // The optimiser evaluates the division before the selection, so its denominator
+    // The optimizer evaluates the division before the selection, so its denominator
     // must never be zero (0/0 trips amrex.fpe_trap_invalid); equal to m_p for m_p >= min().
     const auto rho_p_avg = rho_p / amrex::max(m_p, std::numeric_limits<amrex::ParticleReal>::min());
     rho_p = (m_p > zero) ? rho_p_avg : one;
@@ -493,7 +493,8 @@ enum struct SDCoalescenceKernelType {
     golovin,
     sedimentation,
     Longs,
-    Halls
+    Halls,
+    geometric
 };
 
 /*! \brief Types of kernel relative velocity calculation: terminal_velocity

@@ -57,7 +57,7 @@ amrex::Geometry level_geom (int nx, int ny)
 // a 20 m cell that level 0 leaves fluid, and a 10 m block C only level 1
 // resolves. A building's tallest column is the spire, so looking a building up
 // by that column alone maps A to nothing; the vote of its columns maps it to
-// level 0's A. B maps to level 0's B, and C, which no labelled coarse column
+// level 0's A. B maps to level 0's B, and C, which no labeled coarse column
 // lies under, to 0.
 TEST(IBSEBLevelNumbering, ColumnsVoteForTheLevelZeroBuilding)
 {

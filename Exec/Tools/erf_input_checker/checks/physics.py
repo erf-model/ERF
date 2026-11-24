@@ -139,13 +139,18 @@ class TurbulenceChecker(Checker):
                 self.warn(key, "ignored: no moisture model is active")
             if key.startswith("erf.dycore") and v.lower().startswith("weno") and self.ctx.terrain.lower() == "eb":
                 self.error(key, "WENO momentum advection is not allowed with erf.terrain_type = EB")
-        h = (self.str_("erf.dycore_horiz_adv_type", "Upwind_3rd") or "").lower()
         nd = self.real("erf.num_diff_coeff", 0.0)
-        if nd is not None and not (0 <= nd <= 1):
-            self.error("erf.num_diff_coeff", "must be in [0, 1]")
-        if h.startswith("centered") and (nd or 0) == 0:
-            self.advise("erf.dycore_horiz_adv_type", "%s has no upwinding; the docs recommend about 5%% sixth-order numerical diffusion for stability" % h,
-                        "Set erf.num_diff_coeff = 0.05, or use an upwind scheme (Upwind_5th horizontal, Upwind_3rd vertical is the WRF-like choice).")
+        if nd is not None and nd != 0:
+            self.error("erf.num_diff_coeff", "sixth-order numerical diffusion is currently deactivated; ERF aborts if this is nonzero",
+                       "Remove erf.num_diff_coeff or set it to 0.")
+        for key in ("erf.dycore_horiz_adv_type", "erf.dycore_vert_adv_type", "erf.dryscal_horiz_adv_type",
+                    "erf.dryscal_vert_adv_type", "erf.moistscal_horiz_adv_type", "erf.moistscal_vert_adv_type"):
+            if key.startswith("erf.moistscal") and not moist:
+                continue
+            v = (self.str_(key) or "").lower()
+            if v.startswith("centered"):
+                self.advise(key, "%s has no upwinding and may be noisy or unstable" % v,
+                            "Consider an upwind scheme (Upwind_5th horizontal, Upwind_3rd vertical is the WRF-like choice).")
         for key in ("erf.dycore_horiz_upw_frac", "erf.dycore_vert_upw_frac", "erf.dryscal_horiz_upw_frac",
                     "erf.dryscal_vert_upw_frac", "erf.moistscal_horiz_upw_frac", "erf.moistscal_vert_upw_frac"):
             if d.has(key):
@@ -253,6 +258,10 @@ class TerrainChecker(Checker):
         if t in ("staticfittedmesh", "static") and not src and c.init_mode == "ideal" and not d.has("erf.grid_stretching_ratio") \
                 and not d.has("erf.terrain_z_levels"):
             self.info("erf.terrain_type", "fitted mesh without a terrain file: the problem's own init_custom_terrain (or flat terrain) is used")
+        if t == "eb" and c.any_anelastic and self.bool_("erf.eb_cover_zero_area_faces", True) is False:
+            self.error("erf.eb_cover_zero_area_faces", "false is not allowed with erf.terrain_type = EB and an Anelastic or "
+                       "PseudoIncompressible level; ERF stops",
+                       "Remove the key: it is always on for these levels.")
         for k in ("erf.use_rotate_surface_flux", "erf.implicit_terrain_metric", "erf.smag2d_slope_limiter"):
             if d.has(k) and not c.fitted_terrain:
                 self.warn(k, "only used on a terrain-fitted mesh")
@@ -261,8 +270,9 @@ class TerrainChecker(Checker):
             self.error("erf.grid_stretching_ratio", "must be 0 or >= 1")
         if gs and gs >= 1 and not d.has("erf.initial_dz"):
             self.error("erf.initial_dz", "needed with erf.grid_stretching_ratio")
-        if d.has("erf.initial_dz") and not (gs and gs >= 1):
-            self.warn("erf.initial_dz", "ignored without erf.grid_stretching_ratio")
+        if d.has("erf.initial_dz") and d.has("erf.grid_stretching_ratio") and not (gs and gs >= 1):
+            self.warn("erf.initial_dz", "ignored: erf.grid_stretching_ratio = 0 turns the stretching off",
+                      "Remove erf.grid_stretching_ratio to let ERF solve the ratio from erf.initial_dz.")
         if gs and gs > 1.2:
             self.advise("erf.grid_stretching_ratio", "stretching by %g per cell is steep; the vertical truncation error grows with (ratio - 1)" % gs,
                         "Ratios of 1.02-1.1 are usual.")

@@ -18,7 +18,7 @@
  * factors are the exact du/dz (dphi/dz) content of the projected fluxes, so for
  * smooth fields on a uniform slope the explicit remainder (averaged minus
  * compact) is small; at the grid scale it is the whole compact term with the
- * opposite sign, cancelled within the stage by the implicit solve, which is why
+ * opposite sign, canceled within the stage by the implicit solve, which is why
  * every stage needs the solve (SolverChoice::check_params).
  *
  * h_xi and h_eta are the terrain slopes dz/dxi and dz/deta at the face, mx and my

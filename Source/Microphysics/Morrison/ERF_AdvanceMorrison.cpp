@@ -3343,5 +3343,21 @@ Real ndcnst_to_number_mixing_ratio (const Real ndcnst, const Real rho_erf) noexc
 #endif
           } // run_morr_fort
 
+          // Refresh the derived fields (only plotted, not read back into the state) from
+          // the updated ones, clamped like Copy_State_to_Micro so the sums match the plotted
+          // components. Pressure is held fixed over the step, so tabs = theta * (p/p0)^(R/cp).
+          auto const& tabs_arr = mic_fab_vars[MicVar_Morr::tabs]->array(mfi);
+          auto const& qn_arr   = mic_fab_vars[MicVar_Morr::qn]->array(mfi);
+          auto const& qt_arr   = mic_fab_vars[MicVar_Morr::qt]->array(mfi);
+          auto const& qp_arr   = mic_fab_vars[MicVar_Morr::qp]->array(mfi);
+          ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+          {
+              tabs_arr(i,j,k) = theta_arr(i,j,k) * std::pow(pres_arr(i,j,k) / p0, rdcp);
+              qn_arr(i,j,k)   = amrex::max(Real(0), qcl_arr(i,j,k)) + amrex::max(Real(0), qci_arr(i,j,k));
+              qt_arr(i,j,k)   = amrex::max(Real(0), qv_arr(i,j,k)) + qn_arr(i,j,k);
+              qp_arr(i,j,k)   = amrex::max(Real(0), qpr_arr(i,j,k)) + amrex::max(Real(0), qps_arr(i,j,k))
+                              + amrex::max(Real(0), qpg_arr(i,j,k));
+          });
+
         }
     }

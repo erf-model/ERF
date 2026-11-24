@@ -18,7 +18,7 @@ using namespace amrex;
 
 namespace {
 
-// Column: theta = a + b z + c z^2 and qv = qa + qb z at the cell centres z = (k + 1/2) dz, rho = 1,
+// Column: theta = a + b z + c z^2 and qv = qa + qb z at the cell centers z = (k + 1/2) dz, rho = 1,
 // no TKE, and a constant vertical eddy diffusivity rho K for theta and qv (no molecular diffusion,
 // no strain, no dissipation, no surface layer).  The theta diffusion then writes the face flux
 // -K (theta_k - theta_{k-1}) / dz = -K (b + 2 c z_face) exactly, and the buoyancy production of k in
@@ -292,7 +292,7 @@ TEST(TKEBuoyancySource, FaceFluxesAreFullForExplicitAndImplicitDiffusion)
 }
 
 // With theta quadratic in z the flux varies linearly, so the average of the two face fluxes is the
-// exact cell-centred flux; reading the lower face alone is off by K c dz.
+// exact cell-centered flux; reading the lower face alone is off by K c dz.
 TEST(TKEBuoyancySource, CellCentredFluxIsTheAverageOfTheTwoFaces)
 {
     const Real c = Real(0.3);

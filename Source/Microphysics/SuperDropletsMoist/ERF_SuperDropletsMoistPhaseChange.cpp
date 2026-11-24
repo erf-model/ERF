@@ -6,7 +6,8 @@
 using namespace amrex;
 
 /*! \brief Compute saturation ratio */
-static void saturation_ratio (MultiFab& a_sr,
+namespace erf_detail_SuperDropletsMoistPhaseChange {
+void saturation_ratio (MultiFab& a_sr,
                               const MultiFab& a_qv,
                               const MultiFab& a_temperature,
                               const MultiFab& a_pressure,
@@ -23,6 +24,8 @@ static void saturation_ratio (MultiFab& a_sr,
     }
     a_sr.FillBoundary();
 }
+} // namespace erf_detail_SuperDropletsMoistPhaseChange
+using namespace erf_detail_SuperDropletsMoistPhaseChange;
 
 /*! Compute phase change for a timestep */
 void SuperDropletsMoist::phaseChange ( const Real& a_dt,
@@ -35,7 +38,7 @@ void SuperDropletsMoist::phaseChange ( const Real& a_dt,
     auto dt_s = a_dt / static_cast<Real>(m_num_substeps_phase_change);
 
     // Mask of cells not covered by a finer level.  Built once and shared by
-    // every sub-phase-change call so that cell-centred q/T updates skip
+    // every sub-phase-change call so that cell-centered q/T updates skip
     // coarse cells whose values will be overwritten by averaging-down.
     iMultiFab fine_mask = buildFineMask(a_lev);
 
@@ -44,13 +47,13 @@ void SuperDropletsMoist::phaseChange ( const Real& a_dt,
         // freezing/melting (solid <--> liquid) -  water
         if (m_with_ice) { phaseChange_SL_w(dt_s, a_z, a_lev, fine_mask); }
 
-        // evaporation and condensation (vapour <--> liquid) - water
+        // evaporation and condensation (vapor <--> liquid) - water
         phaseChange_LV_w(dt_s, a_z, a_lev, fine_mask);
 
-        // deposition and sublimation (vapour <--> solid) - water (ice)
+        // deposition and sublimation (vapor <--> solid) - water (ice)
         if (m_with_ice) { phaseChange_SV_i(dt_s, a_z, a_lev, fine_mask); }
 
-        // evaporation and condensation (vapour <--> liquid) - other species
+        // evaporation and condensation (vapor <--> liquid) - other species
         for (int is = m_istart_sp; is < m_num_species; is++) {
             phaseChange_LV_s(is, dt_s, a_z, a_lev, fine_mask);
         }
@@ -113,9 +116,9 @@ void SuperDropletsMoist::phaseChange ( const Real& a_dt,
     }
 }
 
-/*! Condensation/evaporation (liquid <--> vapour) for water: shrink/grow the
+/*! Condensation/evaporation (liquid <--> vapor) for water: shrink/grow the
  * super-droplet particles for a timestep, depending on the ambient flow conditions
- * (saturation ratio,  saturation pressure, and temperature). Update the Eulerian vapour
+ * (saturation ratio,  saturation pressure, and temperature). Update the Eulerian vapor
  * and condensate mixing ratios accordingly. */
 void SuperDropletsMoist::phaseChange_LV_w ( const Real& a_dt,
                                             const Vector<std::unique_ptr<MultiFab>>& a_z,
@@ -161,7 +164,7 @@ void SuperDropletsMoist::phaseChange_LV_w ( const Real& a_dt,
     // particle advection mismatch into qv as spurious supersaturation).
     computeQcQrWater(*a_z[a_lev]);
 
-    // Compute total liquid and vapour water content qt
+    // Compute total liquid and vapor water content qt
     for ( MFIter mfi(*qv_ptr); mfi.isValid(); ++mfi) {
 
         Box bx = mfi.tilebox();
@@ -190,7 +193,7 @@ void SuperDropletsMoist::phaseChange_LV_w ( const Real& a_dt,
     // Compute new condensate mixing ratio
     computeQcQrWater(*a_z[a_lev]);
 
-    // Update vapour mixing ratio
+    // Update vapor mixing ratio
     for ( MFIter mfi(*qv_ptr); mfi.isValid(); ++mfi) {
 
         Box bx = mfi.tilebox();
@@ -241,9 +244,9 @@ void SuperDropletsMoist::phaseChange_LV_w ( const Real& a_dt,
 
 }
 
-/*! Condensation/evaporation (liquid <--> vapour) for other species: shrink/grow the
+/*! Condensation/evaporation (liquid <--> vapor) for other species: shrink/grow the
  * super-droplet particles for a timestep, depending on the ambient flow conditions
- * (saturation ratio,  saturation pressure, and temperature). Update the Eulerian vapour
+ * (saturation ratio,  saturation pressure, and temperature). Update the Eulerian vapor
  * and condensate mixing ratios accordingly. */
 void SuperDropletsMoist::phaseChange_LV_s ( const int a_idx,
                                             const Real& a_dt,
@@ -302,7 +305,7 @@ void SuperDropletsMoist::phaseChange_LV_s ( const int a_idx,
     // Compute new condensate mixing ratio
     computeQcSpecies(a_idx, *a_z[a_lev]);
 
-    // Update vapour mixing ratio
+    // Update vapor mixing ratio
     for ( MFIter mfi(*qv_ptr); mfi.isValid(); ++mfi) {
 
         Box bx = mfi.tilebox();
@@ -470,9 +473,9 @@ void SuperDropletsMoist::phaseChange_SL_w ( const Real& a_dt,
     computeQiQgQsWater(*a_z[a_lev]);
 }
 
-/*! Deposition/sublimation (solid <--> vapour) for water (ice): shrink/grow the
+/*! Deposition/sublimation (solid <--> vapor) for water (ice): shrink/grow the
  * super-droplet particles for a timestep, depending on the ambient flow conditions
- * (saturation ratio,  saturation pressure, and temperature). Update the Eulerian vapour
+ * (saturation ratio,  saturation pressure, and temperature). Update the Eulerian vapor
  * and ice/graupel mixing ratios accordingly. */
 void SuperDropletsMoist::phaseChange_SV_i ( const Real& a_dt,
                                             const Vector<std::unique_ptr<MultiFab>>& a_z,
@@ -554,7 +557,7 @@ void SuperDropletsMoist::phaseChange_SV_i ( const Real& a_dt,
     // values left in the micro fabs by Copy_State_to_Micro.
     computeQiQgQsWater(*a_z[a_lev]);
 
-    // Compute total liquid and vapour water content qt
+    // Compute total liquid and vapor water content qt
     for ( MFIter mfi(*qv_ptr); mfi.isValid(); ++mfi) {
 
         Box bx = mfi.tilebox();
@@ -585,7 +588,7 @@ void SuperDropletsMoist::phaseChange_SV_i ( const Real& a_dt,
     // Compute new ice/graupel/snow mixing ratios
     computeQiQgQsWater(*a_z[a_lev]);
 
-    // Update vapour mixing ratio
+    // Update vapor mixing ratio
     for ( MFIter mfi(*qv_ptr); mfi.isValid(); ++mfi) {
 
         Box bx = mfi.tilebox();

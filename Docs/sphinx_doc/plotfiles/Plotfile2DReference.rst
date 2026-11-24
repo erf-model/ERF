@@ -215,7 +215,7 @@ configuration and runtime details that cannot be inferred from metadata alone.
      - ``Radiation``
      - ``K``
      - ``FillMinus999WhenUnavailable``
-     - Deep soil temperature of the two-stream force-restore balance (evolves with erf.radiation.seb_deep_prognostic_enable)
+     - Deep soil temperature of the two-stream force-restore balance (evolves with erf.radiation.seb_deep_prognostic_enable; per column with erf.radiation.seb_init_t_deep_from_file)
    * - ``seb_q_deep``
      - ``Radiation``
      - ``1``
@@ -246,6 +246,26 @@ configuration and runtime details that cannot be inferred from metadata alone.
      - ``kg/m^2``
      - ``FillMinus999WhenUnavailable``
      - Evaporation the two-stream force-restore soil column could not supply since the start
+   * - ``seb_snow_swe``
+     - ``Radiation``
+     - ``kg/m^2``
+     - ``FillMinus999WhenUnavailable``
+     - Snow water equivalent on the two-stream force-restore surface (erf.radiation.seb_snow_enable)
+   * - ``seb_snowfall_total``
+     - ``Radiation``
+     - ``kg/m^2``
+     - ``FillMinus999WhenUnavailable``
+     - Frozen precipitation the two-stream force-restore snow layer has taken in since the start
+   * - ``seb_snow_sublimation_total``
+     - ``Radiation``
+     - ``kg/m^2``
+     - ``FillMinus999WhenUnavailable``
+     - Snow sublimated from the two-stream force-restore snow layer since the start
+   * - ``seb_snow_melt_total``
+     - ``Radiation``
+     - ``kg/m^2``
+     - ``FillMinus999WhenUnavailable``
+     - Snow melted on the two-stream force-restore surface since the start (the melt water goes to the soil as rain)
    * - ``sens_flux``
      - ``SurfaceFlux``
      - ``kg K m^-2 s^-1``
@@ -558,14 +578,14 @@ The selection contract and the value written after selection are separate:
      - Value: the wind 10 m above the local surface, as WRF's ``U10``/``V10``. Its speed is
        :math:`u_* / \kappa \, [\ln(10/z_0) - \psi_m(10/L)]` from the surface layer's
        :math:`u_*`, :math:`z_0` and Obukhov length :math:`L` (with :math:`10/L` capped at 1,
-       as for ``temperature_2m``), and its direction that of the wind at the centre of the
+       as for ``temperature_2m``), and its direction that of the wind at the center of the
        first cell. ``u_east_10m`` and ``v_north_10m`` are turned earth-relative with the
        grid orientation from the run's latitude and longitude, as the sampled ``u_east``
        and ``v_north`` are; without them the grid is taken to be aligned with east. ``-999``
        without a surface layer, or where :math:`z_0 \ge 10` m.
    * - ``pblh``
      - Selectable: fixed request name.
-     - Native SHOC ``pblh`` is reported in metres above local ground (AGL). Value: native SHOC PBL height when native SHOC diagnostics are present; otherwise SurfaceLayer; ``-999`` if neither exists.
+     - Native SHOC ``pblh`` is reported in meters above local ground (AGL). Value: native SHOC PBL height when native SHOC diagnostics are present; otherwise SurfaceLayer; ``-999`` if neither exists.
    * - ``OLR``
      - Selectable: fixed request name.
      - Value: radiation output; ``-999`` when the radiation source is absent.
@@ -579,7 +599,10 @@ The selection contract and the value written after selection are separate:
      - Value: the two-stream simplified surface energy balance's own prognostic surface
        state, which is distinct from Noah-MP's ``t_sfc`` and from the surface layer's
        ``t_surf``. ``-999`` unless the two-stream solver is running with
-       ``erf.radiation.seb_enable = true``.
+       ``erf.radiation.seb_enable = true``. On a water column of the land mask the balance
+       does not run: these fields, and the ``seb_*_total`` and ``seb_snow_swe`` fields, hold
+       held values there, not a state of the water (see the land mask under the two-stream
+       surface energy balance inputs).
    * - ``seb_hfx``, ``seb_lh``
      - Selectable: fixed request names.
      - Value: the sensible and latent heat fluxes the two-stream surface energy balance
@@ -595,7 +618,7 @@ The selection contract and the value written after selection are separate:
      - Selectable: fixed request name.
      - Value: the pressure at the ground, as WRF's ``PSFC``: the pressure of the
        lowest cell's state plus :math:`\rho g z_c`, with :math:`z_c` the height
-       of that cell's centre above the ground -- the same surface pressure the
+       of that cell's center above the ground -- the same surface pressure the
        radiation and the surface layer use.
    * - ``sea_level_pressure``
      - Selectable: fixed request name in dry and moist configurations.

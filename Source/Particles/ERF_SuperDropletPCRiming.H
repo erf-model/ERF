@@ -105,7 +105,7 @@ namespace SDRiming
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
     ParticleReal iceSurfaceTemperature ( const ParticleReal a_T, /*!< temperature */
                                         const ParticleReal a_P, /*!< pressure */
-                                        const ParticleReal a_qv, /*!< vapour fraction */
+                                        const ParticleReal a_qv, /*!< vapor fraction */
                                         const ParticleReal a_D, /*!< diffusivity coeff */
                                         const SDMassChangeUtils_SV::dMdt<ParticleReal>& a_dmdt /*!< mass change utilities */)
     {

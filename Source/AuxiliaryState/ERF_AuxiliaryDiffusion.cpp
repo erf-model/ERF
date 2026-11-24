@@ -8,7 +8,7 @@
 #include <cmath>
 
 namespace erf_auxiliary {
-namespace {
+namespace erf_detail_AuxiliaryDiffusion {
 
 using amrex::Array4;
 using amrex::Box;
@@ -206,7 +206,7 @@ void fill_transmissibility (MappedFaceTransmissibility& transmissibility,
                 inv_spacing = stretched ? Real(2.0) / dz[low ? k : k - 1]
                                         : Real(2.0) * dx_inv[2];
             } else {
-                // The host S stencil spans the two cell centres of an interior face.
+                // The host S stencil spans the two cell centers of an interior face.
                 inv_spacing = stretched ? Real(2.0) / (dz[k] + dz[k - 1]) : dx_inv[2];
             }
             const Real coeff = ScalarDiffusionFaceCoefficient<
@@ -225,6 +225,7 @@ bool same_face_layout (const MultiFab& face, const MultiFab* field)
 }
 
 } // namespace
+using namespace erf_detail_AuxiliaryDiffusion;
 
 bool BuildMappedDiffusionTransmissibility (
     MappedFaceTransmissibility& transmissibility,

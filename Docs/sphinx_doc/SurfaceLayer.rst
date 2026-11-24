@@ -112,7 +112,7 @@ The stable side can instead take the quasi-normal scale elimination (QNSE) form 
 with separate coefficients for momentum and heat (``erf.most.qnse_am``, ``erf.most.qnse_bm``,
 ``erf.most.qnse_ah``, ``erf.most.qnse_bh``). The QNSE theory gives eddy viscosities and
 diffusivities as functions of the Richardson number; the rational form in :math:`\zeta` and the
-default coefficients, 2.5 and 0.2 for both momentum and heat, are those of ERF's MRF and YSUNew
+default coefficients, 2.5 and 0.2 for both momentum and heat, are those of ERF's MRF and YSU
 schemes (``erf.qnse_*`` with ``erf.enable_qnse_stable_functions``), not values quoted from the
 paper. The form changes the whole stable side, not only its tail: near neutral
 :math:`\Phi \approx 1 + (a - b)\,\zeta`, a slope of 2.3 with the defaults against the
@@ -125,7 +125,7 @@ as :math:`a = 5.2`, :math:`b = 0.2` keeps the Businger-Dyer slope near neutral w
 :math:`\Phi_h = \Phi_m` and the turbulent Prandtl number is 1 on the stable side, as with
 Businger-Dyer; a stability-dependent Prandtl number, the distinguishing feature of QNSE, needs
 heat coefficients of its own. The surface-layer keys are separate from the PBL schemes' keys, which
-the surface layer does not read; ERF prints a warning at start-up when an MRF or YSUNew run sets
+the surface layer does not read; ERF prints a warning at start-up when an MRF or YSU run sets
 the two differently. The 2 m and 10 m diagnostics hold :math:`\zeta` at 1 with Businger-Dyer and
 at the kernels' bound of 100 with QNSE, whose fold can lie above 1, so that they evaluate the
 profile at the :math:`\zeta` of the flux.
@@ -224,7 +224,12 @@ While the MOST methods relevant to air-sea interfaces (``charnock``, ``modified_
 
    erf.most.roughness_file_name    = STRING    #Name of file that contains (x,y,z_0)
 
-in the inputs file and ERF will populate the 2D :math:`z_{0}` array with values contained in the text file.
+in the inputs file. The file contains headerless ``x y z0`` triples, ordered
+with ``x`` varying fastest at ``xlo + i*dx``, ``ylo + j*dy`` for zero-based
+indices. Cover the full horizontal grid with finite, positive ``z0`` in meters.
+Non-EB terrain fills the surface slab; EB extends each value through the
+vertical column, including ghosts. One file supplies level 0 and interpolates
+to finer levels; per-level files preserve sharp material boundaries.
 
 When computing an average :math:`\overline{\phi}` for the MOST boundary, where :math:`\phi` denotes a generic variable, ERF supports a variety of approaches. Specifically, ``planar averages`` and ``local region averages`` may be computed with or without ``time averaging``. With each averaging methodology, the query point :math:`z` may be determined from the following procedures: specified distance :math:`z_{ref}` inward from the selected boundary, specified :math:`k_{index}`, or (when employing terrain-fitted coordinates) specified normal vector length :math:`z_{ref}`. The available inputs to the MOST boundary and their associated data types are
 
@@ -313,7 +318,10 @@ where :math:`w_*` is the (Deardorff) convective velocity scale and
 :math:`\beta=1.2` (Beljaars 1995, QJRMS). Because :math:`w_*` is computed from the
 boundary layer depth, ``erf.most.include_wstar`` requires ``erf.most.pblh_calc`` to
 name a PBL height scheme; leaving it at its default of ``none`` is an error, since no
-boundary layer depth would ever be diagnosed.
+boundary layer depth would ever be diagnosed. The surface layer diagnoses the
+``MYNN25`` height itself, but ``YSU`` and ``MRF`` take the height from the PBL scheme
+of the same name, so ``erf.most.pblh_calc = YSU`` or ``MRF`` requires the same
+``erf.pbl_type`` on every level; any other combination is an error.
 
 .. _sec:MovingSurface:
 
@@ -326,23 +334,49 @@ relative to it (e.g. Bye and Wolff 1999, JPO). With
 
    erf.most.surface_current = 0.5 0.2
 
-the water surface moves at :math:`(u_s, v_s)` = (0.5, 0.2) m/s along x and y, and the
-surface layer takes :math:`(u - u_s, v - v_s)` wherever it uses the near-surface wind: in the mean
-speed :math:`|\bar{\mathbf{u}}|` and mean components behind :math:`u_*`, the Obukhov length
+the water surface moves at :math:`(u_s, v_s)` = (0.5, 0.2) m/s along the grid's x and y
+axes, not east and north: on a rotated or projected grid an earth-relative current must first
+be turned into the grid's directions. The surface layer takes :math:`(u - u_s, v - v_s)`
+wherever it uses the near-surface wind: in the mean speed :math:`|\bar{\mathbf{u}}|` and mean
+components behind :math:`u_*`, the Obukhov length
 and the roughness, in the direction and magnitude of the stresses, and in the wind speed
 of the heat and moisture fluxes. The 10 m wind diagnostics ``u_10m`` and ``v_10m`` are the
 relative wind from the similarity profile plus the current, so they remain winds over the
-ground. PBL schemes that take the mean wind speed from the surface layer get the relative
-speed, while the winds they read from the grid themselves stay absolute: YSU, for example,
-forms its surface bulk Richardson number from the relative speed but those of the levels above
-from the absolute wind, and the countergradient momentum terms of the newer YSU use the absolute
-wind at the lowest level.
+ground.
+
+PBL schemes take :math:`u_*`, :math:`\theta_*` and the Obukhov length from the surface layer,
+so these are relative to the surface, while the winds a scheme reads from the grid itself stay
+absolute. The vertical shear does not depend on the frame, since the current is the same at
+every height of a column, but a wind speed does. YSU, for example, forms its surface bulk
+Richardson number from the relative mean speed of the surface layer but those of the levels
+above from the absolute wind, and the countergradient momentum terms of the newer YSU use the
+absolute wind at the lowest level. MRF likewise forms the bulk Richardson numbers of its
+boundary-layer height from the absolute wind. MYNN reads only the shear and the surface-layer
+scales from the wind, so it is consistent with the moving surface.
 
 Only water moves. A face of the lowest cells takes the current where the cells on both sides
-of it are water (land mask 0), and is at rest over land and buildings. A surface with no water
-is an error, since the current would do nothing; idealized cases are all land unless
-``erf.is_land = 0``. The current is applied at the z-low face on every level, and is not
-supported with EB terrain.
+of it are water (land mask 0), and is at rest over land and buildings. A water cell on the
+coast therefore has one face at rest across the coastline, and where the surface layer works at
+cell centers, averaging the two faces of the cell, it sees half the current along that
+direction. A current set with ``erf.most.surface_current`` is uniform and takes no account of
+where the water is: lakes and rivers in the land mask move with it as well as the sea, so it is
+meant for idealized domains and domains whose only water is the ocean. A surface with no water is an error, since the
+current would do nothing; idealized cases are all land unless ``erf.is_land = 0``. The current
+is applied at the z-low face on every level, and is not supported with EB terrain.
+
+With ``erf.use_coupled_currents`` an ocean coupler supplies the current instead, as eastward
+and northward components at the cell centers of the level-0 surface, through
+``ERF::ApplyOceanSurfaceState``. They are turned to the grid axes with the grid orientation
+from the latitude and longitude (a grid without them is taken to be aligned with east) and
+averaged to the faces. A face takes the current where the cells on both sides of it are water
+and covered by the ocean, and is at rest elsewhere, including before the coupler's first call;
+lakes the ocean model does not reach stay at rest. The surface is therefore at rest when ERF
+initializes, so the initial fluxes, and the TKE initialized from :math:`u_{\star}`, use the
+absolute wind; the relative wind takes over from the first step after the coupler's first
+call. A regridded level 0 takes the coupler's last current again. Like the coupled SST, it is
+applied on level 0 only; refined levels are at rest, so their fluxes use the absolute wind and
+differ from level 0's where they meet, and ERF warns at start-up when there are any. The option needs a surface-layer boundary at the
+z-low face, or ERF stops at start-up.
 
 Limits on the similarity solution
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -538,23 +572,29 @@ specified in the SurfaceLayer potential-temperature convention, while
 ``erf.most.abs_surf_temp`` (with ``erf.most.surf_heating_rate`` then a rate of change of
 the absolute temperature) is converted every step with the same diagnosed surface
 pressure. ``erf.most.surf_temp`` is the deprecated spelling of ``erf.most.pot_surf_temp``. SST and
-skin-temperature data from WRFInput, wrflowinp, and Metgrid are normalized to
-that same convention at ingestion; coupled SST is converted when it enters
+skin-temperature data from WRFInput, wrflowinp, and Metgrid are kept as absolute
+temperature and converted the same way, with the current diagnosed surface pressure,
+each time the SurfaceLayer uses them; coupled SST is converted when it enters
 the SurfaceLayer, while Noah-MP's absolute ``t_sfc`` remains owned by the
 radiation path and is not adopted as the SurfaceLayer field.
 
 Notes
 ^^^^^
 
-With ``erf.terrain_type = EB``, SurfaceLayer does not support planar SST/TSK
-from real-data input, coupled-ocean SST, or LSM surface-temperature or
-surface-flux providers because those LSM flux arrays are planar and the helper
-only writes their ``k=0`` slab, while EB MOST consumes surface parameters on
-arbitrary cut-cell ``k``; no 2-D-to-cut-cell mapping is defined. Custom/file-
-driven roughness (``most.roughness_file_name``) is also unsupported under EB
-for the same planar-provider compatibility policy. Ordinary EB SurfaceLayer
-operation using SurfaceLayer-native prescribed or default state remains
-supported.
+With ``erf.terrain_type = EB``, ``erf.eb_boundary_type = SurfaceLayer``
+activates MOST independently of ``zlo.type``, which may remain ``SlipWall``
+when covered by EB terrain. A diffusive closure is required. Prescribe
+roughness with ``erf.most.z0`` or ``erf.most.roughness_file_name``, using
+``erf.is_land = 1`` and ``erf.most.roughness_type_land = constant``.
+
+For any ``zlo.type``, the first ``erf.data_log`` file
+reports ``u_star``, ``t_star``, and ``olen`` as ``nan`` (unavailable).
+The existing surface sum samples the lowest grid plane of the 3D EB fields,
+not the embedded surface; an average over that surface is not implemented.
+
+EB SurfaceLayer does not support sea surface-flux models, planar SST/TSK,
+coupled-ocean SST, or LSM surface-temperature/flux providers. These planar
+providers have no defined mapping to EB cut cells.
 
 - For both flux and sst modes, the time column is reset relative to the simulation elapsed time (t=0s). This might cause issues with simulations initialized with real data, such as WRFInput.
 - The sst mode only applies the surface temperature where there are ocean cells (landmask=0). This can be forced with ``erf.is_land = 0``.

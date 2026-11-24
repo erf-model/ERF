@@ -95,25 +95,25 @@ void ERFPhysBCFunct_cons::impose_lateral_cons_bcs (const Array4<Real>& dest_arr,
     // given), otherwise
     // the first interior cell's. A primitive Dirichlet value (ext_dir_prim, e.g. theta from a
     // dirichlet_file) must be multiplied by that density, not by the interior density alone:
-    // otherwise the ghost holds rho_interior * theta over a ghost density rho_in, and the
-    // primitive theta the scheme sees is scaled by rho_interior / rho_in.
+    // otherwise the ghost holds rho_ghosterior * theta over a ghost density rho_in, and the
+    // primitive theta the scheme sees is scaled by rho_ghosterior / rho_in.
     // Only the faces that read a theta file use th_bc_data, in the form they read it in
     // (one profile in z, so the lateral faces only); see ERF::m_th_file_face
     const GpuArray<int,AMREX_SPACEDIM*2> th_file = m_th_file_face;
     GpuArray<int,6>  rho_is_extdir;
     GpuArray<Real,6> rho_extdir_val;
-    for (int ori = 0; ori < 2*AMREX_SPACEDIM; ori++) {
-        const int dir  = ori % AMREX_SPACEDIM;
-        const bool low = (ori < AMREX_SPACEDIM);
-        const int rho_type = low ? m_domain_bcs_type[BCVars::Rho_bc_comp].lo(dir)
-                                 : m_domain_bcs_type[BCVars::Rho_bc_comp].hi(dir);
-        const Real rho_val = m_bc_extdir_vals[BCVars::Rho_bc_comp][ori];
-        // ext_dir_upwind: the ghost takes rho_in where the face flows in, which is the only
-        // place a Dirichlet theta is applied on such a face
-        rho_is_extdir[ori]  = ((rho_type == ERFBCType::ext_dir || rho_type == ERFBCType::ext_dir_upwind)
-                               && rho_val > zero) ? 1 : 0;
-        rho_extdir_val[ori] = rho_val;
+    for (OrientationIter oit; oit; ++oit) {
+        const Orientation ori = oit();
+        rho_is_extdir[ori]  = face_rho_is_extdir(ori) ? 1 : 0;
+        rho_extdir_val[ori] = m_bc_extdir_vals[BCVars::Rho_bc_comp][ori];
     }
+    // A pseudo-incompressible face with a given primitive theta (see set_pi_inflow_faces):
+    // where the flow enters, the ghost density keeps rho*theta at the interior value,
+    // rho0*theta0, with that theta, and every given value is made conserved with it
+    const GpuArray<int,AMREX_SPACEDIM*2>  pi_face  = m_pi_inflow_face;
+    const GpuArray<Real,AMREX_SPACEDIM*2> pi_theta = m_pi_inflow_theta;
+    const bool has_rhotheta = (dest_arr.nComp() > RhoTheta_comp);
+
     // Not covered: a density ingested from boundary planes (Rho typed ext_dir_ingested) varies
     // over the face, so a primitive theta file on that face is still converted with the first
     // interior cell's density below; the planes then carry the matching theta in practice.
@@ -139,28 +139,44 @@ void ERFPhysBCFunct_cons::impose_lateral_cons_bcs (const Array4<Real>& dest_arr,
                                  BCVars::RhoScalar_bc_comp : dest_comp;
                 if (bc_comp > BCVars::RhoScalar_bc_comp) bc_comp -= (NSCALARS-1);
                 int l_bc_type = bc_ptr[n].lo(0);
+                // the ghost density: the pseudo-incompressible one, or the interior one
+                const Real rho_ghost = (pi_face[0] && has_rhotheta)
+                    ? dest_arr(dom_lo.x,j,k,RhoTheta_comp) /
+                      ((th_file[0] == 2 && th_bc_ptr) ? th_bc_ptr[k_profile] : pi_theta[0])
+                    : dest_arr(dom_lo.x,j,k,Rho_comp);
 
                 if ( (l_bc_type == ERFBCType::ext_dir) ||
                      (l_bc_type == ERFBCType::ext_dir_upwind && xvel_arr(dom_lo.x,Clamp(j,xvel_lo.y,xvel_hi.y),Clamp(k,xvel_lo.z,xvel_hi.z)) >= zero) )
                 {
-                    if ((dest_comp == RhoTheta_comp) && th_bc_ptr && th_file[0] != 0) {
+                    if ((dest_comp == Rho_comp) && !rho_is_extdir[0]) {
+                        // Rho typed ext_dir with no <face>.density: a pseudo-incompressible
+                        // face with a given theta (rho_ghost), or the interior density
+                        dest_arr(i,j,k,dest_comp) = rho_ghost;
+                    } else if ((dest_comp == RhoTheta_comp) && th_bc_ptr && th_file[0] != 0) {
                         // a theta profile reaches ext_dir only as rho*theta (th_file 1) or on an
                         // ext_dir_upwind face, which has no primitive variant (th_file 2):
                         // convert the latter with the ghost density here
                         const Real rho_th = (th_file[0] == 2)
-                                          ? (rho_is_extdir[0] ? rho_extdir_val[0] : dest_arr(dom_lo.x,j,k,Rho_comp))
+                                          ? (rho_is_extdir[0] ? rho_extdir_val[0] : rho_ghost)
                                           : Real(1.0);
                         dest_arr(i,j,k,dest_comp) = rho_th * th_bc_ptr[k_profile];
                     } else {
-                        dest_arr(i,j,k,dest_comp) = l_bc_extdir_vals_d[bc_comp][0];
+                        // an ext_dir_upwind face whose density is not prescribed (anelastic or pseudo-incompressible)
+                        // holds primitive values: make them conserved with the interior density
+                        const Real rho_v = (l_bc_type == ERFBCType::ext_dir_upwind && !rho_is_extdir[0])
+                                         ? rho_ghost : Real(1.0);
+                        dest_arr(i,j,k,dest_comp) = rho_v * l_bc_extdir_vals_d[bc_comp][0];
                     }
                 } else if (l_bc_type == ERFBCType::ext_dir_prim) {
-                    Real rho = rho_is_extdir[0] ? rho_extdir_val[0] : dest_arr(dom_lo.x,j,k,Rho_comp);
+                    Real rho = rho_is_extdir[0] ? rho_extdir_val[0] : rho_ghost;
                     if ((dest_comp == RhoTheta_comp) && th_bc_ptr && th_file[0] == 2) {
                         dest_arr(i,j,k,dest_comp) = rho * th_bc_ptr[k_profile];
                     } else {
                         dest_arr(i,j,k,dest_comp) = rho * l_bc_extdir_vals_d[bc_comp][0];
                     }
+                } else if (l_bc_type == ERFBCType::ext_dir_upwind) {
+                    // outflow part of an inflow_outflow face (inflow was taken above): foextrap
+                    dest_arr(i,j,k,dest_comp) = dest_arr(dom_lo.x,j,k,dest_comp);
                 }
             },
             bx_xhi, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n)
@@ -171,28 +187,44 @@ void ERFPhysBCFunct_cons::impose_lateral_cons_bcs (const Array4<Real>& dest_arr,
                                  BCVars::RhoScalar_bc_comp : dest_comp;
                 if (bc_comp > BCVars::RhoScalar_bc_comp) bc_comp -= (NSCALARS-1);
                 int h_bc_type = bc_ptr[n].hi(0);
+                // the ghost density: the pseudo-incompressible one, or the interior one
+                const Real rho_ghost = (pi_face[3] && has_rhotheta)
+                    ? dest_arr(dom_hi.x,j,k,RhoTheta_comp) /
+                      ((th_file[3] == 2 && th_bc_ptr) ? th_bc_ptr[k_profile] : pi_theta[3])
+                    : dest_arr(dom_hi.x,j,k,Rho_comp);
 
                 if ( (h_bc_type == ERFBCType::ext_dir) ||
                      (h_bc_type == ERFBCType::ext_dir_upwind && xvel_arr(dom_hi.x+1,Clamp(j,xvel_lo.y,xvel_hi.y),Clamp(k,xvel_lo.z,xvel_hi.z)) <= zero) )
                 {
-                    if ((dest_comp == RhoTheta_comp) && th_bc_ptr && th_file[3] != 0) {
+                    if ((dest_comp == Rho_comp) && !rho_is_extdir[3]) {
+                        // Rho typed ext_dir with no <face>.density: a pseudo-incompressible
+                        // face with a given theta (rho_ghost), or the interior density
+                        dest_arr(i,j,k,dest_comp) = rho_ghost;
+                    } else if ((dest_comp == RhoTheta_comp) && th_bc_ptr && th_file[3] != 0) {
                         // a theta profile reaches ext_dir only as rho*theta (th_file 1) or on an
                         // ext_dir_upwind face, which has no primitive variant (th_file 2):
                         // convert the latter with the ghost density here
                         const Real rho_th = (th_file[3] == 2)
-                                          ? (rho_is_extdir[3] ? rho_extdir_val[3] : dest_arr(dom_hi.x,j,k,Rho_comp))
+                                          ? (rho_is_extdir[3] ? rho_extdir_val[3] : rho_ghost)
                                           : Real(1.0);
                         dest_arr(i,j,k,dest_comp) = rho_th * th_bc_ptr[k_profile];
                     } else {
-                        dest_arr(i,j,k,dest_comp) = l_bc_extdir_vals_d[bc_comp][3];
+                        // an ext_dir_upwind face whose density is not prescribed (anelastic or pseudo-incompressible)
+                        // holds primitive values: make them conserved with the interior density
+                        const Real rho_v = (h_bc_type == ERFBCType::ext_dir_upwind && !rho_is_extdir[3])
+                                         ? rho_ghost : Real(1.0);
+                        dest_arr(i,j,k,dest_comp) = rho_v * l_bc_extdir_vals_d[bc_comp][3];
                     }
                 } else if (h_bc_type == ERFBCType::ext_dir_prim) {
-                    Real rho = rho_is_extdir[3] ? rho_extdir_val[3] : dest_arr(dom_hi.x,j,k,Rho_comp);
+                    Real rho = rho_is_extdir[3] ? rho_extdir_val[3] : rho_ghost;
                     if ((dest_comp == RhoTheta_comp) && th_bc_ptr && th_file[3] == 2) {
                         dest_arr(i,j,k,dest_comp) = rho * th_bc_ptr[k_profile];
                     } else {
                         dest_arr(i,j,k,dest_comp) = rho * l_bc_extdir_vals_d[bc_comp][3];
                     }
+                } else if (h_bc_type == ERFBCType::ext_dir_upwind) {
+                    // outflow part of an inflow_outflow face (inflow was taken above): foextrap
+                    dest_arr(i,j,k,dest_comp) = dest_arr(dom_hi.x,j,k,dest_comp);
                 }
             }
         );
@@ -219,27 +251,43 @@ void ERFPhysBCFunct_cons::impose_lateral_cons_bcs (const Array4<Real>& dest_arr,
                                  BCVars::RhoScalar_bc_comp : dest_comp;
                 if (bc_comp > BCVars::RhoScalar_bc_comp) bc_comp -= (NSCALARS-1);
                 int l_bc_type = bc_ptr[n].lo(1);
+                // the ghost density: the pseudo-incompressible one, or the interior one
+                const Real rho_ghost = (pi_face[1] && has_rhotheta)
+                    ? dest_arr(i,dom_lo.y,k,RhoTheta_comp) /
+                      ((th_file[1] == 2 && th_bc_ptr) ? th_bc_ptr[k_profile] : pi_theta[1])
+                    : dest_arr(i,dom_lo.y,k,Rho_comp);
                 if ( (l_bc_type == ERFBCType::ext_dir) ||
                      (l_bc_type == ERFBCType::ext_dir_upwind && yvel_arr(Clamp(i,yvel_lo.x,yvel_hi.x),dom_lo.y,Clamp(k,yvel_lo.z,yvel_hi.z)) >= zero) )
                 {
-                    if ((dest_comp == RhoTheta_comp) && th_bc_ptr && th_file[1] != 0) {
+                    if ((dest_comp == Rho_comp) && !rho_is_extdir[1]) {
+                        // Rho typed ext_dir with no <face>.density: a pseudo-incompressible
+                        // face with a given theta (rho_ghost), or the interior density
+                        dest_arr(i,j,k,dest_comp) = rho_ghost;
+                    } else if ((dest_comp == RhoTheta_comp) && th_bc_ptr && th_file[1] != 0) {
                         // a theta profile reaches ext_dir only as rho*theta (th_file 1) or on an
                         // ext_dir_upwind face, which has no primitive variant (th_file 2):
                         // convert the latter with the ghost density here
                         const Real rho_th = (th_file[1] == 2)
-                                          ? (rho_is_extdir[1] ? rho_extdir_val[1] : dest_arr(i,dom_lo.y,k,Rho_comp))
+                                          ? (rho_is_extdir[1] ? rho_extdir_val[1] : rho_ghost)
                                           : Real(1.0);
                         dest_arr(i,j,k,dest_comp) = rho_th * th_bc_ptr[k_profile];
                     } else {
-                        dest_arr(i,j,k,dest_comp) = l_bc_extdir_vals_d[bc_comp][1];
+                        // an ext_dir_upwind face whose density is not prescribed (anelastic or pseudo-incompressible)
+                        // holds primitive values: make them conserved with the interior density
+                        const Real rho_v = (l_bc_type == ERFBCType::ext_dir_upwind && !rho_is_extdir[1])
+                                         ? rho_ghost : Real(1.0);
+                        dest_arr(i,j,k,dest_comp) = rho_v * l_bc_extdir_vals_d[bc_comp][1];
                     }
                 } else if (l_bc_type == ERFBCType::ext_dir_prim) {
-                    Real rho = rho_is_extdir[1] ? rho_extdir_val[1] : dest_arr(i,dom_lo.y,k,Rho_comp);
+                    Real rho = rho_is_extdir[1] ? rho_extdir_val[1] : rho_ghost;
                     if ((dest_comp == RhoTheta_comp) && th_bc_ptr && th_file[1] == 2) {
                         dest_arr(i,j,k,dest_comp) = rho * th_bc_ptr[k_profile];
                     } else {
                         dest_arr(i,j,k,dest_comp) = rho * l_bc_extdir_vals_d[bc_comp][1];
                     }
+                } else if (l_bc_type == ERFBCType::ext_dir_upwind) {
+                    // outflow part of an inflow_outflow face (inflow was taken above): foextrap
+                    dest_arr(i,j,k,dest_comp) = dest_arr(i,dom_lo.y,k,dest_comp);
                 }
             },
             bx_yhi, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n)
@@ -250,27 +298,43 @@ void ERFPhysBCFunct_cons::impose_lateral_cons_bcs (const Array4<Real>& dest_arr,
                                  BCVars::RhoScalar_bc_comp : dest_comp;
                 if (bc_comp > BCVars::RhoScalar_bc_comp) bc_comp -= (NSCALARS-1);
                 int h_bc_type = bc_ptr[n].hi(1);
+                // the ghost density: the pseudo-incompressible one, or the interior one
+                const Real rho_ghost = (pi_face[4] && has_rhotheta)
+                    ? dest_arr(i,dom_hi.y,k,RhoTheta_comp) /
+                      ((th_file[4] == 2 && th_bc_ptr) ? th_bc_ptr[k_profile] : pi_theta[4])
+                    : dest_arr(i,dom_hi.y,k,Rho_comp);
                 if ( (h_bc_type == ERFBCType::ext_dir) ||
                      (h_bc_type == ERFBCType::ext_dir_upwind && yvel_arr(Clamp(i,yvel_lo.x,yvel_hi.x),dom_hi.y+1,Clamp(k,yvel_lo.z,yvel_hi.z)) <= zero) )
                 {
-                    if ((dest_comp == RhoTheta_comp) && th_bc_ptr && th_file[4] != 0) {
+                    if ((dest_comp == Rho_comp) && !rho_is_extdir[4]) {
+                        // Rho typed ext_dir with no <face>.density: a pseudo-incompressible
+                        // face with a given theta (rho_ghost), or the interior density
+                        dest_arr(i,j,k,dest_comp) = rho_ghost;
+                    } else if ((dest_comp == RhoTheta_comp) && th_bc_ptr && th_file[4] != 0) {
                         // a theta profile reaches ext_dir only as rho*theta (th_file 1) or on an
                         // ext_dir_upwind face, which has no primitive variant (th_file 2):
                         // convert the latter with the ghost density here
                         const Real rho_th = (th_file[4] == 2)
-                                          ? (rho_is_extdir[4] ? rho_extdir_val[4] : dest_arr(i,dom_hi.y,k,Rho_comp))
+                                          ? (rho_is_extdir[4] ? rho_extdir_val[4] : rho_ghost)
                                           : Real(1.0);
                         dest_arr(i,j,k,dest_comp) = rho_th * th_bc_ptr[k_profile];
                     } else {
-                        dest_arr(i,j,k,dest_comp) = l_bc_extdir_vals_d[bc_comp][4];
+                        // an ext_dir_upwind face whose density is not prescribed (anelastic or pseudo-incompressible)
+                        // holds primitive values: make them conserved with the interior density
+                        const Real rho_v = (h_bc_type == ERFBCType::ext_dir_upwind && !rho_is_extdir[4])
+                                         ? rho_ghost : Real(1.0);
+                        dest_arr(i,j,k,dest_comp) = rho_v * l_bc_extdir_vals_d[bc_comp][4];
                     }
                 } else if (h_bc_type == ERFBCType::ext_dir_prim) {
-                    Real rho = rho_is_extdir[4] ? rho_extdir_val[4] : dest_arr(i,dom_hi.y,k,Rho_comp);
+                    Real rho = rho_is_extdir[4] ? rho_extdir_val[4] : rho_ghost;
                     if ((dest_comp == RhoTheta_comp) && th_bc_ptr && th_file[4] == 2) {
                         dest_arr(i,j,k,dest_comp) = rho * th_bc_ptr[k_profile];
                     } else {
                         dest_arr(i,j,k,dest_comp) = rho * l_bc_extdir_vals_d[bc_comp][4];
                     }
+                } else if (h_bc_type == ERFBCType::ext_dir_upwind) {
+                    // outflow part of an inflow_outflow face (inflow was taken above): foextrap
+                    dest_arr(i,j,k,dest_comp) = dest_arr(i,dom_hi.y,k,dest_comp);
                 }
             }
         );

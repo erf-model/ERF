@@ -171,18 +171,25 @@ target_sources(${erf_exe_name}
     # physical-face stencil in every rotated Cartesian direction.
     ${CMAKE_CURRENT_SOURCE_DIR}/Diffusion/ERF_GTestStateDiffusionDirichlet.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/Diffusion/ERF_GTestTKEBuoyancySource.cpp
-    # Motivation: the YSUNew PBL height must interpolate a bulk Richardson crossing at the top
+    # Motivation: the YSU PBL height must interpolate a bulk Richardson crossing at the top
     # cell, give a column with no crossing the top of the scan, and give a surface cell already
     # above Ribcr the floor without dividing 0 by 0 (erf-model/ERF#4458).
     ${CMAKE_CURRENT_SOURCE_DIR}/Diffusion/ERF_GTestPBLRibCrossing.cpp
+    # Motivation: erf.pbl_type = YSUNew, the former name of YSU, must still select YSU,
+    # since the original YSU it replaced has been removed.
+    ${CMAKE_CURRENT_SOURCE_DIR}/Diffusion/ERF_GTestPBLTypeInputs.cpp
     # Motivation: reusable scalar diffusion must honor explicit scalar, coefficient,
     # flux, and tendency components while preserving ERF's N/S/T mapped discretizations.
     ${CMAKE_CURRENT_SOURCE_DIR}/Diffusion/ERF_GTestScalarDiffusion.cpp
     # Motivation: the k-eqn RANS closure (AL01) must keep its stability
     # functions finite and its length-scale limits exact for any Rt.
     ${CMAKE_CURRENT_SOURCE_DIR}/Diffusion/ERF_GTestRANSClosure.cpp
+    # Motivation: erf.rans_shear_stencil = log_law must return the closed-form vertical shear of a
+    # logarithmic profile in S_mn S_mn on uniform and stretched layers, keep the other strain
+    # terms, and leave a cell without a positive lower wall distance as it is (erf-model/ERF#5261).
+    ${CMAKE_CURRENT_SOURCE_DIR}/Diffusion/ERF_GTestLogShear.cpp
     # Motivation: terrain-fitted momentum diffusion must apply K_h to the projected horizontal
-    # stresses of the zeta-face flux and take the cell-centred du/dz from the cell's own faces
+    # stresses of the zeta-face flux and take the cell-centered du/dz from the cell's own faces
     # (erf-model/ERF#4214), so the operator is exact for bilinear fields and dissipates energy.
     ${CMAKE_CURRENT_SOURCE_DIR}/Diffusion/ERF_GTestTerrainStress.cpp
     # Motivation: erf.implicit_terrain_metric must put K_h times the terrain-metric factor into
@@ -205,10 +212,17 @@ target_sources(${erf_exe_name}
     # documented formulas, with the vertical part dropped only where every implicit stage is
     # shown to stay bounded.
     ${CMAKE_CURRENT_SOURCE_DIR}/Diffusion/ERF_GTestSmag2DLimiters.cpp
+    # Motivation: with erf.use_variable_beta_s unset, the constant beta_s must be replaced
+    # exactly when it is below the acoustic stability limit min(sigma^2, 1) of the terrain
+    # (erf-model/ERF#5082).
+    ${CMAKE_CURRENT_SOURCE_DIR}/TimeIntegration/ERF_GTestVariableBetaSSwitch.cpp
+    # Motivation: on an x-z slice or a single column the cell size in the one-cell direction is
+    # arbitrary, so it must not set the anelastic or diffusive time step.
+    ${CMAKE_CURRENT_SOURCE_DIR}/TimeIntegration/ERF_GTestOneCellDirections.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/Diagnostics/ERF_GTestSurfaceFluxDiagnostics.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/Diagnostics/ERF_GTestSeaLevelPressure.cpp
     # Motivation: a Noah-MP 2 m tile with zero weight must not reject the bundle, and a
-    # station must leave -999 neighbours out of its interpolation rather than average them.
+    # station must leave -999 neighbors out of its interpolation rather than average them.
     ${CMAKE_CURRENT_SOURCE_DIR}/Diagnostics/ERF_GTestSurfaceMissingValues.cpp
     # Motivation: the stable-side z/L in the 2 m profile must stay bounded for a very
     # small positive Obukhov length.
@@ -247,7 +261,7 @@ target_sources(${erf_exe_name}
     # Motivation (erf-model/ERF#4887): the building kernels and the implicit projection read each
     # face and its masks through one header; with erf.if_implicit_projection the kernels keep the
     # wall law only, and the drag they drop must equal, face by face, the weight the projection
-    # applies (checked with and without the snap and the face-centred blanking).
+    # applies (checked with and without the snap and the face-centered blanking).
     ${CMAKE_CURRENT_SOURCE_DIR}/SourceTerms/ERF_GTestImmersedBuildingMasks.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/SourceTerms/ERF_GTestImmersedBuildingImplicit.cpp
     # Motivation: a refined level's buildings must keep level 0's numbers for the
@@ -258,7 +272,7 @@ target_sources(${erf_exe_name}
     # column map with a halo sized for the shallowest ray, instead of a map of the whole
     # domain on every rank (erf-model/ERF#4020): a ray that leaves the patch is in open
     # country, a patch spanning a periodic domain wraps round, the buildings are
-    # labelled across boxes and periodic seams in one numbering whatever the
+    # labeled across boxes and periodic seams in one numbering whatever the
     # decomposition, and a refined level sees the buildings of the level below.
     ${CMAKE_CURRENT_SOURCE_DIR}/SourceTerms/ERF_GTestIBSEBRayMap.cpp
     # Motivation: with erf.ibseb.radiation = two_stream every face must read its own column
@@ -266,7 +280,7 @@ target_sources(${erf_exe_name}
     # boxes whose columns all differ.
     ${CMAKE_CURRENT_SOURCE_DIR}/SourceTerms/ERF_GTestIBSEBTwoStreamFaces.cpp
     # Motivation: the building faces took the air temperature and the Exner function of
-    # their fluid cell without its water vapour (erf-model/ERF#4481); they now match the
+    # their fluid cell without its water vapor (erf-model/ERF#4481); they now match the
     # two-stream column's equation of state for the same moist cell.
     ${CMAKE_CURRENT_SOURCE_DIR}/SourceTerms/ERF_GTestIBSEBMoistAir.cpp
     # Motivation: with erf.ibseb.two_stream_buildings the ground balance takes the beam
@@ -300,6 +314,21 @@ target_sources(${erf_exe_name}
     # building's solid cells, and the ground balance holds a footprint and takes the
     # absorbed beam (not the diffuse light) off the shaded ground, once per sweep.
     ${CMAKE_CURRENT_SOURCE_DIR}/Radiation/ERF_GTestTwoStreamBuildingCover.cpp
+    # Motivation: the force-restore balance is a model of soil. With a land mask, a water
+    # column keeps its state and the sweep's longwave boundary there is the surface
+    # layer's sea surface temperature (sigma T_sea^4), not the balance's skin.
+    ${CMAKE_CURRENT_SOURCE_DIR}/Radiation/ERF_GTestTwoStreamLandMask.cpp
+    # Motivation: with erf.radiation.seb_init_skin_from_file the balance's skin of a land
+    # column starts at the initial file's TSK or SKINTEMP and a water column keeps
+    # erf.rad_t_sfc; a land value that is not finite or lies outside the range the balance
+    # holds the skin in is counted (ERF then stops) and not copied.
+    ${CMAKE_CURRENT_SOURCE_DIR}/Radiation/ERF_GTestSEBSkinInit.cpp
+    # Motivation: with erf.radiation.seb_init_t_deep_from_file the deep temperature of the
+    # balance is set per column from the initial file's TMN, so the balance must stop
+    # resetting it to erf.radiation.seb_t_deep_default each step, restore the skin toward
+    # the column's own value, hand it to new levels and hold it in the checkpoint; without
+    # the input every one of these stays as it was.
+    ${CMAKE_CURRENT_SOURCE_DIR}/Radiation/ERF_GTestSEBDeepInit.cpp
     # Motivation: with erf.ibseb.sun_mode = two_stream the building faces must
     # see the two-stream columns' sun: the same zenith, a morning sun in the
     # east, and the start date read the same way.
@@ -322,6 +351,11 @@ target_sources(${erf_exe_name}
     # drainage and the deep temperature exactly over the step (NP89, MN96), and carry the
     # rain of a step the balance skips into the next.
     ${CMAKE_CURRENT_SOURCE_DIR}/Radiation/ERF_GTestForceRestoreHydrology.cpp
+    # Motivation: the force-restore snow layer must follow Douville et al. (1995) Sec. 2.1:
+    # cover fraction (Eq. 7), albedo (Eq. 8), mass balance (Eq. 6) and melt (Eq. 12), split
+    # the surface precipitation into rain and frozen parts without counting either twice,
+    # and hand its melt water to the hydrology.
+    ${CMAKE_CURRENT_SOURCE_DIR}/Radiation/ERF_GTestForceRestoreSnow.cpp
     # Motivation: the forcing the two-stream model hands Noah-MP must be the
     # downwelling SW and LW at the surface interface and a zenith cosine floored
     # at zero, copied into the land model's k = 0 plane and nowhere else.
@@ -355,6 +389,11 @@ target_sources(${erf_exe_name}
     # dataset's soil layers in depth to the Noah layers, and the monthly vegetation to the
     # start date the way real.exe does, across the year's end and in leap years.
     ${CMAKE_CURRENT_SOURCE_DIR}/Initialization/ERF_GTestMetgridLandUtils.cpp
+    # Motivation: the wrfinput land and soil fields that no land model takes (LAI, VEGFRA, TMN,
+    # ZNT, ALBEDO, ALBBCK, SEAICE, SNOW, SNOWH, TSLB, SMOIS) must reach their holder column for column
+    # and soil layer for soil layer; a field with a value that cannot be the quantity must be
+    # left out without stopping the run; and the fields must survive a regrid and a checkpoint.
+    ${CMAKE_CURRENT_SOURCE_DIR}/Initialization/ERF_GTestWRFSurfaceFields.cpp
     # Motivation: erf.metgrid_force_sfc_k must drop the same origin levels whether or not the
     # column has origin levels below the surface (erf-model/ERF#4607).
     ${CMAKE_CURRENT_SOURCE_DIR}/Initialization/ERF_GTestMetgridForceSfc.cpp
@@ -365,6 +404,9 @@ target_sources(${erf_exe_name}
     # lat/lon arrays put it on a rotated grid and on a grid across 180 degrees.
     ${CMAKE_CURRENT_SOURCE_DIR}/Utils/ERF_GTestLatLonMap.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/Utils/ERF_GTestGridUtils.cpp
+    # Motivation: on an x-z slice dy is arbitrary, so a lateral cell size used as a length
+    # scale (the LES filter width, for one) must take dx in its place.
+    ${CMAKE_CURRENT_SOURCE_DIR}/Utils/ERF_GTestLengthScaleCellSize.cpp
     # Motivation: erf.initial_dz without a stretching ratio must solve for the ratio that
     # closes the grid on prob_hi, and an explicit ratio must not be solved for.
     ${CMAKE_CURRENT_SOURCE_DIR}/Utils/ERF_GTestInitZLevels.cpp
@@ -421,6 +463,12 @@ target_sources(${erf_exe_name}
     # from water (erf-model/ERF#4390), keeping each coarse mean and cell_cons_interp elsewhere.
     ${CMAKE_CURRENT_SOURCE_DIR}/LandSurfaceModel/ERF_GTestTypedInterp.cpp
 )
+# Motivation (#5187): STL buildings and their terrain union must use GPUable
+# evaluators while the host owners retain the sampled arrays through EB builds.
+target_sources(${erf_exe_name} PRIVATE
+  ${CMAKE_CURRENT_SOURCE_DIR}/EB/ERF_GTestBuildingsIF.cpp)
+target_compile_definitions(${erf_exe_name} PRIVATE
+  ERF_BUILDINGS_TEST_STL="${PROJECT_SOURCE_DIR}/Tests/test_files/BuildingsIF/unit_cube.stl")
 if(ERF_DIM STREQUAL "3")
   # Motivation: the auxiliary mapped state must reproduce ERF's computational
   # divergence, exact host stage recipes, canonical metric transfers, and ledger.
@@ -457,6 +505,7 @@ if(ERF_ENABLE_PARTICLES)
   target_sources(${erf_exe_name} PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/SDM/ERF_GTestAnelasticThermodynamics.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/SDM/ERF_GTestCellVolume.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/SDM/ERF_GTestSDSampledWeight.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/SDM/ERF_GTestSpeciesProjection.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/SDM/TerminalVelocity/ERF_GTestTerminalVelocityScalar.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/SDM/TerminalVelocity/ERF_GTestTerminalVelocityKernel.cpp
@@ -481,6 +530,15 @@ if(ERF_ENABLE_NOAHMP)
     ${CMAKE_CURRENT_SOURCE_DIR}/LandSurfaceModel/Noah-MP/ERF_GTestNoahMPLevelDriver.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/LandSurfaceModel/Noah-MP/ERF_GTestNoahMPSnowFields.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/LandSurfaceModel/Noah-MP/ERF_GTestNoahMPCheckpointLayout.cpp
+  )
+endif()
+if(ERF_ENABLE_FIRE)
+  # Motivation: with a roughness field per atmospheric column, the fire wind sampler must use
+  # each column's own roughness in the log profile below the first cell center and in the
+  # resampling from a higher sampling height (an engine input), give the scalar answer
+  # without the field, and refuse a roughness the log profiles cannot take.
+  target_sources(${erf_exe_name} PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/FireCoupling/ERF_GTestFireWindColumnZ0.cpp
   )
 endif()
 if(ERF_ENABLE_MOVING_BODIES)
@@ -833,10 +891,11 @@ if(TARGET erf_exec AND ERF_DIM STREQUAL "3" AND
   add_sbm_boundary_budget_test(SBM_Boundary_Walls_AnelasticMidPoint inputs_boundary_walls zero
     "-DRUN_ARGS=erf.compressibility_type=Anelastic|erf.timestepping_type=MidPoint")
   add_sbm_boundary_budget_test(SBM_Boundary_InflowOutflow_1M_Compressible
-    inputs_boundary_inflow_outflow nonzero)
+    inputs_boundary_inflow_outflow nonzero
+    "-DRUN_ARGS=xlo.density=1.0")
   add_sbm_boundary_budget_test(SBM_Boundary_InflowOutflow_2M_Compressible
     inputs_boundary_inflow_outflow nonzero
-    "-DRUN_ARGS=${_sbm_boundary_2m}|xlo.sbm_inflow_z=1.2e-6 3.0e-6 3.6e-5 2.4e-5 0.8e12 1.0e12 6.0e12 2.0e12")
+    "-DRUN_ARGS=xlo.density=1.0|${_sbm_boundary_2m}|xlo.sbm_inflow_z=1.2e-6 3.0e-6 3.6e-5 2.4e-5 0.8e12 1.0e12 6.0e12 2.0e12")
   add_sbm_boundary_budget_test(SBM_Boundary_InflowOutflow_AnelasticHeun
     inputs_boundary_inflow_outflow nonzero
     "-DRUN_ARGS=erf.compressibility_type=Anelastic|erf.timestepping_type=RK2")
@@ -845,67 +904,69 @@ if(TARGET erf_exec AND ERF_DIM STREQUAL "3" AND
     "-DRUN_ARGS=erf.compressibility_type=Anelastic|erf.timestepping_type=MidPoint")
   add_sbm_boundary_budget_test(SBM_Boundary_InflowOutflow_HostTypes
     inputs_boundary_inflow_outflow nonzero
-    "-DRUN_ARGS=xlo.type=inflow_outflow|xhi.type=ho_outflow")
+    "-DRUN_ARGS=xlo.density=1.0|xlo.type=inflow_outflow|xhi.type=ho_outflow")
   add_sbm_boundary_budget_test(SBM_Boundary_OutflowOnly inputs_boundary_inflow_outflow nonzero
-    "-DRUN_ARGS=xlo.sbm_inflow_z=0 0 0 0")
+    "-DRUN_ARGS=xlo.density=1.0|xlo.sbm_inflow_z=0 0 0 0")
   add_sbm_boundary_budget_test(SBM_Boundary_InflowOutflow_Stretched
     inputs_boundary_inflow_outflow nonzero
-    "-DRUN_ARGS=erf.grid_stretching_ratio=1.1|erf.initial_dz=0.25")
+    "-DRUN_ARGS=xlo.density=1.0|erf.grid_stretching_ratio=1.1|erf.initial_dz=0.25")
   add_sbm_boundary_budget_test(SBM_Boundary_InflowOutflow_StaticTerrain
-    inputs_boundary_static_terrain nonzero)
+    inputs_boundary_static_terrain nonzero
+    "-DRUN_ARGS=xlo.density=1.0")
   # A front entering an empty domain binds the limiter, which drains cells to
   # zero; without its roundoff margin a drained cell rounds below zero.
   add_sbm_boundary_budget_test(SBM_Boundary_InflowFront_LimiterBinds
     inputs_boundary_inflow_outflow nonzero
-    "-DRUN_ARGS=erf.sbm_fixture_initial_state=0 0 0 0|max_step=8")
+    "-DRUN_ARGS=xlo.density=1.0|erf.sbm_fixture_initial_state=0 0 0 0|max_step=8")
   # The qualification build's executable accepts only its own two-level decks.
   if(NOT ERF_ENABLE_SBM_AMR_QUALIFICATION)
     add_sbm_boundary_budget_test(SBM_Boundary_AMR_Outflow_Compressible
-      inputs_boundary_amr_2level nonzero -DEXPECTED_LEVELS=2)
+      inputs_boundary_amr_2level nonzero -DEXPECTED_LEVELS=2
+      "-DRUN_ARGS=xlo.density=1.0")
     add_sbm_boundary_budget_test(SBM_Boundary_AMR_Outflow_AnelasticMidPoint
       inputs_boundary_amr_2level nonzero -DEXPECTED_LEVELS=2
       "-DRUN_ARGS=erf.compressibility_type=Anelastic|erf.timestepping_type=MidPoint")
     add_sbm_boundary_budget_test(SBM_Boundary_AMR_Inflow_Compressible
       inputs_boundary_amr_2level nonzero -DEXPECTED_LEVELS=2
-      "-DRUN_ARGS=erf.box1.in_box_lo=0.0 0.25 0.0|erf.box1.in_box_hi=0.375 0.75 0.375|erf.box1.move_speed_x=0")
+      "-DRUN_ARGS=xlo.density=1.0|erf.box1.in_box_lo=0.0 0.25 0.0|erf.box1.in_box_hi=0.375 0.75 0.375|erf.box1.move_speed_x=0")
   endif()
 
   add_sbm_expected_failure_test(SBM_Boundary_Reject_ReverseOutflow
     inputs_boundary_inflow_outflow
     "SBM advective outflow xhi received an inward dry-air carrier"
-    "-DOVERRIDE=prob.U_0=-0.8 xlo.velocity=-0.8 0.6 0.0")
+    "-DOVERRIDE=prob.U_0=-0.8 xlo.velocity=-0.8 0.6 0.0 xlo.density=1.0")
   add_sbm_expected_failure_test(SBM_Boundary_Reject_MissingInflow
     inputs_boundary_inflow_outflow
     "SBM prescribed inflow at xhi requires xhi.sbm_inflow_z"
-    "-DOVERRIDE=xhi.type=Inflow xhi.velocity=0.8 0.6 0.0 xhi.density=1.0 xhi.theta=300.0")
+    "-DOVERRIDE=xhi.type=Inflow xhi.velocity=0.8 0.6 0.0 xhi.density=1.0 xhi.theta=300.0 xlo.density=1.0")
   add_sbm_expected_failure_test(SBM_Boundary_Reject_CompactInflow
     inputs_boundary_inflow_outflow
     "SBM owns compact qc/qr: xlo.qc cannot define or override a spectral inflow"
-    "-DOVERRIDE=xlo.qc=1.e-6")
+    "-DOVERRIDE=xlo.qc=1.e-6 xlo.density=1.0")
   add_sbm_expected_failure_test(SBM_Boundary_Reject_IncompleteInflow
     inputs_boundary_inflow_outflow
     "SBM inflow spectrum xlo.sbm_inflow_z is not admissible: it has 2 values"
-    "-DOVERRIDE=xlo.sbm_inflow_z=4.e-6 3.e-6")
+    "-DOVERRIDE=xlo.sbm_inflow_z=4.e-6 3.e-6 xlo.density=1.0")
   add_sbm_expected_failure_test(SBM_Boundary_Reject_IncompleteTwoMomentGroup
     inputs_boundary_inflow_outflow
     "SBM inflow spectrum xlo.sbm_inflow_z is not admissible: population 0 bin 0 is not canonical"
-    "-DOVERRIDE=erf.sbm_moment_mode=2 erf.sbm_edges=1.0e-18 2.0e-18 4.0e-18 8.0e-18 1.6e-17 erf.sbm_fixture_initial_state=1.5e-6 6.0e-6 1.8e-5 4.8e-5 1.0e12 2.0e12 3.0e12 4.0e12 xlo.sbm_inflow_z=1.2e-6 3.0e-6 3.6e-5 2.4e-5 0 1.0e12 6.0e12 2.0e12")
+    "-DOVERRIDE=erf.sbm_moment_mode=2 erf.sbm_edges=1.0e-18 2.0e-18 4.0e-18 8.0e-18 1.6e-17 erf.sbm_fixture_initial_state=1.5e-6 6.0e-6 1.8e-5 4.8e-5 1.0e12 2.0e12 3.0e12 4.0e12 xlo.sbm_inflow_z=1.2e-6 3.0e-6 3.6e-5 2.4e-5 0 1.0e12 6.0e12 2.0e12 xlo.density=1.0")
   add_sbm_expected_failure_test(SBM_Boundary_Reject_InflowOnWall
     inputs_boundary_inflow_outflow
     "zlo.sbm_inflow_z is set but zlo is not an inflow boundary"
-    "-DOVERRIDE=zlo.sbm_inflow_z=4.e-6 3.e-6 2.e-6 1.e-6")
+    "-DOVERRIDE=zlo.sbm_inflow_z=4.e-6 3.e-6 2.e-6 1.e-6 xlo.density=1.0")
   add_sbm_expected_failure_test(SBM_Boundary_Reject_Open
     inputs_boundary_inflow_outflow
     "SBM physical boundary xhi is not supported: open boundaries"
-    "-DOVERRIDE=xhi.type=Open")
+    "-DOVERRIDE=xhi.type=Open xlo.density=1.0")
   add_sbm_expected_failure_test(SBM_Boundary_Reject_Symmetry
     inputs_boundary_inflow_outflow
     "SBM physical boundary zlo is not supported: ERF does not hold the normal dry-air carrier"
-    "-DOVERRIDE=zlo.type=Symmetry zhi.type=Symmetry")
+    "-DOVERRIDE=zlo.type=Symmetry zhi.type=Symmetry xlo.density=1.0")
   add_sbm_expected_failure_test(SBM_Boundary_Reject_BoundaryPlanes
     inputs_boundary_inflow_outflow
     "SBM does not support erf.input_bndry_planes"
-    "-DOVERRIDE=erf.input_bndry_planes=1")
+    "-DOVERRIDE=erf.input_bndry_planes=1 xlo.density=1.0")
   add_sbm_expected_failure_test(SBM_Budget_Reject_WithoutSBM
     inputs_boundary_walls
     "erf.sbm_budget_check requires erf.moisture_model = SBM"
@@ -1179,14 +1240,17 @@ if(TARGET erf_exec AND ERF_DIM STREQUAL "3" AND
         TIMEOUT 300)
     endfunction()
     add_sbm_boundary_restart_test(SBM_Boundary_Restart_Equivalence
-      inputs_boundary_inflow_outflow equivalence -DEXPECTED_FINAL_LEVELS=1)
+      inputs_boundary_inflow_outflow equivalence -DEXPECTED_FINAL_LEVELS=1
+      "-DRUN_ARGS=xlo.density=1.0")
     add_sbm_boundary_restart_test(SBM_Boundary_Restart_ChangedInflow
       inputs_boundary_inflow_outflow changed_restart_inputs
+      "-DRUN_ARGS=xlo.density=1.0"
       "-DRESTART_ARGS=xlo.sbm_inflow_z=4.e-6 3.e-6 2.e-6 2.e-6"
       "-DEXPECTED_DIAGNOSTIC=SBM restart schema does not exactly match")
     if(NOT ERF_ENABLE_SBM_AMR_QUALIFICATION)
       add_sbm_boundary_restart_test(SBM_Boundary_AMR_Restart_Equivalence_Compressible
-        inputs_boundary_amr_2level equivalence -DEXPECTED_FINAL_LEVELS=2)
+        inputs_boundary_amr_2level equivalence -DEXPECTED_FINAL_LEVELS=2
+        "-DRUN_ARGS=xlo.density=1.0")
       add_sbm_boundary_restart_test(SBM_Boundary_AMR_Restart_Equivalence_AnelasticMidPoint
         inputs_boundary_amr_2level equivalence -DEXPECTED_FINAL_LEVELS=2 -DANELASTIC=MidPoint)
     endif()
@@ -1451,11 +1515,16 @@ if(ERF_ENABLE_MPI)
       ${CMAKE_CURRENT_SOURCE_DIR}/MovingBodies/ERF_GTestActuatorSpreading.cpp
     )
   endif()
+  # Verify that the replicated buildings levelset is valid on every rank.
+  target_sources(${erf_parallel_exe_name} PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/EB/ERF_GTestBuildingsIF.cpp)
+  target_compile_definitions(${erf_parallel_exe_name} PRIVATE
+    ERF_BUILDINGS_TEST_STL="${PROJECT_SOURCE_DIR}/Tests/test_files/BuildingsIF/unit_cube.stl")
   if(ERF_DIM STREQUAL "3")
     # The coefficient check and the rate maximum reduce over the ranks: check them across ranks
     target_sources(${erf_parallel_exe_name} PRIVATE
       ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/SBM/ERF_GTestSBMParticleMixing.cpp
-      # Mixing reads neighbours across box and rank boundaries in every stage
+      # Mixing reads neighbors across box and rank boundaries in every stage
       ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/SBM/ERF_GTestSBMMixingTransport.cpp
     )
   endif()

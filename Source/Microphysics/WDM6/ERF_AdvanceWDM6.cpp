@@ -718,7 +718,7 @@ void WDM6::AdvanceColumns (const Real& dt_advance,
         constexpr double cl = static_cast<double>(Cp_l);
         constexpr double cpv = static_cast<double>(Cp_v);
         const double ccn0 = static_cast<double>(m_ccn0);
-        // Honour wdm6.hail_opt on this leg too. m_hail_opt is resolved in Init
+        // Honor wdm6.hail_opt on this leg too. m_hail_opt is resolved in Init
         // from the same input the native coefficients branch on, so the two
         // legs cannot disagree about the regime. The bool maps back to {0,1}
         // losslessly with respect to the Fortran, whose only test is
@@ -965,7 +965,7 @@ void WDM6::AdvanceColumns (const Real& dt_advance,
             m_use_anelastic_reference_pressure;
         ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
             // Use the same held pressure that was passed to WDM6. In
-            // anelastic mode this is the BaseState p0; in compressible mode
+            // anelastic and pseudo-incompressible mode this is the BaseState p0; in compressible mode
             // it is the pressure diagnosed from the incoming state.
             theta_arr(i,j,k) = wdm6_theta_from_temperature_and_pressure(
                 t_arr(i,j,k), p_arr(i,j,k), configured_rdOcp,
@@ -1488,9 +1488,12 @@ void WDM6::AdvanceColumns (const Real& dt_advance,
                 for (int kk = khi; kk >= klo; --kk) {
                     work1_arr(i,j,kk,0) = work1_arr(i,j,kk,0) / delz_arr(i,j,kk);
                     workn_arr(i,j,kk) = workn_arr(i,j,kk) / delz_arr(i,j,kk);
-                    numdt_loc = amrex::max(static_cast<int>(amrex::max(work1_arr(i,j,kk,0),
-                                                                       workn_arr(i,j,kk)) * dtcld + Real(0.5)),
-                                           1);
+                    // Match the Fortran, numdt = max(nint(c + .5), 1) with c = courant, the rain Courant
+                    //    number: for c >= 0 that is floor(c) + 1, always more substeps than c, so
+                    //    no substep moves rain a whole cell.  Truncating c + 0.5 instead gives
+                    //    round(c), one substep too few when frac(c) < 0.5 (#5169)
+                    const Real courant = amrex::max(work1_arr(i,j,kk,0), workn_arr(i,j,kk)) * dtcld;
+                    numdt_loc = amrex::max(static_cast<int>(std::floor(courant)) + 1, 1);
                     if (numdt_loc >= mstep_loc) {
                         mstep_loc = numdt_loc;
                     }
@@ -2213,7 +2216,7 @@ void WDM6::AdvanceColumns (const Real& dt_advance,
                 } else {
                     // Same expression as G3; share the one exact port. The
                     // previous wdm6_lamdac() here differed from the Fortran on
-                    // three counts: it cancelled den out of the argument, it
+                    // three counts: it canceled den out of the argument, it
                     // used std::pow with a true 1/3 rather than exp/log with the
                     // unsuffixed .33333333, and it carried a qc/nc guard of its
                     // own that fired inside this block's own gate.
@@ -2507,7 +2510,7 @@ void WDM6::AdvanceColumns (const Real& dt_advance,
                 // qc == 0 and qs == 0 case cannot be reached by any consumer --
                 // every use is gated on qs > qcrmin, qg > qcrmin or qc > qmin --
                 // and 0.0 is returned there only for definiteness. The divisor
-                // is never zero either: an optimised build may divide before it
+                // is never zero either: an optimized build may divide before it
                 // tests qc, and with qs = qc = 0 the 0/0 trips
                 // amrex.fpe_trap_invalid although the result is not used. For
                 // qc >= the smallest normal number the divisor is qc itself.
@@ -3278,8 +3281,13 @@ void WDM6::AdvanceColumns (const Real& dt_advance,
 
 
 
+            // When SHOC owns condensation, activation only moves number, as in
+            // Morrison; the vapor-to-cloud mass and its heating would count
+            // SHOC's condensation twice. Number is then only activated where
+            // SHOC has made cloud water, so nc never runs ahead of qc.
+            const bool do_cond = m_do_cond;
             ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-                if (rhw_arr(i,j,k) > Real(1.0)) {
+                if (rhw_arr(i,j,k) > Real(1.0) && (do_cond || qc_arr(i,j,k) > Real(qmin))) {
                     const Real ratio = rhw_arr(i,j,k) / Real(satmax);
                     const Real fraction = amrex::min(Real(1.0),
                         std::exp(std::log(ratio) * Real(actk)));
@@ -3300,12 +3308,14 @@ void WDM6::AdvanceColumns (const Real& dt_advance,
                     act_fraction_arr(i,j,k) = fraction;
                     act_raw_arr(i,j,k) = ncact_raw;
                     act_cap_arr(i,j,k) = ncact_cap;
-                    pcact_arr(i,j,k) = pcact;
-                    qv_arr(i,j,k) = amrex::max(qv_arr(i,j,k) - pcact * dtcld, Real(0.0));
-                    qc_arr(i,j,k) = amrex::max(qc_arr(i,j,k) + pcact * dtcld, Real(0.0));
                     nn_arr(i,j,k) = amrex::max(nn_arr(i,j,k) - ncact * dtcld, Real(0.0));
                     nc_arr(i,j,k) = amrex::max(nc_arr(i,j,k) + ncact * dtcld, Real(0.0));
-                    t_arr(i,j,k) += pcact * xl_arr(i,j,k) / cpm_arr(i,j,k) * dtcld;
+                    if (do_cond) {
+                        pcact_arr(i,j,k) = pcact;
+                        qv_arr(i,j,k) = amrex::max(qv_arr(i,j,k) - pcact * dtcld, Real(0.0));
+                        qc_arr(i,j,k) = amrex::max(qc_arr(i,j,k) + pcact * dtcld, Real(0.0));
+                        t_arr(i,j,k) += pcact * xl_arr(i,j,k) / cpm_arr(i,j,k) * dtcld;
+                    }
                 }
 
                 const Real tr = ttp / t_arr(i,j,k);
@@ -3315,29 +3325,45 @@ void WDM6::AdvanceColumns (const Real& dt_advance,
                 qsw = Real(ep2) * qsw / (p_arr(i,j,k) - qsw);
                 qsw = amrex::max(qsw, Real(qmin));
                 qsatw_arr(i,j,k) = qsw;
-
-                work1_arr(i,j,k,0) = wdm6_conden(
-                    t_arr(i,j,k), qv_arr(i,j,k), qsw, xl_arr(i,j,k), cpm_arr(i,j,k),
-                    Real(qmin), Real(rv));
-                work2_arr(i,j,k) = qc_arr(i,j,k) + work1_arr(i,j,k,0);
-
-                Real pcond = amrex::min(
-                    amrex::max(work1_arr(i,j,k,0) / dtcld, Real(0.0)),
-                    amrex::max(qv_arr(i,j,k), Real(0.0)) / dtcld);
-                if (qc_arr(i,j,k) > Real(0.0) && work1_arr(i,j,k,0) < Real(0.0)) {
-                    pcond = amrex::max(work1_arr(i,j,k,0), -qc_arr(i,j,k)) / dtcld;
-                }
-                pcond_arr(i,j,k) = pcond;
-
-                if (pcond == -qc_arr(i,j,k) / dtcld) {
-                    nn_arr(i,j,k) += nc_arr(i,j,k);
-                    nc_arr(i,j,k) = Real(0.0);
-                }
-
-                qv_arr(i,j,k) = amrex::max(qv_arr(i,j,k) - pcond * dtcld, Real(0.0));
-                qc_arr(i,j,k) = amrex::max(qc_arr(i,j,k) + pcond * dtcld, Real(0.0));
-                t_arr(i,j,k) += pcond * xl_arr(i,j,k) / cpm_arr(i,j,k) * dtcld;
             });
+
+            // Saturation adjustment is skipped when SHOC owns condensation, as
+            // in WSM6 and Morrison. qsatw_arr above is still needed by the other
+            // kernels, and pcond_arr stays at the zero set in Step 3.
+            if (m_do_cond) {
+                ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                    work1_arr(i,j,k,0) = wdm6_conden(
+                        t_arr(i,j,k), qv_arr(i,j,k), qsatw_arr(i,j,k), xl_arr(i,j,k), cpm_arr(i,j,k),
+                        Real(qmin), Real(rv));
+                    work2_arr(i,j,k) = qc_arr(i,j,k) + work1_arr(i,j,k,0);
+
+                    Real pcond = amrex::min(
+                        amrex::max(work1_arr(i,j,k,0) / dtcld, Real(0.0)),
+                        amrex::max(qv_arr(i,j,k), Real(0.0)) / dtcld);
+                    if (qc_arr(i,j,k) > Real(0.0) && work1_arr(i,j,k,0) < Real(0.0)) {
+                        pcond = amrex::max(work1_arr(i,j,k,0), -qc_arr(i,j,k)) / dtcld;
+                    }
+                    pcond_arr(i,j,k) = pcond;
+
+                    if (pcond == -qc_arr(i,j,k) / dtcld) {
+                        nn_arr(i,j,k) += nc_arr(i,j,k);
+                        nc_arr(i,j,k) = Real(0.0);
+                    }
+
+                    qv_arr(i,j,k) = amrex::max(qv_arr(i,j,k) - pcond * dtcld, Real(0.0));
+                    qc_arr(i,j,k) = amrex::max(qc_arr(i,j,k) + pcond * dtcld, Real(0.0));
+                    t_arr(i,j,k) += pcond * xl_arr(i,j,k) / cpm_arr(i,j,k) * dtcld;
+                });
+            } else {
+                // Without the adjustment above, droplets whose cloud water SHOC
+                // has evaporated would never return their number to the CCN pool.
+                ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                    if (qc_arr(i,j,k) <= Real(qmin)) {
+                        nn_arr(i,j,k) += nc_arr(i,j,k);
+                        nc_arr(i,j,k) = Real(0.0);
+                    }
+                });
+            }
 
 
             const Real g17_pidnc = pi_wdm6_loc * Real(denr) / Real(6.0);
@@ -3391,7 +3417,7 @@ void WDM6::AdvanceColumns (const Real& dt_advance,
         // leg advanced it, and Copy_Micro_to_State then formed
         // RhoTheta = rho * theta from the stale field, dropping microphysical
         // latent heating from the thermodynamic state. Confirmed by comparing
-        // theta before and after the bridge call: native PRE theta equalled
+        // theta before and after the bridge call: native PRE theta equaled
         // POST theta at 100/100 levels, and the resulting
         // divergence 6.625510053 at k=90 matched the step-1 theta error exactly.
         {

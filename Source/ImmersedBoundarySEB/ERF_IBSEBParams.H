@@ -82,7 +82,7 @@ struct IBSEBParams
     // sunlit everywhere, so the face takes the reflected beam through its whole ground
     // view fraction (a wall in a building's shadow still sees sunlit ground at its foot).
     // true: the face takes it through the sunlit part of its ground view only: each of
-    // its view rays that ends on the ground takes the buildings' shadow at the centre of
+    // its view rays that ends on the ground takes the buildings' shadow at the center of
     // the column it lands in, cast toward the step's sun as the shadow on the faces and
     // on the ground is (ibseb::ground_view_lit()). The diffuse light the ground reflects
     // is not changed. One ray cast per ground ray of every face each step the sun is up.
@@ -100,7 +100,7 @@ struct IBSEBParams
 
     // ---- View fractions and longwave ----------------------------------------
     // Rays per face of the cosine-weighted hemisphere sampled once at
-    // initialisation: n_az azimuths x n_el elevations.
+    // initialization: n_az azimuths x n_el elevations.
     int         view_n_az         = 16;
     int         view_n_el         = 8;
     // Downwelling longwave from the sky: "fixed" uses lw_down as given,

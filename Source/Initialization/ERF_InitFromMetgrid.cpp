@@ -195,8 +195,6 @@ ERF::init_from_metgrid (int lev)
 
     int i_lo = boxes_at_level[lev][0].smallEnd(0); int i_hi = boxes_at_level[lev][0].bigEnd(0);
     int j_lo = boxes_at_level[lev][0].smallEnd(1); int j_hi = boxes_at_level[lev][0].bigEnd(1);
-    const int k_surface = geom[lev].Domain().smallEnd(2);
-    const bool debug_psfc = metgrid_debug_psfc;
 
     // Set up FABs to hold data that will be used to set lateral boundary conditions.
     int MetGridBdyEnd = MetGridBdyVars::NumTypes-1;
@@ -429,8 +427,8 @@ ERF::init_from_metgrid (int lev)
 
         // Copy LATITUDE, LONGITUDE, SST and LANDMASK data into MF and iMF data structures
 
-        amrex::Gpu::DeviceScalar<int> d_surface_conversion_failed(0);
-        int* surface_conversion_failed = d_surface_conversion_failed.dataPtr();
+        amrex::Gpu::DeviceScalar<int> d_invalid_surface_temperature(0);
+        int* invalid_surface_temperature = d_invalid_surface_temperature.dataPtr();
 
         if (flag_sst) {
             sst_lev[lev][itime] = std::make_unique<MultiFab>(ba2d[lev],dm,1,ngv);
@@ -440,34 +438,25 @@ ERF::init_from_metgrid (int lev)
                 FArrayBox& src = NC_sst_fab;
                 const Array4<      Real>& dst_arr = dst.array();
                 const Array4<const Real>& src_arr = src.const_array();
-                const Array4<const Real> psfc_arr = flag_psfc ? NC_psfc_fab.const_array() :
-                                                               Array4<const Real>{};
-                const Array4<const Real>& z_nd_arr = z_phys_nd[lev]->const_array(mfi);
                 ParallelFor(gtbx, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept
                 {
                     int li = min(max(i, i_lo), i_hi);
                     int lj = min(max(j, j_lo), j_hi);
-                    const Real z_sfc = Real(0.25) *
-                        (z_nd_arr(li,lj,k_surface) + z_nd_arr(li+1,lj,k_surface) +
-                         z_nd_arr(li,lj+1,k_surface) + z_nd_arr(li+1,lj+1,k_surface));
-                    const Real file_psfc = flag_psfc ? psfc_arr(li,lj,0) : Real(0.0);
-                    // Metgrid SST is absolute temperature; SurfaceLayer's
-                    // canonical field is potential temperature.
-                    Real theta;
-                    if (metgrid_surface_theta(
-                            src_arr(li,lj,0), debug_psfc, flag_psfc, file_psfc, z_sfc,
-                            bsp.P00, bsp.T00, bsp.TLP, l_rdOcp, theta)) {
-                        dst_arr(i,j,0) = theta;
+                    // Metgrid SST is absolute temperature, which is what the surface
+                    // layer takes: it converts it with the current surface pressure.
+                    const Real temperature = src_arr(li,lj,0);
+                    if (erf_surface_temperature::valid_temperature(temperature)) {
+                        dst_arr(i,j,0) = temperature;
                     } else {
-                        amrex::Gpu::Atomic::Max(surface_conversion_failed, 1);
+                        amrex::Gpu::Atomic::Max(invalid_surface_temperature, 1);
                     }
                 });
             }
             amrex::Gpu::streamSynchronize();
-            int conversion_failed = d_surface_conversion_failed.dataValue();
-            amrex::ParallelDescriptor::ReduceIntMax(conversion_failed);
-            if (conversion_failed != 0) {
-                Abort("Invalid Metgrid SST conversion at level " + std::to_string(lev) +
+            int invalid = d_invalid_surface_temperature.dataValue();
+            amrex::ParallelDescriptor::ReduceIntMax(invalid);
+            if (invalid != 0) {
+                Abort("Invalid Metgrid SST at level " + std::to_string(lev) +
                       ", time " + std::to_string(itime) + " in " +
                       nc_init_file[lev][itime]);
             }
@@ -484,34 +473,24 @@ ERF::init_from_metgrid (int lev)
                 FArrayBox& src = NC_tsk_fab;
                 const Array4<      Real>& dst_arr = dst.array();
                 const Array4<const Real>& src_arr = src.const_array();
-                const Array4<const Real> psfc_arr = flag_psfc ? NC_psfc_fab.const_array() :
-                                                               Array4<const Real>{};
-                const Array4<const Real>& z_nd_arr = z_phys_nd[lev]->const_array(mfi);
                 ParallelFor(gtbx, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept
                 {
                     int li = min(max(i, i_lo), i_hi);
                     int lj = min(max(j, j_lo), j_hi);
-                    const Real z_sfc = Real(0.25) *
-                        (z_nd_arr(li,lj,k_surface) + z_nd_arr(li+1,lj,k_surface) +
-                         z_nd_arr(li,lj+1,k_surface) + z_nd_arr(li+1,lj+1,k_surface));
-                    const Real file_psfc = flag_psfc ? psfc_arr(li,lj,0) : Real(0.0);
-                    // Metgrid SKINTEMP is absolute temperature; SurfaceLayer's
-                    // canonical field is potential temperature.
-                    Real theta;
-                    if (metgrid_surface_theta(
-                            src_arr(li,lj,0), debug_psfc, flag_psfc, file_psfc, z_sfc,
-                            bsp.P00, bsp.T00, bsp.TLP, l_rdOcp, theta)) {
-                        dst_arr(i,j,0) = theta;
+                    // Metgrid SKINTEMP is absolute temperature, kept as it is (see SST)
+                    const Real temperature = src_arr(li,lj,0);
+                    if (erf_surface_temperature::valid_temperature(temperature)) {
+                        dst_arr(i,j,0) = temperature;
                     } else {
-                        amrex::Gpu::Atomic::Max(surface_conversion_failed, 1);
+                        amrex::Gpu::Atomic::Max(invalid_surface_temperature, 1);
                     }
                 });
             }
             amrex::Gpu::streamSynchronize();
-            int conversion_failed = d_surface_conversion_failed.dataValue();
-            amrex::ParallelDescriptor::ReduceIntMax(conversion_failed);
-            if (conversion_failed != 0) {
-                Abort("Invalid Metgrid SKINTEMP conversion at level " + std::to_string(lev) +
+            int invalid = d_invalid_surface_temperature.dataValue();
+            amrex::ParallelDescriptor::ReduceIntMax(invalid);
+            if (invalid != 0) {
+                Abort("Invalid Metgrid SKINTEMP at level " + std::to_string(lev) +
                       ", time " + std::to_string(itime) + " in " +
                       nc_init_file[lev][itime]);
             }

@@ -994,8 +994,9 @@ TEST(SAMScalar, SedimentationHelpersMatchDocumentedContracts)
     EXPECT_EQ(top.qci_avg, zero);
     EXPECT_EQ(top.qp_avg, zero);
 
-    EXPECT_EQ(sam_substep_count_from_reduced_flux(amrex::Real(0.0), amrex::Real(5.0), amrex::Real(100.0)), 0);
-    EXPECT_EQ(sam_substep_count_from_reduced_flux(amrex::Real(12.0), amrex::Real(5.0), amrex::Real(100.0)),
+    EXPECT_EQ(sam_sedimentation_substep_count(amrex::Real(0.0)), 1);
+    EXPECT_EQ(sam_sedimentation_substep_count(sam_fall_courant(amrex::Real(12.0), amrex::Real(5.0),
+                                                               amrex::Real(100.0), amrex::Real(1.0))),
               static_cast<int>(std::ceil(amrex::Real(12.0) * (amrex::Real(5.0) / amrex::Real(100.0)) / myhalf)));
 
     amrex::Box col_box(amrex::IntVect(0, 0, 0), amrex::IntVect(0, 0, 2));
@@ -1208,7 +1209,7 @@ TEST(SAMScalar, PrecipComponentFaceState_BottomTopInteriorBranches)
     expect_near_roundoff(bottom.qpg_avg, qpg(0,0,0));
 
     const auto interior = sam_precip_component_face_state(rho, tabs, qpr, qps, qpg, 0, 0, 1, 0, 1);
-    // rho stays centred on the face; the transported mixing ratios come from the
+    // rho stays centered on the face; the transported mixing ratios come from the
     // donor cell above it (#4415).
     expect_near_roundoff(interior.rho_avg, myhalf * (rho(0,0,0) + rho(0,0,1)));
     expect_near_roundoff(interior.qpr_avg, qpr(0,0,1));
@@ -1561,17 +1562,66 @@ TEST(SAMScalar, PrecipFlux_MonotoneInQpAndDensity)
 }
 
 // Motivation:
-// The current sedimentation substep helper is documented as a reduced-flux
-// ceil rule rather than a fall-speed CFL. This test characterizes that legacy
-// reduced-flux behavior explicitly.
-TEST(SAMScalar, SubstepCountCharacterizesReducedFluxRule)
+// The sedimentation substeps are sized from the fall Courant number at each
+// face, the fall speed times dt over the height of the cell the face drains: no
+// species may fall more than CFL_MAX = 1/2 of that cell per substep, and there is
+// always at least one substep (#5168).
+TEST(SAMScalar, SubstepCountUsesLocalFallCourant)
 {
     const amrex::Real dt = amrex::Real(5.0);
     const amrex::Real dz = amrex::Real(100.0);
+    const amrex::Real one_r = amrex::Real(1.0);
 
-    EXPECT_EQ(sam_substep_count_from_reduced_flux(amrex::Real(0.0), dt, dz), 0);
-    EXPECT_EQ(sam_substep_count_from_reduced_flux(amrex::Real(1.0), dt, dz), 1);
-    EXPECT_EQ(sam_substep_count_from_reduced_flux(amrex::Real(10.0), dt, dz), 1);
-    EXPECT_EQ(sam_substep_count_from_reduced_flux(amrex::Real(10.0001), dt, dz), 2);
-    EXPECT_EQ(sam_substep_count_from_reduced_flux(amrex::Real(25.0), dt, dz), 3);
+    EXPECT_EQ(sam_sedimentation_substep_count(sam_fall_courant(amrex::Real(0.0), dt, dz, one_r)), 1);
+    EXPECT_EQ(sam_sedimentation_substep_count(sam_fall_courant(amrex::Real(1.0), dt, dz, one_r)), 1);
+    EXPECT_EQ(sam_sedimentation_substep_count(sam_fall_courant(amrex::Real(10.0), dt, dz, one_r)), 1);
+    EXPECT_EQ(sam_sedimentation_substep_count(sam_fall_courant(amrex::Real(10.0001), dt, dz, one_r)), 2);
+    EXPECT_EQ(sam_sedimentation_substep_count(sam_fall_courant(amrex::Real(25.0), dt, dz, one_r)), 3);
+
+    // The donor cell's physical height is dz*detJ: the same 10 m/s needs two substeps
+    // out of a cell half as tall, and one out of a cell twice as tall even at 20 m/s.
+    EXPECT_EQ(sam_sedimentation_substep_count(sam_fall_courant(amrex::Real(10.0), dt, dz, amrex::Real(0.5))), 2);
+    EXPECT_EQ(sam_sedimentation_substep_count(sam_fall_courant(amrex::Real(20.0), dt, dz, amrex::Real(2.0))), 1);
+}
+
+// Motivation:
+// The substep count must come from the fall speed, not the mass flux (#5168).
+// Each component's fall speed is its density-corrected flux divided by
+// rho_avg*q, and the face takes the fastest component, not the sum.
+TEST(SAMScalar, PrecipMaxFallSpeedIsFluxOverMassOfFastestComponent)
+{
+    const amrex::Real rho_0 = amrex::Real(1.29);
+    const amrex::Real vrain = amrex::Real(20.0);
+    const amrex::Real vsnow = amrex::Real(5.0);
+    const amrex::Real vgrau = amrex::Real(30.0);
+
+    SAMPrecipComponentFaceState face_state{};
+    face_state.rho_avg = amrex::Real(1.0);
+    face_state.tabs_avg = amrex::Real(270.0);
+    face_state.qpr_avg = amrex::Real(1.0e-3);
+    face_state.qps_avg = amrex::Real(5.0e-4);
+    face_state.qpg_avg = amrex::Real(2.0e-4);
+
+    const SAMPrecipFluxComponents fluxes =
+        sam_precip_flux_components_density_corrected(
+            sam_precip_component_fluxes_from_face_state(face_state, vrain, vsnow, vgrau),
+            rho_0, face_state.rho_avg);
+    const amrex::Real v_rain = fluxes.rain / (face_state.rho_avg * face_state.qpr_avg);
+    const amrex::Real v_snow = fluxes.snow / (face_state.rho_avg * face_state.qps_avg);
+    const amrex::Real v_grau = fluxes.graupel / (face_state.rho_avg * face_state.qpg_avg);
+    const amrex::Real vmax = sam_precip_component_max_fall_speed(face_state, vrain, vsnow, vgrau, rho_0);
+
+    EXPECT_NEAR(vmax, std::max(v_rain, std::max(v_snow, v_grau)),
+                amrex::Real(1.0e-12) * vmax);
+    EXPECT_LT(vmax, v_rain + v_snow + v_grau);
+    // A fall speed is orders of magnitude larger than the mass flux it carries.
+    EXPECT_GT(vmax, amrex::Real(100.0) * (fluxes.rain + fluxes.snow + fluxes.graupel));
+
+    // A component with no mass does not fall, and a face with none falls at 0.
+    face_state.qpg_avg = zero;
+    EXPECT_NEAR(sam_precip_component_max_fall_speed(face_state, vrain, vsnow, vgrau, rho_0),
+                std::max(v_rain, v_snow), amrex::Real(1.0e-12) * vmax);
+    face_state.qpr_avg = zero;
+    face_state.qps_avg = zero;
+    EXPECT_EQ(sam_precip_component_max_fall_speed(face_state, vrain, vsnow, vgrau, rho_0), zero);
 }

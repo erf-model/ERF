@@ -1,8 +1,8 @@
 /**
  * \file ERF_ImmersedProjection.cpp
  *
- * Implicit immersed-forcing drag in the anelastic projection (erf.if_implicit_projection,
- * erf-model/ERF#4919 for terrain, #4887 for buildings).
+ * Implicit immersed-forcing drag in the projection of an anelastic or pseudo-incompressible level
+ * (erf.if_implicit_projection, erf-model/ERF#4919 for terrain, #4887 for buildings).
  *
  * The terrain immersed forcing drags the momentum of the solid faces toward zero at the rate
  * rate = beta_face * if_Cd_momentum / (dx dy dz)^(1/3). Applied explicitly, the drag is undone by
@@ -15,6 +15,28 @@
  *
  * the projected momenta are divergence free everywhere, the solid included, and no freeze is
  * needed. The faces where the source term applies the wall law instead of the drag keep sigma = 1.
+ *
+ * The solve of div(sigma grad phi) (erf-model/ERF#4887):
+ *   constant dz, map factors of one, FFT build, every region of the level a rectangle:
+ *       GMRES with the constant-coefficient FFT solve as preconditioner (solve_with_if_gmres);
+ *   constant dz, map factors of one, otherwise: multigrid with sigma as the face coefficient
+ *       (solve_with_if_mlmg, amrex::MLABecLaplacian);
+ *   stretched dz, map factors other than one (on any level) or a pseudo-incompressible level:
+ *       the terrain Poisson multigrid, with sigma in its face area factors
+ *       (ERF::project_momenta); a region that is not a rectangle goes to solve_with_flat_mlmg
+ *       with the same area factors (erf-model/ERF#5332).
+ * On a pseudo-incompressible level the projected momentum is m = beta_pi (rho u) with
+ * beta_pi = rho0 theta0 / rho on the faces (pi_beta in ERF::project_momenta; not the solid
+ * fraction beta_face of the rate above), and the two coefficients multiply:
+ *
+ *     m^{n+1} = sigma (m* - beta_pi grad phi),
+ *     div(sigma beta_pi grad phi) = div(sigma m*) - S,
+ *
+ * with phi the pressure correction times dt as above, and S the source term of the
+ * pseudo-incompressible constraint, which sigma does not multiply.
+ *
+ * A terrain-fitted mesh is not supported.
+ *
  * For buildings (erf.buildings_type = ImmersedForcing, erf-model/ERF#4887) the rate is the linear
  * drag of ImmersedForcingBuildings_{X,Y,Z}mom (partial-wall and interior faces, from the masks of
  * ERF_ImmersedBuildingMasks.H), and the faces between two solid cells take the full rate.
@@ -22,6 +44,7 @@
 #include "ERF.H"
 #include "ERF_ImmersedWallCell.H"
 #include "ERF_ImmersedBuildingMasks.H"
+#include "ERF_LengthScaleCellSize.H"
 
 #ifdef ERF_USE_FFT
 #include "ERF_ImmersedPoisson.H"
@@ -63,9 +86,16 @@ void ERF::make_if_projection_sigma (int lev, Real l_dt, Array<MultiFab,AMREX_SPA
     }
 
     // The drag rate of a solid face in the source terms, without their windspeed cap
-    // (CdM * windspeed = min(1, |u|) * drag_coefficient there)
-    const auto dx = geom[lev].CellSizeArray();
-    const Real rate_solid    = solverChoice.if_Cd_momentum / std::pow(dx[0]*dx[1]*dx[2], one/three);
+    // (CdM * windspeed = min(1, |u|) * drag_coefficient there),
+    // with dx in place of a dy over one cell, and the reverse, as the source terms
+    const auto len = LengthScaleCellSize(geom[lev]);
+    const Real rate_solid    = solverChoice.if_Cd_momentum / std::pow(len[0]*len[1]*len[2], one/three);
+    // On a stretched mesh those kernels take dz from the cell-center heights, z_cc(k) - z_cc(k-1)
+    // at the indices of the face; the rate here must be the one they drop (erf-model/ERF#4887).
+    // On a constant-dz mesh the two are the same and the constant is kept.
+    const bool local_dz      = (solverChoice.mesh_type != MeshType::ConstantDz);
+    const Real cd_momentum   = solverChoice.if_Cd_momentum;
+    const Real dxdy          = len[0]*len[1];
     const Real small_volfrac = solverChoice.if_small_volfrac;
     const bool use_most      = solverChoice.if_use_most;
     // the fraction-stress law (erf.if_wall_form = fraction_stress) has its own wall cell
@@ -87,6 +117,7 @@ void ERF::make_if_projection_sigma (int lev, Real l_dt, Array<MultiFab,AMREX_SPA
     {
         const Array4<const Real> t  = tb.const_array(mfi);
         const Array4<const int>  in = inside.const_array(mfi);
+        const Array4<const Real> zc = (local_dz) ? z_phys_cc[lev]->const_array(mfi) : Array4<const Real>{};
 
         for (int dir = 0; dir < AMREX_SPACEDIM; ++dir)
         {
@@ -115,7 +146,9 @@ void ERF::make_if_projection_sigma (int lev, Real l_dt, Array<MultiFab,AMREX_SPA
                         const if_bld::VertFace f = if_bld::vert_face(t, tf, i, j, k, snap, small_volfrac);
                         w = if_bld::implicit_weight(if_bld::vert_masks(f, k >= dom_klo + 1, use_most, snap).linear(f.t), f.raw);
                     }
-                    sg(i,j,k) = one / (one + l_dt * w * rate_solid);
+                    const Real rs = (zc) ? cd_momentum / std::pow(dxdy*(zc(i,j,k) - zc(i,j,k-1)), one/three)
+                                         : rate_solid;
+                    sg(i,j,k) = one / (one + l_dt * w * rs);
                 });
                 continue;
             }
@@ -141,7 +174,9 @@ void ERF::make_if_projection_sigma (int lev, Real l_dt, Array<MultiFab,AMREX_SPA
                 const bool wall = (dir < 2) && use_most &&
                                   (fraction_stress ? ib_wall::is_wall_cell(face_blank(k-1), b, face_blank(k+1), small_volfrac)
                                                    : ((b > zero) && (b < one) && (face_blank(k+1) == zero)));
-                const Real rate = wall ? zero : b * rate_solid;
+                const Real rs   = (zc) ? cd_momentum / std::pow(dxdy*(zc(i,j,k) - zc(i,j,k-1)), one/three)
+                                       : rate_solid;
+                const Real rate = wall ? zero : b * rs;
                 sg(i,j,k) = one / (one + l_dt * rate);
             });
         }
@@ -209,7 +244,7 @@ void ERF::solve_with_if_gmres (int lev, const Box& subdomain, MultiFab& rhs, Mul
     ip.getFluxes(phi, fluxes);
 #else
     amrex::ignore_unused(lev, rhs, phi, fluxes, sigma);
-    amrex::Abort("erf.if_implicit_projection needs a build with FFT");
+    amrex::Abort("solve_with_if_gmres needs a build with FFT; erf.if_implicit_projection uses multigrid without it");
 #endif
 
     ImposeBCsOnPhi(lev, phi, subdomain);

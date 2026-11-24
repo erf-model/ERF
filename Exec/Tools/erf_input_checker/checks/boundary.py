@@ -5,8 +5,7 @@ from ..checker import Checker, register
 FACE_TYPES = {"inflow", "outflow", "inflow_outflow", "open", "ho_outflow", "slipwall",
               "noslipwall", "symmetry", "surface_layer", "most"}
 FACES = ("xlo", "xhi", "ylo", "yhi", "zlo", "zhi")
-COLUMN_PBL = {"mynn25", "mynnedmf", "myj", "ysu", "ysunew", "mrf", "native_shoc", "eamxx_shoc", "shoc"}
-
+COLUMN_PBL = {"mynn25", "mynnedmf", "ysu", "ysunew", "mrf", "native_shoc", "shoc"}
 
 @register
 class BoundaryChecker(Checker):
@@ -37,7 +36,9 @@ class BoundaryChecker(Checker):
                 t = (self.fstr(face, "type", "") or "").lower().strip('"')
                 keys = self.face_keys(face)
                 if c.periodic[idim]:
-                    if keys:
+                    if c.any_anelastic and self.fkey(face, "density"):
+                        self._anelastic_density(face)
+                    elif keys:
                         self.warn(face + ".type", "%s is periodic, so every %s.* key is ignored" % (dim, face),
                                   "Remove the %s.* keys or make the direction non-periodic." % face)
                     continue
@@ -77,10 +78,19 @@ class BoundaryChecker(Checker):
             self.error(self.fkey(face, "density"), "may not be combined with %s.density_grad" % face)
         if self.fkey(face, "theta") and self.fkey(face, "theta_grad"):
             self.error(self.fkey(face, "theta"), "may not be combined with %s.theta_grad" % face)
-        if self.fkey(face, "density") and self.ctx.is_anelastic:
-            self.error(self.fkey(face, "density"), "rejected for anelastic runs")
+        if self.fkey(face, "density") and self.ctx.any_anelastic:
+            self._anelastic_density(face)
+        if t == "inflow_outflow" and idim == 2:
+            self.error(face + ".type", "inflow_outflow is supported on x and y faces only; ERF stops")
         if t == "outflow" and idim < 2 and not self.ctx.use_real_bcs:
             self.info(face + ".type", "plain outflow reflects acoustic waves; open or inflow_outflow faces are usually quieter")
+
+    def _anelastic_density(self, face) -> None:
+        self.error(self.fkey(face, "density"),
+                   "rejected on every face in anelastic and pseudo-incompressible runs, periodic "
+                   "ones included: the inflow density is taken from the interior; ERF stops",
+                   "Remove the key; %s.theta and the other face values are made conserved with "
+                   "the interior density." % face)
 
     def _surface_layer(self) -> None:
         c, d = self.ctx, self.deck
@@ -98,6 +108,12 @@ class BoundaryChecker(Checker):
             if any(p in COLUMN_PBL for p in pbl):
                 self.error("erf.pbl_type", "the PBL scheme needs zlo.type = surface_layer; ERF stops")
             return
+        if (self.str_("erf.terrain_type", "None") or "None").lower() == "eb" \
+                and (self.str_("erf.eb_boundary_type", "NoSlipWall") or "") != "SurfaceLayer":
+            # ERF stops at start-up since #5072; before it, the run ended in a segmentation fault (#5068)
+            self.error("erf.eb_boundary_type", "zlo.type = surface_layer with erf.terrain_type = EB needs "
+                       "erf.eb_boundary_type = SurfaceLayer (default NoSlipWall); ERF stops without it",
+                       "Set erf.eb_boundary_type = SurfaceLayer (the value is case-sensitive).")
         flux = (self.str_("erf.surface_layer.flux_type", "moeng") or "moeng").lower()
         if flux == "bulk_coeff":
             for k in ("erf.most.Cd",):

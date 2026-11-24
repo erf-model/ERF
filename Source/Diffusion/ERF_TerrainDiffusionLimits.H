@@ -23,7 +23,7 @@
  * coordinate surfaces, each the mean of the absolute differences on the four
  * cell edges in that direction; dz is the physical thickness of the cell, the
  * mean of its four vertical edges (detJ * dz at the cell center).  All three
- * are in metres and read only the eight nodes of the cell.
+ * are in meters and read only the eight nodes of the cell.
  */
 struct TerrainCellDrops
 {
@@ -180,10 +180,10 @@ MomentumDiffusiveRate (amrex::Real rho, amrex::Real mu_h, amrex::Real mu_v,
 }
 
 /**
- * Largest value of component n over cell (i,j,k) and its 26 neighbours.  The diffusion
+ * Largest value of component n over cell (i,j,k) and its 26 neighbors.  The diffusion
  * operators average the cell diffusivities to faces and edges, so a row of the operator
  * never carries more than this.  With NeighbourhoodMinPositive for the density and the
- * coefficients frozen, the scalar rate is a Gershgorin bound on the centred interior stencil
+ * coefficients frozen, the scalar rate is a Gershgorin bound on the centered interior stencil
  * of the Cartesian operator (the higher-order one-sided gradients next to Dirichlet
  * boundaries, ERF_ScalarDiffusion.H, whose row is about 4/3 larger, are not covered); for
  * momentum it is a bound for
@@ -207,7 +207,7 @@ NeighbourhoodMax (int i, int j, int k, int n, const amrex::Array4<const amrex::R
 }
 
 /**
- * Smallest positive value of component n over cell (i,j,k) and its 26 neighbours; ghost
+ * Smallest positive value of component n over cell (i,j,k) and its 26 neighbors; ghost
  * cells that hold no density (<= 0) are skipped.  Returns `fallback` if none is positive.
  */
 AMREX_GPU_HOST_DEVICE
@@ -255,13 +255,16 @@ struct DiffusiveRateSettings
     // (erf.molec_diff_type = ConstantAlpha).  KE has none.
     amrex::Real mol_mom = zero, mol_th = zero, mol_c = zero;
     bool mol_times_rho = false;
+    // Lateral directions with more than one cell on the level 0 domain; a direction with one
+    // cell carries no diffusion, so its dx or dy does not enter the rates
+    bool x_active = true, y_active = true;
 };
 
 /**
  * Explicit diffusion rates of cell (i,j,k), momentum and scalars (1/s), as the diffusive
  * time-step check reduces them: MomentumDiffusiveRate and ScalarDiffusiveRate with the largest
  * diffusivities -- eddy plus molecular -- and the smallest positive density over the cell and
- * its 26 neighbours.  Both are zero in a cell without density (covered).
+ * its 26 neighbors.  Both are zero in a cell without density (covered).
  *
  * @param[in]  s_arr  conserved state (Rho_comp), one ghost cell
  * @param[in]  k_arr  eddy diffusivities (EddyDiff components), one ghost cell; read only when
@@ -282,8 +285,8 @@ CellDiffusiveRates (int i, int j, int k,
                     const DiffusiveRateSettings& set,
                     amrex::Real& rate_mom, amrex::Real& rate_scal) noexcept
 {
-    const amrex::Real ax = mf_mx * dxinv[0];
-    const amrex::Real ay = mf_my * dxinv[1];
+    const amrex::Real ax = (set.x_active) ? mf_mx * dxinv[0] : zero;
+    const amrex::Real ay = (set.y_active) ? mf_my * dxinv[1] : zero;
     amrex::Real dzinv = dxinv[2];
     amrex::Real h2    = zero;
     if (set.variable_dz) {
@@ -367,14 +370,14 @@ SlopeReportPrint (bool force, amrex::Real alpha_max, amrex::Real alpha_last)
  *    S_2 = 1 / (1 + y/2); and S_3 = (1 + (f_3 - 1/2) y) / ((1 + y/2)(1 + f_3 y)), whose
  *    numerator is at most 1 + y/2 in size.  The default 1 1 0 is Crank-Nicolson, 1 1 1
  *    backward Euler.
- *  - two stages (c = 1/2, 1; anelastic MidPoint): bounded for f_1 = 1 and any f_2 in [0,1]
+ *  - two stages (c = 1/2, 1; MidPoint, at anelastic and pseudo-incompressible levels): bounded for f_1 = 1 and any f_2 in [0,1]
  *    (the same S_3 form); with f_1 < 1 and f_2 = 0, as MidPoint forces, the second stage
  *    grows without bound.
  *
  * Every other pattern returns 1: some are not bounded (0 0 1, 1 0 0, and 0.995 0.1 0.0666,
  * whose last stage reaches 1.0008 near y = 23.5), and the rest are not shown to be.
  *
- * @param[in] nstages  3 for the compressible scheme, 2 for anelastic MidPoint
+ * @param[in] nstages  3 for the compressible scheme, 2 for MidPoint (anelastic and pseudo-incompressible)
  * @param[in] fac      implicit factor f_k of each stage (erf.vert_implicit_fac)
  * @param[in] implicit whether the implicit solve treats this component at all
  */

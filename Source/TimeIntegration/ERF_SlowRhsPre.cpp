@@ -29,7 +29,7 @@ using namespace amrex;
  * @param[in   ] nrk   which RK stage
  * @param[in   ] dt    slow time step
  * @param[  out] S_rhs RHS computed here
- * @param[in   ] S_old  old-time solution -- used only for anelastic
+ * @param[in   ] S_old  old-time solution -- used only for anelastic or pseudo-incompressible
  * @param[in   ] S_data current solution
  * @param[in   ] S_prim primitive variables (i.e. conserved variables divided by density)
  * @param[inout] avg_xmom
@@ -68,6 +68,7 @@ using namespace amrex;
  * @param[in   ] gradp  pressure gradient
  * @param[in   ] mapfac map factors
  * @param[in   ] ebfact EB factories for cell- and face-centered variables
+ * @param[in   ] physbnd_mask EB only: masks of the physical-boundary ghost cells of each variable
  * @param[inout] fr_as_crse YAFluxRegister at level l at level l   / l+1 interface
  * @param[inout] fr_as_fine YAFluxRegister at level l at level l-1 / l   interface
  */
@@ -119,9 +120,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
                        Vector<MultiFab>& gradp,
                        Vector<std::unique_ptr<MultiFab>>& mapfac,
                        const eb_& ebfact,
-#ifdef ERF_USE_EAMXX_SHOC
-                       SHOCInterface* eamxx_shoc_lev,
-#endif
+                       const Vector<iMultiFab>& physbnd_mask,
                        ShocDriver* native_shoc_lev,
                        YAFluxRegister* fr_as_crse,
                        YAFluxRegister* fr_as_fine,
@@ -131,7 +130,8 @@ void erf_slow_rhs_pre (int level, int finest_level,
                        const MultiFab* ib_wall_face13,
                        const MultiFab* ib_wall_face23,
                        const MultiFab* ib_wall_face33,
-                       const MultiFab* ib_wall_hfx)
+                       const MultiFab* ib_wall_hfx,
+                       const MultiFab* walldist)
 {
     BL_PROFILE_REGION("erf_slow_rhs_pre()");
 
@@ -146,8 +146,10 @@ void erf_slow_rhs_pre (int level, int finest_level,
         cloud_chamber_config != nullptr && cloud_chamber_base_state != nullptr &&
         cloud_chamber_config->physical_initialization;
     const erf_wall_thermodynamics::Boundary chamber_walls =
-        use_physical_chamber_wall_flux ? cloud_chamber_config->wall_boundary() :
+        use_physical_chamber_wall_flux ? cloud_chamber_config->transport_boundary() :
                                          erf_wall_thermodynamics::Boundary{};
+    const auto chamber_bands = use_physical_chamber_wall_flux ? cloud_chamber_config->temperature_band_views() :
+                                        erf_wall_thermodynamics::SidewallBandViews{};
     int klo = domain.smallEnd(2);
     int khi = domain.bigEnd(2);
 
@@ -221,14 +223,6 @@ void erf_slow_rhs_pre (int level, int finest_level,
     std::unique_ptr<MultiFab> dflux_z;
 
     if (l_use_diff) {
-#ifdef ERF_USE_EAMXX_SHOC
-        if (tc.uses_eamxx_shoc()) {
-            AMREX_ALWAYS_ASSERT(eamxx_shoc_lev != nullptr);
-            // SHOC either supplies host-applied vertical SGS coefficients or
-            // clears them so the host does not re-apply SHOC transport.
-            eamxx_shoc_lev->set_eddy_diffs();
-        }
-#endif
         if (tc.uses_native_shoc()) {
             AMREX_ALWAYS_ASSERT(native_shoc_lev != nullptr);
             // Native SHOC owns the scalar fluxes and does not hand momentum
@@ -242,7 +236,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
                            Tau_lev,Tau_corr_lev,
                            SmnSmn,eddyDiffs,geom,solverChoice,SurfLayer,
                            stretched_dz_d, detJ,mapfac, ax, ay, az, ebfact,
-                           ib_wall_face13, ib_wall_face23);
+                           ib_wall_face13, ib_wall_face23, walldist);
 
         IntVect ng(0,0,1);
         dflux_x = std::make_unique<MultiFab>(convert(ba,IntVect(1,0,0)), dm, nvars, ng);
@@ -258,15 +252,6 @@ void erf_slow_rhs_pre (int level, int finest_level,
         }
 
         bool surface_layer_handled = false;
-#ifdef ERF_USE_EAMXX_SHOC
-        if (tc.uses_eamxx_shoc()) {
-            AMREX_ALWAYS_ASSERT(eamxx_shoc_lev != nullptr);
-            // EAMxx SHOC owns the overlapping lower-boundary fluxes here, so
-            // do not fall through to the generic SurfaceLayer path.
-            eamxx_shoc_lev->set_diff_stresses();
-            surface_layer_handled = true;
-        }
-#endif
         if (tc.uses_native_shoc()) {
             AMREX_ALWAYS_ASSERT(native_shoc_lev != nullptr);
             surface_layer_handled = true;
@@ -310,18 +295,6 @@ void erf_slow_rhs_pre (int level, int finest_level,
     // *****************************************************************************
     // Cell-centered masks for EB (used for flux interpolation)
     bool already_on_centroids = false;
-    Vector<iMultiFab> physbnd_mask;
-    physbnd_mask.resize(IntVars::NumTypes);
-    if (l_use_eb) {
-        physbnd_mask[IntVars::cons].define(S_data[IntVars::cons].boxArray(), S_data[IntVars::cons].DistributionMap(), 1, 1);
-        physbnd_mask[IntVars::cons].BuildMask(geom.Domain(), geom.periodicity(), 1, 1, 0, 1);
-        // physbnd_mask[IntVars::cons].FillBoundary(geom.periodicity());
-        for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
-            physbnd_mask[1+dir].define(S_data[1+dir].boxArray(), S_data[1+dir].DistributionMap(), 1, 1);
-            physbnd_mask[1+dir].BuildMask(geom.Domain(), geom.periodicity(), 1, 1, 0, 1);
-            // physbnd_mask[1+dir].FillBoundary(geom.periodicity());
-        }
-    }
 
 #ifdef _OPENMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
@@ -350,8 +323,8 @@ void erf_slow_rhs_pre (int level, int finest_level,
 
         //
         // Now create Omega with momentum (not velocity) with z_t subtracted if moving terrain
-        // ONLY if not doing anelastic + terrain -- in that case Omega will be defined coming
-        // out of the projection
+        // ONLY if not doing anelastic or pseudo-incompressible + terrain -- in that case Omega
+        // will be defined coming out of the projection
         //
         if (!l_use_terrain_fitted_coords) {
             ParallelFor(gbxo, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
@@ -381,7 +354,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
             const Array4<const Real>& mf_ux     = mapfac[MapFacType::u_x]->const_array(mfi);
             const Array4<const Real>& mf_vy     = mapfac[MapFacType::v_y]->const_array(mfi);
 
-            if (z_t_mf) { // Note we never do anelastic with moving terrain
+            if (z_t_mf) { // Note we never do anelastic or pseudo-incompressible with moving terrain
                 Box gbxo_mid = gbxo;
                 if (gbxo_mid.smallEnd(2) <= domain.smallEnd(2)) { gbxo_mid.setSmall(2,1); }
                 if (gbxo_mid.bigEnd(2)   >= domain.bigEnd(2)+1) { gbxo_mid.setBig(2,gbxo.bigEnd(2)-1); }
@@ -467,7 +440,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
         const Array4<Real>& rho_w_old = S_old[IntVars::zmom].array(mfi);
 
         if (l_anelastic) {
-            // When anelastic we must reset these to 0 each RK step
+            // When anelastic or pseudo-incompressible we must reset these to 0 each RK step
             avg_xmom[mfi].template setVal<RunOn::Device>(0,tbx);
             avg_ymom[mfi].template setVal<RunOn::Device>(0,tby);
             avg_zmom[mfi].template setVal<RunOn::Device>(0,tbz);
@@ -528,7 +501,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
         const GpuArray<const Array4<Real>, AMREX_SPACEDIM>
             flx_arr{{AMREX_D_DECL(flux[0].array(), flux[1].array(), flux[2].array())}};
 
-        // On an anelastic level, in the stage whose fluxes are refluxed, the diffusion of (rho theta)
+        // On an anelastic or pseudo-incompressible level, in the stage whose fluxes are refluxed, the diffusion of (rho theta)
         // adds its face fluxes to flux[] too, so that the flux registers see the diffusive as well as
         // the advective transport (EB diffusion does not do this), as in erf_slow_rhs_post
         const ScalarDiffusionRefluxViews* l_reflux_diffusion =
@@ -764,7 +737,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
                     cloud_chamber_base_state->const_array(mfi), u, v, w, cell_rhs,
                     diffflux_x, diffflux_y, diffflux_z, dxInv,
                     chamber_walls, dc.alpha_T, dc.alpha_C,
-                    solverChoice.rdOcp, cloud_chamber_config->has_moisture);
+                    solverChoice.rdOcp, cloud_chamber_config->has_moisture, chamber_bands);
             }
         }
 
@@ -777,7 +750,8 @@ void erf_slow_rhs_pre (int level, int finest_level,
 
         Real half_dt = static_cast<Real>(myhalf/dt);
 
-        // If anelastic and in second RK stage, take average of old-time and new-time source
+        // If anelastic or pseudo-incompressible with RK2 and in second RK stage, take average of
+        // old-time and new-time source
         if ( l_anelastic && l_anelastic_rk2 && (nrk == 1) )
         {
             ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept

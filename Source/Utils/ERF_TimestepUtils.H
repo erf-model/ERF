@@ -139,7 +139,7 @@ Compute_InvDt_Compressible (const int i, const int j, const int k,
 
 /**
  * Pointwise inverse time step (1/dt, before the CFL is applied) for the
- * anelastic (low Mach) solver -- this is a purely advective constraint.
+ * anelastic and pseudo-incompressible (low Mach) solvers -- this is a purely advective constraint.
  *
  * As above, the metric terms are computed here from z_nd:
  *
@@ -153,7 +153,8 @@ Compute_InvDt_Compressible (const int i, const int j, const int k,
  * velocity relative to the terrain-following surfaces.
  *
  * As in the compressible estimate, the horizontal terms use the physical cell
- * widths dx/mf_x and dy/mf_y.
+ * widths dx/mf_x and dy/mf_y, and a lateral direction with only one cell on the
+ * level 0 domain does not contribute, so that dx or dy there sets nothing.
  *
  * @param[in] i               x-index
  * @param[in] j               y-index
@@ -166,6 +167,8 @@ Compute_InvDt_Compressible (const int i, const int j, const int k,
  * @param[in] mf_y            y map factor at the cell center
  * @param[in] dxinv           inverse cell spacing of the computational mesh
  * @param[in] l_terrain_aware true to include the metric terms
+ * @param[in] nxc             number of cells in x on the level 0 domain
+ * @param[in] nyc             number of cells in y on the level 0 domain
  * @return                    1/dt for this cell
  */
 AMREX_GPU_HOST_DEVICE
@@ -179,16 +182,21 @@ Compute_InvDt_Anelastic (const int i, const int j, const int k,
                          const amrex::Real mf_x,
                          const amrex::Real mf_y,
                          const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& dxinv,
-                         const bool l_terrain_aware)
+                         const bool l_terrain_aware,
+                         const int  nxc=2,
+                         const int  nyc=2)
 {
     amrex::Real idz = dxinv[2];
     if (l_terrain_aware) {
         idz /= Compute_h_zeta_AtCellCenter(i,j,k,dxinv,z_nd);
     }
 
-    return ( amrex::Math::abs(u)*mf_x*dxinv[0]
-           + amrex::Math::abs(v)*mf_y*dxinv[1]
-           + amrex::Math::abs(w)*idz     );
+    const amrex::Real idx = (nxc > 1) ? mf_x*dxinv[0] : zero;
+    const amrex::Real idy = (nyc > 1) ? mf_y*dxinv[1] : zero;
+
+    return ( amrex::Math::abs(u)*idx
+           + amrex::Math::abs(v)*idy
+           + amrex::Math::abs(w)*idz );
 }
 
 #endif

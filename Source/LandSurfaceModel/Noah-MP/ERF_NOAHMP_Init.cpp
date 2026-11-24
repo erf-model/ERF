@@ -287,7 +287,7 @@ NOAHMP::Init (const int& lev,
     // Noah-MP's own physics checks end the run with a bare Fortran STOP (27 of them, e.g.
     // "Error: Solar radiation budget problem in NoahMP LSM"), which exits with status 0.
     // main() installs an atexit trap that turns any exit() while AMReX is still
-    // initialised into a failure status; see install_exit_trap in main.cpp.
+    // initialized into a failure status; see install_exit_trap in main.cpp.
 
     // dt is a placeholder: ERF::make_lsm_at_level passes zero, because the level's step is
     // not known yet when the level is built. Nothing here may depend on it; the step is

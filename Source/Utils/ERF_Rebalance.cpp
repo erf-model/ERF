@@ -54,7 +54,7 @@ rebalance_columns (MultiFab& rho,
     // which has not been rebalanced, as given, and the base state would then depend on where
     // the boxes are split.  The boxes are therefore integrated in bands of equal lowest index,
     // bottom up.  The state each column reaches in a cell (pressure, theta, qv, qt and the
-    // cell-centre height) is kept in "below", whose z ghost cells are filled from the bands
+    // cell-center height) is kept in "below", whose z ghost cells are filled from the bands
     // already integrated before the next band starts.  A column whose cell below the box is
     // not covered by this level (the bottom of the domain, or of a refined patch) starts from
     // its own lowest cell.  With a single band nothing is kept and nothing is filled.

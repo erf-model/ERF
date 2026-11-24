@@ -1,6 +1,6 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
 # PoiseuilleFlow_x on a stretched mesh (uniform ratio) whose bottom is below zero.  The levels
-# start at geometry.prob_lo[2] = -1, and z_phys has to follow them: cell centres from -0.9375
+# start at geometry.prob_lo[2] = -1, and z_phys has to follow them: cell centers from -0.9375
 # to 0.9375 (erf-model/ERF#4442).
 erf.prob_name = "Poiseuille Flow"
 

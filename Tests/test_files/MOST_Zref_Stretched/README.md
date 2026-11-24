@@ -59,13 +59,13 @@ default reference, half of that, runs from 4.9661 m (h = 30 m) to 4.9842 m
 must report that range, and u*(0) must be the mean over the columns of the log
 law with each column's first-cell wind (plane averaging takes the mean wind).
 That wind is the one ERF puts in the cell: the sounding is first resampled onto
-the flat level-0 cell centres (`ERF_InputSoundingData.H`), each x face then takes
+the flat level-0 cell centers (`ERF_InputSoundingData.H`), each x face then takes
 that table's wind at its own physical height, and the cell value is the mean of
 the column's two faces. On the ridge the crest face (44.95 m) lies between the
 resampled nodes at 39.76 and 53.73 m, which straddle the ramp's kink at 50 m, so
 its wind is 1 % below the ramp value; an expectation built from the ramp alone
 misses the 2e-5 tolerance by 3e-3. The flat cases are exact with the ramp because
-their cell centres are the resampled nodes. A lookup that reports the first
+their cell centers are the resampled nodes. A lookup that reports the first
 cell's height but samples the second cell's wind is 8 % off.
 
 The test passes when:
@@ -79,7 +79,7 @@ The test passes when:
   height above the ground).
 
 The script also aborts if the sounding is ever made too uniform to tell a
-cell from its upper neighbour.
+cell from its upper neighbor.
 
 ## Old and new
 
@@ -124,11 +124,11 @@ Stretched against uniform, new binary:
 | 5 | 1.06358 | 1.06321 | 3.5e-04 |
 | 10 | 1.0311 | 1.03079 | 3.0e-04 |
 
-## First cell centre on terrain-fitted meshes (erf-model/ERF#4935)
+## First cell center on terrain-fitted meshes (erf-model/ERF#4935)
 
 Measured on 2026-11-03 against development 87e41fe4a (`--old-exe`). Without
 `erf.most.zref` a terrain-fitted mesh queried 10 m above the surface; every
-other mesh used the first cell centre. The default is now the first cell centre
+other mesh used the first cell center. The default is now the first cell center
 on every mesh, column by column with terrain.
 
 | case | old zref | old u*(0) | new zref | new u*(0) |
@@ -151,7 +151,7 @@ python3 run_most_zref.py --exe /path/to/erf_exec --mpi-cmd "mpiexec -n 1" \
 
 Measured on 2026-10-25 against development 3c9c151c4 (`--old-exe`): the
 uniform column with its bottom at z = 300 m reported zref = 305 m, the absolute
-height of the first cell centre, and took u*(0) = 0.536589 from
+height of the first cell center, and took u*(0) = 0.536589 from
 0.41 * 10.5 / ln(305 / 0.1), against 1.10045 with zref = 5 m; with
 `erf.most.k_arr_in = 0` it did the same. The inputs keep their meaning (on the
 low z face of a constant-dz mesh `erf.most.zref` is an absolute z and

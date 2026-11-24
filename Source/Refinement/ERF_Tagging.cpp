@@ -1,4 +1,5 @@
 #include <algorithm>
+#include <memory>
 
 #include <ERF.H>
 #include <ERF_Derive.H>
@@ -280,6 +281,13 @@ ERF::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
     const auto dx      = geom[levc].CellSizeArray();
     const auto prob_lo = geom[levc].ProbLoArray();
 
+    // For an adjacent-difference test on a field computed only on the valid cells: 1 in the
+    //    valid cells of this level and in the ghost cells another box of this level covers
+    //    (periodic images included), 0 in the ghost cells outside a non-periodic domain face or
+    //    across a coarse/fine boundary, which hold no data of the field.  Built at most once per
+    //    ErrorEst call, the first time such a test needs it.
+    std::unique_ptr<iMultiFab> same_level_nbr;
+
     for (auto& crit : ref_criteria)
     {
         // Move the box if the inputs file asks for it
@@ -314,9 +322,33 @@ ERF::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
             MultiFab mf(grids[levc], dmap[levc], 1, 1);
             mf.setVal(0.0);
 
-            compute_tag_field(levc, cond.field, time, mf, tags);
+            const bool ghosts_filled = compute_tag_field(levc, cond.field, time, mf, tags);
 
             const auto test        = cond.test;
+
+            // An adjacent-difference test reads the six face neighbors.  A field copied from the
+            //    state (density, the moisture species, qt), or the velocities and terrain_blanking,
+            //    comes with its ghost cells filled -- from the other boxes of this level, the
+            //    physical boundary conditions and the coarser level -- so every neighbor is used,
+            //    and none of these depends on how the level is split into boxes.  The other
+            //    fields are computed on the valid cells only: give the ghost cells another box of
+            //    this level covers its values, and compare only against those, so a cell on a box
+            //    face, a non-periodic domain face or a coarse/fine boundary is not compared
+            //    against the zeroed ghost cells, and the tags do not depend on the box layout.
+            const bool same_level_only = (test == TagCondition::Test::AdjacentDifferenceGreater) &&
+                                         !ghosts_filled;
+            if (same_level_only) {
+                mf.FillBoundary(geom[levc].periodicity(), /*cross=*/true);
+                if (!same_level_nbr) {
+                    same_level_nbr = std::make_unique<iMultiFab>(grids[levc], dmap[levc], 1, 1);
+                    same_level_nbr->BuildMask(geom[levc].Domain(), geom[levc].periodicity(),
+                                              /*covered=*/1, /*notcovered=*/0,
+                                              /*physbnd=*/0, /*interior=*/1);
+                }
+            }
+            // Read only by the adjacent-difference test, and only when same_level_only
+            auto const& nbr_ma = (same_level_only) ? same_level_nbr->const_arrays()
+                                                   : MultiArray4<int const>{};
             const Real threshold   = cond.threshold(levc);
             const bool require_all = crit.require_all;
 
@@ -330,11 +362,24 @@ ERF::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
                     pass = (dat(i,j,k) >= threshold);
                 } else if (test == TagCondition::Test::Less) {
                     pass = (dat(i,j,k) <= threshold);
-                } else {
+                } else if (!same_level_only) {
                     // Largest difference from any of the six face neighbors
                     const Real d = amrex::max(std::abs(dat(i+1,j,k) - dat(i,j,k)), std::abs(dat(i,j,k) - dat(i-1,j,k)),
                                               std::abs(dat(i,j+1,k) - dat(i,j,k)), std::abs(dat(i,j,k) - dat(i,j-1,k)),
                                               std::abs(dat(i,j,k+1) - dat(i,j,k)), std::abs(dat(i,j,k) - dat(i,j,k-1)));
+                    pass = (d >= threshold);
+                } else {
+                    // Largest difference from any of the six face neighbors that hold data
+                    //    of this level
+                    auto const& nbr = nbr_ma[bi];
+                    const Real c = dat(i,j,k);
+                    Real d = Real(0.0);
+                    if (nbr(i+1,j,k)) { d = amrex::max(d, std::abs(dat(i+1,j,k) - c)); }
+                    if (nbr(i-1,j,k)) { d = amrex::max(d, std::abs(dat(i-1,j,k) - c)); }
+                    if (nbr(i,j+1,k)) { d = amrex::max(d, std::abs(dat(i,j+1,k) - c)); }
+                    if (nbr(i,j-1,k)) { d = amrex::max(d, std::abs(dat(i,j-1,k) - c)); }
+                    if (nbr(i,j,k+1)) { d = amrex::max(d, std::abs(dat(i,j,k+1) - c)); }
+                    if (nbr(i,j,k-1)) { d = amrex::max(d, std::abs(dat(i,j,k-1) - c)); }
                     pass = (d >= threshold);
                 }
                 int& m = mask_ma[bi](i,j,k);
@@ -421,8 +466,10 @@ ERF::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
  * @param[in ] time  current time
  * @param[out] mf    one-component MultiFab with one ghost cell, zeroed by the caller
  * @param[out] tags  tags set directly by the hurricane tracker, which "velmag" may invoke
+ * @return whether the ghost cells of mf were filled too (from the FillPatched state, or for
+ *         terrain_blanking from the geometry), rather than left at zero
  */
-void
+bool
 ERF::compute_tag_field (int levc, const std::string& field, Real time, MultiFab& mf, TagBoxArray& tags)
 {
     MultiFab& U_new = vars_new[levc][Vars::xvel];
@@ -433,10 +480,13 @@ ERF::compute_tag_field (int levc, const std::string& field, Real time, MultiFab&
     // fields below keep the name as given since species names may carry case
     const std::string field_lc = amrex::toLower(field);
 
+    bool ghosts_filled = false;
+
     // This allows dynamic refinement based on the value of the density
     if (field_lc == "density")
     {
         MultiFab::Copy(mf,vars_new[levc][Vars::cons],Rho_comp,0,1,1);
+        ghosts_filled = true;
 
     // Refinement based on a moisture mixing ratio (qv, qc, qi, qr, qs, qg).
     // The map from name to RhoQ component depends on the moisture model and
@@ -447,6 +497,7 @@ ERF::compute_tag_field (int levc, const std::string& field, Real time, MultiFab&
         AMREX_ALWAYS_ASSERT(qcomp >= 0);
         MultiFab::Copy(  mf, vars_new[levc][Vars::cons], qcomp,    0, 1, 1);
         MultiFab::Divide(mf, vars_new[levc][Vars::cons], Rho_comp, 0, 1, 1);
+        ghosts_filled = true;
 
     // qt = total condensed water mixing ratio (qc + qi + qr + qs + qg).
     // Excludes qv by convention here.
@@ -473,6 +524,7 @@ ERF::compute_tag_field (int levc, const std::string& field, Real time, MultiFab&
                 qt_arr(i,j,k) = q;
             });
         }
+        ghosts_filled = true;
 
     // This allows dynamic refinement based on the value of the z-component of vorticity
     } else if (field_lc == "vorticity" ) {
@@ -544,6 +596,7 @@ ERF::compute_tag_field (int levc, const std::string& field, Real time, MultiFab&
                 (field_lc == "terrain_blanking") )
     {
         MultiFab::Copy(mf,*terrain_blanking[levc],0,0,1,1);
+        ghosts_filled = true;
     }
     else if (field_lc == "velmag")
     {
@@ -647,6 +700,7 @@ ERF::compute_tag_field (int levc, const std::string& field, Real time, MultiFab&
                 });
             }
         }
+        ghosts_filled = true;
 
 #ifdef ERF_USE_PARTICLES
     } else {
@@ -663,7 +717,7 @@ ERF::compute_tag_field (int levc, const std::string& field, Real time, MultiFab&
         // [levc, finest_level] and averaged down level-by-level so that
         // a signal present only on a finer level still triggers
         // refinement at the coarser level being tagged.  Without this,
-        // particles localised at level 1 would not register at level 0
+        // particles localized at level 1 would not register at level 0
         // and the fine grid would disappear at the next regrid.
         //
         const auto& particles_namelist( particleData.getNames() );
@@ -721,6 +775,8 @@ ERF::compute_tag_field (int levc, const std::string& field, Real time, MultiFab&
         }
 #endif
     }
+
+    return ghosts_filled;
 }
 
 /**

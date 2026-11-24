@@ -46,8 +46,8 @@ ERF::initHSE (int lev)
         //
         // Set the values of the base state inside the domain but outside of the fine region,
         // and in the fine ghost cells; the vertical integration below then overwrites only
-        // the fine grids, and for a box whose klo is in the interior it reads the value this
-        // leaves in klo-1 as its starting point.
+        // the fine grids.  Over terrain, a box whose klo is in the interior reads the value
+        // this leaves in klo-1 as its starting point.
         //
         interp_base_state_from_coarse(lev);
     }
@@ -93,7 +93,44 @@ ERF::initHSE (int lev)
         }
     };
 
-    if (all_boxes_touch_bottom || lev > 0) {
+    if (lev > 0) {
+
+        //
+        // Build on this level's boxes grown by all of the base state's lateral ghost cells:
+        //    each ghost column is then built as it would be were it valid, the same in every
+        //    box it is a ghost of, and the base state is one field in balance there too.
+        //    (The constructions above also write the ring around the boxes they are given,
+        //    hence the one lateral ghost cell of the copies, which is not copied back.)  On a
+        //    flat mesh the grown boxes span the whole column and are built from the bottom of
+        //    the domain, as on level 0, wherever the level's boxes start; over terrain they
+        //    keep their box's vertical range, and the copy of the base state they start from
+        //    gives a box whose klo is in the interior the value below it that
+        //    interp_base_state_from_coarse left.
+        //
+        const IntVect ngb = base_state[lev].nGrowVect();
+        AMREX_ALWAYS_ASSERT(ngb[0] == ngb[1]);
+        const IntVect ng_g(1, 1, ngb[2]);
+
+        MultiFab bs_g;
+        std::unique_ptr<MultiFab> z_nd_g, z_cc_g;
+        make_base_state_on_grown_boxes(lev, base_state[lev], ngb[0], ng_g, bs_g, z_nd_g, z_cc_g);
+
+        MultiFab r_g (bs_g, make_alias, BaseState::r0_comp, 1);
+        MultiFab p_g (bs_g, make_alias, BaseState::p0_comp, 1);
+        MultiFab pi_g(bs_g, make_alias, BaseState::pi0_comp, 1);
+        MultiFab th_g(bs_g, make_alias, BaseState::th0_comp, 1);
+        MultiFab qv_g(bs_g, make_alias, BaseState::qv0_comp, 1);
+
+        initialize_base_state(r_g, p_g, pi_g, th_g, qv_g, z_nd_g, z_cc_g);
+
+        copy_base_state_from_grown_boxes(lev, base_state[lev], bs_g);
+
+        //
+        // Impose physical bc's on the base state
+        //
+        (*physbcs_base[lev])(base_state[lev],0,base_state[lev].nComp(),base_state[lev].nGrowVect());
+
+    } else if (all_boxes_touch_bottom) {
 
         initialize_base_state(r_hse, p_hse, pi_hse, th_hse, qv_hse,
                               z_phys_nd[lev], z_phys_cc[lev]);

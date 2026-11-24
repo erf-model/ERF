@@ -1,6 +1,8 @@
 #ifndef ERF_SLM_H
 #define ERF_SLM_H
 
+#include <set>
+#include <unordered_set>
 #include <string>
 #include <vector>
 #include <memory>
@@ -387,6 +389,51 @@ public:
     }
 
     /**
+     * Returns the number of 2D surface state fields SLM carries from one step to the next
+     * outside lsm_fab_vars (canopy and puddle water, canopy, canopy-air and ground temperatures,
+     * snow albedo and age).
+     */
+    int
+    Lsm_Surface_State_Size () override { return static_cast<int>(surface_state_fields().size()); }
+
+    /**
+     * Returns a 2D surface state field of this level.
+     */
+    amrex::MultiFab*
+    Lsm_Surface_State_Ptr (const int& varIdx) override
+    {
+        const auto fields = surface_state_fields();
+        AMREX_ALWAYS_ASSERT(varIdx >= 0 && varIdx < static_cast<int>(fields.size()));
+        return fields[varIdx];
+    }
+
+    /**
+     * Registers a 2D surface state field of the source level.
+     */
+    void
+    Lsm_Set_Source_Surface_State_Ptr (const int& varIdx,
+                                      amrex::MultiFab* source_data_ptr) override
+    {
+        const int n = static_cast<int>(surface_state_fields().size());
+        AMREX_ALWAYS_ASSERT(varIdx >= 0 && varIdx < n);
+        if (static_cast<int>(source_surface_state.size()) != n) {
+            source_surface_state.resize(n, nullptr);
+        }
+        source_surface_state[varIdx] = source_data_ptr;
+    }
+
+    /**
+     * The 2D fields, not in lsm_fab_vars, that hold state from one step to the next: the
+     * checkpoint keeps them, so a level that is made or remade must keep them too (issue 5177).
+     * Everything else SLM holds in 2D is set again from these and the soil at each step.
+     */
+    amrex::Vector<amrex::MultiFab*>
+    surface_state_fields ()
+    {
+        return {&mw, &mws, &t_canop, &t_cas, &q_cas, &t_ground_skin, &albold_noahmp, &tauss_noahmp};
+    }
+
+    /**
      * Returns whether Copy_State_to_Lsm has filled tref, qref and pref.
      */
     bool
@@ -526,7 +573,9 @@ public:
 
     void init_soil_tw ();
 
-    void init_slm_vars ();
+    // reset_soil_targets: also set the soil nudging targets soilt_obs and soilw_obs to the
+    // current soil state, as at the start of a run
+    void init_slm_vars (bool reset_soil_targets = true);
 
     /**
      * Initializes local SLM fields from WRFInput data.
@@ -646,7 +695,8 @@ public:
 
 #ifdef ERF_USE_NETCDF
     void writeSLM_NetCDF (const amrex::MultiFab& mf, const amrex::Vector<std::string>& varnames,
-                          const amrex::Real cur_time, const std::string plot_prefix, const int level_step);
+                          const amrex::Real cur_time, const std::string plot_prefix, const int level_step,
+                          const int lev);
 
     void writeNCHeader (ncutils::NCFile &nc_file, const amrex::Geometry &geom);
 
@@ -885,6 +935,16 @@ private:
 
     amrex::Real start_time = -1.0;
     bool first_step = true;
+
+#ifdef ERF_USE_NETCDF
+    // The NetCDF land output files made so far in this run, one per level: a level made again
+    // by a regrid appends to its file rather than replacing it (shared by all levels' SLMs)
+    static inline std::set<std::string> s_nc_files_made;
+
+    // Set when this run was restarted from a checkpoint: the first write of each NetCDF land
+    // output file then appends to the file of the earlier run, if there is one
+    static inline bool s_nc_restarted = false;
+#endif
     bool m_updated = false;
 
     std::string parameter_file = "NoahmpTable.TBL";
@@ -1023,6 +1083,10 @@ private:
     // source level registered by Set_Source_Ptrs
     bool has_atmos_state = false;
     bool source_has_atmos_state = false;
+
+    // the source level's 2D surface state fields (surface_state_fields), registered with the
+    // other source pointers
+    amrex::Vector<amrex::MultiFab*> source_surface_state;
 
     // set when this level was made from a source level without the atmospheric
     // state: the next Update_Lsm_Vars then calls init_slm_vars again

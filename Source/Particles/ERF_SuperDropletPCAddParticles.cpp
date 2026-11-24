@@ -314,6 +314,9 @@ void SuperDropletPC::addParticles ( int a_lev,
     // On a stretched or terrain-fitted mesh each cell's counts follow its physical volume
     const bool per_cell_counts = variable_dz && !perbox;
     const SDCellCounts cell_counts = a_init.cellCounts();
+    // Split/merge tag: native to this level when its cells get the per-cell count; with a
+    // super-droplet density they get fewer, and the split as level-0 entrants restores the count
+    const int native_tag = cell_counts.densityMode() ? 1 : a_lev + 1;
     int num_sd_per_cell;
     Real num_par_per_cell;
     Real inject_mult = one;
@@ -504,23 +507,29 @@ void SuperDropletPC::addParticles ( int a_lev,
         // Generate species and aerosol distributions directly into particle SoA
         ParallelForRNG(np, [=] AMREX_GPU_DEVICE (int n, const RandomEngine& engine) noexcept
         {
+            SDSampledWeight weight;
+
             // Sample species masses directly into particle storage
             for (int s = 0; s < num_sp; s++) {
                 Real sp_mult = zero;
                 sp_mass_ptrs[s][n] = SD_sample_mass_gpu(sp_params_ptr[s], engine, sp_mult);
+                if (sampled_multiplicity && sp_params_ptr[s].dist_type != SDDistributionType::mass_constant) {
+                    weight.add(sp_params_ptr[s].dist_type, sp_mult,
+                               sp_params_ptr[s].numdens*sp_params_ptr[s].cell_volume);
+                }
             }
 
             // Sample aerosol masses directly into particle storage
-            Real total_mult = zero;
             for (int a = 0; a < num_ae; a++) {
                 Real ae_mult = zero;
                 ae_mass_ptrs[a][n] = SD_sample_mass_gpu(ae_params_ptr[a], engine, ae_mult);
                 if (sampled_multiplicity) {
-                    total_mult += ae_mult;
+                    weight.add(ae_params_ptr[a].dist_type, ae_mult,
+                               ae_params_ptr[a].numdens*ae_params_ptr[a].cell_volume);
                 }
             }
             if (sampled_multiplicity) {
-                mult_ptr_init[n] = total_mult;
+                mult_ptr_init[n] = weight.value();
             }
         });
 
@@ -558,11 +567,12 @@ void SuperDropletPC::addParticles ( int a_lev,
             const Real n_par_extra = count_cell ? par_this_cell - n_par_per_supdrop*sd_this_cell : zero;
 
             Real mult_scale = one;
+            bool sampled_cell = sampled_multiplicity;
             if (sampled_multiplicity) {
                 Real mult_sum = zero;
                 int start = offset_arr(i,j,k);
                 for (int n = start; n < start+num_sd_this_cell; n++) { mult_sum += mult_arr[n]; }
-                mult_scale = par_this_cell / mult_sum;
+                sampled_cell = SD_sampled_scale(mult_sum, par_this_cell, mult_scale);
             }
 
             int start = offset_arr(i,j,k);
@@ -622,7 +632,7 @@ void SuperDropletPC::addParticles ( int a_lev,
                     }
                 }
 
-                active_ptr[n] = 1;
+                active_ptr[n] = native_tag;
                 vx_ptr[n] = vy_ptr[n] = vz_ptr[n] = zero;
 
                 if (perbox) {
@@ -630,7 +640,7 @@ void SuperDropletPC::addParticles ( int a_lev,
                     mult_ptr[n] = inject_mult;
                 } else {
                     Real mult_this_sd = 0;
-                    if (sampled_multiplicity) {
+                    if (sampled_cell) {
                         mult_this_sd = std::ceil(mult_arr[n] * mult_scale);
                     } else {
                         mult_this_sd = n_par_per_supdrop + ((n - start < n_par_extra) ? one : zero);

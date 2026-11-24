@@ -49,6 +49,7 @@ using namespace amrex;
  * @param[in   ]  l_reflux should we add fluxes to the FluxRegisters?
  * @param[in   ] l_damp_coef
  * @param[in   ] beta_d divergence damping coefficient: how far (rho theta) is projected forward
+ * @param[in   ] lateral_walls whether the xlo, xhi, ylo and yhi faces are walls (zero normal velocity)
  */
 
 void erf_substep_MT (int step, int /*nrk*/,
@@ -91,7 +92,8 @@ void erf_substep_MT (int step, int /*nrk*/,
                      bool /*l_real_bc*/,
                      const Real* sinesq_stag_d,
                      const Real l_damp_coef,
-                     const Real beta_d)
+                     const Real beta_d,
+                     const GpuArray<bool,4>& lateral_walls)
 {
     BL_PROFILE_REGION("erf_substep_MT()");
 
@@ -103,6 +105,22 @@ void erf_substep_MT (int step, int /*nrk*/,
     const GpuArray<Real, AMREX_SPACEDIM> dxInv = geom.InvCellSizeArray();
     const int domlo_z = geom.Domain().smallEnd(2);
     const int domhi_z = geom.Domain().bigEnd(2);
+
+    // The substeps keep the normal momentum on a lateral wall face (slip, no-slip, symmetry or
+    // surface layer) at its stage value, zero on all but a symmetry face, as erf_substep_T does.
+    // Over terrain that slopes normal to the wall the terrain terms of the pressure gradient are
+    // not zero on the wall face, and updating the face would carry mass through the wall until
+    // the boundary fill reset it after the substep.  (Across a symmetry face the terrain is
+    // mirrored, so those terms are zero there.)  The face then carries no density flux, which
+    // is the difference from the stage momentum times h_zeta at the stage
+    const int ilo = geom.Domain().smallEnd(0);
+    const int ihi = geom.Domain().bigEnd(0) + 1;
+    const int jlo = geom.Domain().smallEnd(1);
+    const int jhi = geom.Domain().bigEnd(1) + 1;
+    const bool wall_xlo = lateral_walls[0];
+    const bool wall_xhi = lateral_walls[1];
+    const bool wall_ylo = lateral_walls[2];
+    const bool wall_yhi = lateral_walls[3];
 
     Real dxi = dxInv[0];
     Real dyi = dxInv[1];
@@ -381,6 +399,9 @@ void erf_substep_MT (int step, int /*nrk*/,
                 cur_xmom(i,j,k) = h_zeta_old * prev_xmom(i,j,k) + dtau * fast_rhs_rho_u
                                                                 + dtau * slow_rhs_rho_u(i,j,k)
                                                                 + dtau * xmom_src_arr(i,j,k);
+                if ((wall_xlo && i == ilo) || (wall_xhi && i == ihi)) {
+                    cur_xmom(i,j,k) = stg_xmom(i,j,k) * Compute_h_zeta_AtIface(i, j, k, dxInv, z_nd_stg);
+                }
         },
         [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
@@ -417,6 +438,9 @@ void erf_substep_MT (int step, int /*nrk*/,
                 cur_ymom(i, j, k) = h_zeta_old * prev_ymom(i,j,k) + dtau * fast_rhs_rho_v
                                                                   + dtau * slow_rhs_rho_v(i,j,k)
                                                                   + dtau * ymom_src_arr(i,j,k);
+                if ((wall_ylo && j == jlo) || (wall_yhi && j == jhi)) {
+                    cur_ymom(i,j,k) = stg_ymom(i,j,k) * Compute_h_zeta_AtJface(i, j, k, dxInv, z_nd_stg);
+                }
         });
         } // end profile
 
@@ -560,7 +584,7 @@ void erf_substep_MT (int step, int /*nrk*/,
             Real Omega_km1 = omega_arr(i,j,k-1);
 
             // Explicit part of the vertical flux on each face is beta_1 * Omega. beta_1 on face k
-            // is factored out, and dbeta_1 is how much larger beta_1 is on the neighbouring faces,
+            // is factored out, and dbeta_1 is how much larger beta_1 is on the neighboring faces,
             // which is exactly zero (so the roundoff is that of a scalar beta_1) for uniform beta_s
             Real beta_1      = myhalf * (one - beta_s_a(i,j,k));
             Real dbeta_1_kp1 = myhalf * (one - beta_s_a(i,j,k+1)) - beta_1;
@@ -586,7 +610,7 @@ void erf_substep_MT (int step, int /*nrk*/,
             // matrix has beta_2 soln and lines 4-7 have beta_1 omega, so add the beta_2 part of the
             // grid-velocity terms here. As for beta_1 above,
             // beta_2 of face k is factored out and dbeta_2 (exactly zero for uniform beta_s) carries the
-            // difference of the neighbouring faces
+            // difference of the neighboring faces
             Real beta_2      = myhalf * (one + beta_s_a(i,j,k));
             Real dbeta_2_kp1 = myhalf * (one + beta_s_a(i,j,k+1)) - beta_2;
             Real dbeta_2_km1 = myhalf * (one + beta_s_a(i,j,k-1)) - beta_2;

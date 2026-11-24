@@ -316,8 +316,8 @@ struct LineSampler
 
     /**
      * Sample the full-depth vertical column through each cell on level 0, with the
-     * variables erf.sample_line writes: every conserved component, the cell-centred
-     * velocities and the six stresses at cell centres.  Each column is written to its own
+     * variables erf.sample_line writes: every conserved component, the cell-centered
+     * velocities and the six stresses at cell centers.  Each column is written to its own
      * log, one row per sample: the time, then each variable over the column, bottom to top.
      *
      * @param[in] cells     a cell in each column; its k is ignored
@@ -643,10 +643,10 @@ struct LineSampler
      * erf.sample_line_z_agl, above the ground under the column.  The ground and the top of a
      * column are those of the level, the means of the four nodes under and over it, where the
      * level holds the column's bottom or top cell; elsewhere the ground is the level-0 ground,
-     * bilinear at the column's centre (a level that stops above the ground).  Its value is
-     * linear in height between the two cell centres of the column that bracket it; between the
-     * ground and the lowest cell centre with fluid it is that cell's, and between the top cell
-     * centre and the top the top cell's.  A sample below the ground or above the top is
+     * bilinear at the column's center (a level that stops above the ground).  Its value is
+     * linear in height between the two cell centers of the column that bracket it; between the
+     * ground and the lowest cell center with fluid it is that cell's, and between the top cell
+     * center and the top the top cell's.  A sample below the ground or above the top is
      * missing.  The level holds the line if it holds every cell the samples read; level 0
      * always does.  Collective: every rank gets the same plan.
      *
@@ -672,7 +672,7 @@ struct LineSampler
         const int along = (dir == 2) ? 0 : dir;
         const amrex::IntVect clo = plan.cols.smallEnd();
 
-        // The heights of the cell centres of the columns, which cells the level holds, and their
+        // The heights of the cell centers of the columns, which cells the level holds, and their
         // volume fractions, from the bottom of the domain to its top
         amrex::Box colbox(plan.cols);
         colbox.setSmall(2, kdlo);
@@ -709,7 +709,7 @@ struct LineSampler
             return mean;
         };
 
-        // The ground under the centre of each column, bilinear between the level-0 nodes around
+        // The ground under the center of each column, bilinear between the level-0 nodes around
         // it: for the columns whose bottom the level does not hold
         amrex::Vector<amrex::Real> ground_col(ncol, geom0.ProbLo(2));
         if (ground0 != nullptr) {
@@ -784,15 +784,15 @@ struct LineSampler
             auto zc    = [&] (int k) { return at(icol, k, 0); };
             int k0 = -1, k1 = -1;
             amrex::Real w = amrex::Real(0.0);
-            // between two cell centres with fluid
+            // between two cell centers with fluid
             for (int k(0); k<nz-1 && k0 < 0; ++k) {
                 if (fluid(k) && fluid(k+1) && zc(k) <= z && z < zc(k+1)) {
                     k0 = k; k1 = k+1; w = (z - zc(k)) / (zc(k+1) - zc(k));
                 }
             }
-            // between the top cell centre and the top
+            // between the top cell center and the top
             if (k0 < 0 && fluid(nz-1) && z >= zc(nz-1)) { k0 = k1 = nz-1; }
-            // between the ground and the lowest cell centre with fluid, if the level holds the
+            // between the ground and the lowest cell center with fluid, if the level holds the
             // column up to it
             if (k0 < 0) {
                 int kf = 0;
@@ -1268,7 +1268,7 @@ struct LineSampler
                 mf_comp += m_ncons;
             }
 
-            // The height of each cell centre
+            // The height of each cell center
             if (containerHasElement(m_varnames, std::string("z"))) {
                 amrex::MultiFab* z_cc = ilev < static_cast<int>(z_cc_lev.size()) ? z_cc_lev[ilev] : nullptr;
                 AMREX_ALWAYS_ASSERT_WITH_MESSAGE(z_cc != nullptr,
@@ -1443,7 +1443,7 @@ struct LineSampler
                 mf_comp += 1;
             }
 
-            // The stresses at cell centres: tau11, tau22 and tau33 are stored there, and the
+            // The stresses at cell centers: tau11, tau22 and tau33 are stored there, and the
             // others are averaged from the four edges around the cell
             auto sample_tau = [&] (const char* name, int tau_type,
                                    amrex::IntVect const& e1, amrex::IntVect const& e2) {
@@ -1663,7 +1663,7 @@ struct LineSampler
                 is_per[d] = geom[lev].isPeriodic(d);
             }
             // An interpolated line is at its requested heights (above the ground with
-            // erf.sample_line_z_agl): its z cells are centred on them
+            // erf.sample_line_z_agl): its z cells are centered on them
             if (m_interp) {
                 const amrex::Vector<amrex::Real> h = interp_heights(iline);
                 const int nh = static_cast<int>(h.size());
@@ -1833,11 +1833,26 @@ struct PlaneSampler
                     m_varnames.push_back("pressure");
                     amrex::Print() << " " << "pressure";
                 }
+                // "z", as for line sampling, is the same variable
+                if (containerHasElement(requested_vars, "z_phys") ||
+                    containerHasElement(requested_vars, "z")) {
+                    m_varnames.push_back("z_phys");
+                    amrex::Print() << " " << "z_phys";
+                }
                 if (containerHasElement(requested_vars, "volfrac")) {
                     m_varnames.push_back("volfrac");
                     amrex::Print() << " " << "volfrac";
                 }
                 amrex::Print() << std::endl;
+            }
+
+            // The plane is placed, and its plotfile written, in the computational coordinates,
+            // which are not the physical height on a stretched or terrain-fitted mesh, so there
+            // the height is always written (before volfrac, as when it is requested)
+            if (SolverChoice::mesh_type != MeshType::ConstantDz &&
+                !containerHasElement(m_varnames, "z_phys")) {
+                auto it = std::find(m_varnames.begin(), m_varnames.end(), "volfrac");
+                m_varnames.insert(it, "z_phys");
             }
         }
     }
@@ -1862,6 +1877,7 @@ struct PlaneSampler
     void
     get_sample_data (amrex::Vector<amrex::Geometry>& geom,
                      amrex::Vector<amrex::Vector<amrex::MultiFab>>& vars_new,
+                     const amrex::Vector<std::unique_ptr<amrex::MultiFab>>& z_phys_cc,
                      const amrex::Vector<const amrex::MultiFab*>& volfrac_lev = {})
     {
         int nlev   = sampling_num_levels(vars_new);
@@ -2039,6 +2055,14 @@ struct PlaneSampler
                     mf_comp += 1;
                 }
 
+                // The physical height of each cell center
+                int z_comp = -1;
+                if (containerHasElement(m_varnames, "z_phys")) {
+                    amrex::MultiFab::Copy(mf_cc_data, *z_phys_cc[ilev], 0, mf_comp, 1, 0);
+                    z_comp = mf_comp;
+                    mf_comp += 1;
+                }
+
                 // The volume fraction, 1 without immersed terrain, and 1 where a cell is
                 // covered (0 elsewhere)
                 const amrex::MultiFab* volfrac = ilev < static_cast<int>(volfrac_lev.size())
@@ -2072,7 +2096,7 @@ struct PlaneSampler
                 }
 
                 // The interpolation reads the cell on the other side of the plane, which may be
-                // a ghost cell.  It is taken from the neighbouring grid, or periodic image, where
+                // a ghost cell.  It is taken from the neighboring grid, or periodic image, where
                 // there is one; at the domain boundary or the edge of the level it is the cell
                 // itself, so the plane there takes the value of the cell it lies in
                 {
@@ -2133,8 +2157,9 @@ struct PlaneSampler
                         else if (l_dir == 1) { sj = k_slice; }
                         else                 { sk = k_slice; }
                         // A sample interpolated from a covered cell is written as
-                        // erf.sampling_covered_value, except for the volume fraction
-                        ofab(i,j,k,n) = (sfab(si,sj,sk,ncomp) > amrex::Real(0.0) && n != vf_comp)
+                        // erf.sampling_covered_value, except for the height and volume fraction
+                        ofab(i,j,k,n) = (sfab(si,sj,sk,ncomp) > amrex::Real(0.0) &&
+                                         n != vf_comp && n != z_comp)
                                       ? covered_value : sfab(si,sj,sk,n);
                     });
                 }

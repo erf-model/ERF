@@ -20,7 +20,7 @@
  * component up to NVAR_max: whether the component is read from the WRF/metgrid
  * boundary data (read), from which boundary field (map), and from which
  * boundary-plane slot when planes are read as well (bnd, cons_bc_comp).
- * Density is read with erf.use_wrf_bdy_density, theta and the water vapour
+ * Density is read with erf.use_wrf_bdy_density, theta and the water vapor
  * always; passive scalars and hydrometeors never.
  * Built from the component layout, so every passive scalar (NSCALARS of them)
  * sits between RhoKE_comp and RhoQ1_comp.
@@ -66,6 +66,12 @@ rebalance_columns (amrex::MultiFab& rho,
                    bool use_sfc = false);
 
 /*
+ * Re-compute p_0 and pi_0 of a base state from rho_0, theta_0 and qv_0 over the valid region
+ */
+void
+recompute_p_pi_hse (amrex::MultiFab& base_state_mf, amrex::Real l_rdOcp);
+
+/*
  * Create a new BoxArray in which every grid touches the bottom boundary
  */
 void ChopGrids2D (amrex::BoxArray& ba, const amrex::Box& domain, int target_size);
@@ -106,7 +112,7 @@ void
 make_qt (const amrex::MultiFab& cons_state, amrex::MultiFab& qt, int n_qstate_into_total);
 
 /**
- * Average down a cell-centred state over immersed-forcing levels (erf.if_average_down =
+ * Average down a cell-centered state over immersed-forcing levels (erf.if_average_down =
  * fluid_mass). The fine cells are weighted by their fluid mass,
  * (rho S)_c = rho_c * sum (1 - beta_f) V_f (rho S)_f / sum (1 - beta_f) V_f rho_f,
  * with beta the solid fraction, V the fine cell volume (detJ / (m_x m_y), the weight the plain
@@ -140,9 +146,9 @@ if_average_down (const amrex::MultiFab& S_fine, amrex::MultiFab& S_crse,
  * A box that does not see the surface of a column (a fine box inside the solid, or above the
  * surface without reaching the bottom) measures from the coarser level's wall height.
  * @param[out] wdist Wall distance (valid cells; ghost cells are left untouched).
- * @param[in] terrain_blank Cell-centred solid fraction.
+ * @param[in] terrain_blank Cell-centered solid fraction.
  * @param[in] z_phys_nd Node heights.
- * @param[in] z_phys_cc Cell-centre heights.
+ * @param[in] z_phys_cc Cell-center heights.
  * @param[in] domain Index domain of the level.
  * @param[in] small_volfrac Solid fraction below which a cell counts as fluid.
  * @param[out] wall_height Optional: the height measured from in each column, on the level's
@@ -166,7 +172,7 @@ immersed_wall_dist (amrex::MultiFab& wdist,
  * column, the spacing factor on the face above it, one elsewhere. The vertical flux of x (y)
  * momentum is multiplied by them, so no resolved flux crosses the wall face (see
  * ERF_ImmersedWallCell.H).
- * @param[in] terrain_blank Cell-centred solid fraction; needs one more ghost cell than the masks.
+ * @param[in] terrain_blank Cell-centered solid fraction; needs one more ghost cell than the masks.
  * @param[out] mask13 On convert(ba, IntVect(1,0,1)), valid and ghost cells.
  * @param[out] mask23 On convert(ba, IntVect(0,1,1)), valid and ghost cells.
  * @param[out] mask33 On convert(ba, IntVect(0,0,1)): the same for the cell columns, applied to
@@ -309,12 +315,14 @@ MakeAdvectiveProjectionWeights (const amrex::MultiFab& den_div, const amrex::Mul
 
 /*
  * Compute lateral boundary mass influx/outflux from base-state-density-weighted
- * boundary normal velocities.
+ * boundary normal velocities.  mask_x/mask_y are owner masks of area_vec[0]/[1]
+ * (amrex::OwnerMask), so a face shared by two boxes is counted once.
  */
 void
 compute_influx_outflux_bdy (amrex::FArrayBox& bdy_data_xlo, amrex::FArrayBox& bdy_data_xhi,
                             amrex::FArrayBox& bdy_data_ylo, amrex::FArrayBox& bdy_data_yhi,
                             amrex::Array<amrex::MultiFab*, AMREX_SPACEDIM>& area_vec,
+                            const amrex::iMultiFab& mask_x, const amrex::iMultiFab& mask_y,
                             const amrex::Geometry& geom,
                             amrex::Real& influx, amrex::Real& outflux,
                             const int n);
@@ -783,30 +791,6 @@ thinbody_wall_dist (std::unique_ptr<amrex::MultiFab>& wdist,
 
 
 void WeatherDataInterpolation (const double time);
-
-/**
- * Perform quadratic interpolation in one dimension.
- * @param[in] z Interpolation coordinate.
- * @param[in] z0 Coordinate of first point.
- * @param[in] p0 Value at first point.
- * @param[in] z1 Coordinate of second point.
- * @param[in] p1 Value at second point.
- * @param[in] z2 Coordinate of third point.
- * @param[in] p2 Value at third point.
- * @return Interpolated value.
- */
-AMREX_GPU_HOST_DEVICE
-AMREX_FORCE_INLINE
-amrex::Real
-quad_interp_1d (amrex::Real z,
-                amrex::Real z0, amrex::Real p0,
-                amrex::Real z1, amrex::Real p1,
-                amrex::Real z2, amrex::Real p2)
-{
-    return p0 * ( (z - z1) * (z - z2) ) / ( (z0 - z1) * (z0 - z2) )
-         + p1 * ( (z - z0) * (z - z2) ) / ( (z1 - z0) * (z1 - z2) )
-         + p2 * ( (z - z0) * (z - z1) ) / ( (z2 - z0) * (z2 - z1) );
-}
 
 /**
  * Which time level(s) a fillpatch at a given time should draw from.
