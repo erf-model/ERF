@@ -199,4 +199,68 @@ Compute_InvDt_Anelastic (const int i, const int j, const int k,
            + amrex::Math::abs(w)*idz );
 }
 
+/**
+ * Horizontal acoustic part of the inverse time step of a cell: the sound speed over the
+ * physical horizontal spacing, summed over the horizontal directions the run has.  The
+ * product of this with the acoustic substep is the horizontal acoustic Courant number of
+ * the substep.  It holds no velocity, so it depends on the grid and the sound speed only.
+ *
+ * @param[in] c      sound speed (m/s)
+ * @param[in] mf_x   map factor in x
+ * @param[in] mf_y   map factor in y
+ * @param[in] dxinv  inverse computational cell size (1/m)
+ * @param[in] nxc    number of cells in x on this level
+ * @param[in] nyc    number of cells in y on this level
+ * @return           c (m_x/dx + m_y/dy), with only its own direction in a two-dimensional run
+ */
+AMREX_GPU_HOST_DEVICE
+AMREX_FORCE_INLINE
+amrex::Real
+Compute_InvDt_HorizAcoustic (const amrex::Real c,
+                             const amrex::Real mf_x,
+                             const amrex::Real mf_y,
+                             const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& dxinv,
+                             const int nxc,
+                             const int nyc)
+{
+    const amrex::Real idx = mf_x * dxinv[0];
+    const amrex::Real idy = mf_y * dxinv[1];
+    if ((nxc > 1) && (nyc == 1)) {
+        return c * idx;
+    } else if ((nyc > 1) && (nxc == 1)) {
+        return c * idy;
+    }
+    return c * (idx + idy);
+}
+
+/**
+ * Divergence damping coefficient of an acoustic substep.
+ *
+ * The substep projects (rho theta) forward by beta times its last change before taking its
+ * horizontal gradient.  That damps the horizontal divergence with a diffusivity
+ * beta c^2 dtau, which falls with the substep.  So that a run with more substeps is not
+ * damped less per unit time, erf.beta_d is the coefficient at a Courant number of one and the
+ * coefficient used is erf.beta_d divided by the horizontal acoustic Courant number of the
+ * substep,
+ *
+ *     Cr = dtau inv_dt,
+ *
+ * with inv_dt the largest value on the level of Compute_InvDt_HorizAcoustic.  The
+ * diffusivity is then beta_d c^2 / inv_dt, which does not depend on the number of substeps
+ * or on the flow.
+ *
+ * @param[in] beta_d  erf.beta_d
+ * @param[in] dtau    acoustic substep (s)
+ * @param[in] inv_dt  largest horizontal acoustic inverse time step on the level (1/s);
+ *                    zero where there is none, and beta_d is then returned
+ * @return            the coefficient the substep uses
+ */
+AMREX_FORCE_INLINE
+amrex::Real
+DivergenceDampingCoeff (const amrex::Real beta_d, const amrex::Real dtau, const amrex::Real inv_dt)
+{
+    const amrex::Real Cr = dtau * inv_dt;
+    return (Cr > zero) ? beta_d / Cr : beta_d;
+}
+
 #endif

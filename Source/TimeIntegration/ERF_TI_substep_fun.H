@@ -158,6 +158,12 @@ auto acoustic_substepping_fun = [&,one_d=one,zero_d=zero](int fast_step, int n_s
                              l_variable_beta_s, phys_bc_type);
         }
 
+        // Divergence damping coefficient of this substep: erf.beta_d over the horizontal acoustic
+        // Courant number of the substep, so that the damping per unit time does not fall as the
+        // number of substeps rises (DivergenceDampingCoeff; issue #5003)
+        const Real l_beta_d = DivergenceDampingCoeff(solverChoice.beta_d, static_cast<Real>(dtau),
+                                                     acoustic_inv_dt[level]);
+
         bool l_rayleigh_implicit = solverChoice.rayleigh_implicit_w(level);
         Real l_damp_coef         = solverChoice.dampingChoice.rayleigh_dampcoef;
 
@@ -224,7 +230,7 @@ auto acoustic_substepping_fun = [&,one_d=one,zero_d=zero](int fast_step, int n_s
                            dtau, inv_fac, mapfac[level],
                            fr_as_crse, fr_as_fine, l_use_moisture, l_reflux, solverChoice.use_real_bcs,
                            (l_rayleigh_implicit) ? d_sinesq_stag_ptrs[level].data() : nullptr, l_damp_coef,
-                           solverChoice.beta_d, lateral_walls);
+                           l_beta_d, lateral_walls);
 
         } else if (cf_terrain) {
 
@@ -237,7 +243,7 @@ auto acoustic_substepping_fun = [&,one_d=one,zero_d=zero](int fast_step, int n_s
                           mapfac[level],
                           fr_as_crse, fr_as_fine, l_use_moisture, l_reflux, solverChoice.use_real_bcs,
                           (l_rayleigh_implicit) ? d_sinesq_stag_ptrs[level].data() : nullptr, l_damp_coef,
-                          solverChoice.beta_d, cf_fluxes, lateral_walls);
+                          l_beta_d, cf_fluxes, lateral_walls);
 
         } else {
 
@@ -249,7 +255,7 @@ auto acoustic_substepping_fun = [&,one_d=one,zero_d=zero](int fast_step, int n_s
                            dtau, inv_fac, mapfac[level],
                            fr_as_crse, fr_as_fine, l_use_moisture, l_reflux, solverChoice.use_real_bcs,
                            (l_rayleigh_implicit) ? d_sinesq_stag_ptrs[level].data() : nullptr, l_damp_coef,
-                           solverChoice.beta_d, cf_fluxes,
+                           l_beta_d, cf_fluxes,
                            (l_reflux) ? momentum_reflux_pressure(level) : nullptr, lateral_walls);
         }
 

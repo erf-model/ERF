@@ -3965,8 +3965,10 @@ List of Parameters
 |                             | w-face; an explicit false keeps ``erf.beta_s``           |                    |                  |
 +-----------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.beta_d**              | divergence damping coefficient used in the acoustic      | Real in [0, 1]     | 0.1              |
-|                             | substepping; how far (rho theta) is projected forward    |                    |                  |
-|                             | in the horizontal momentum equations                     |                    |                  |
+|                             | substepping, at a substep Courant number of one; how far |                    |                  |
+|                             | (rho theta) is projected forward in the horizontal       |                    |                  |
+|                             | momentum equations is this divided by the Courant number |                    |                  |
+|                             | of the substep (see :ref:`TimeAdvance`)                  |                    |                  |
 +-----------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.w_damping**           | enable vertical-velocity damping                         | Boolean            | false            |
 +-----------------------------+----------------------------------------------------------+--------------------+------------------+

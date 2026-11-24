@@ -1884,6 +1884,12 @@ add_test_abort(AnelasticRayleighSlowImplicit_SubstepAbort
 add_test_field_bounds(InflowThetaDensity "plt00010" theta 299.999 300.001)
 add_test_field_bounds(InflowOutflowThetaFile "plt00010" theta 299.999 300.001)
 add_test_field_bounds(InflowThetaFileOtherFace "plt00010" theta 299.999 300.001)
+# Two-way compressible coupling with 144 acoustic substeps on the coarse level.  The divergence
+# damping is scaled with the horizontal acoustic Courant number of the substep
+# (DivergenceDampingCoeff).  At step 40 of this deck max |w| is 0.004 m/s and the pressure
+# perturbation 0.02 Pa; with the unscaled erf.beta_d the acoustic waves in the patch grow and
+# they are 0.084 m/s and 43 Pa (issue #5003).  The bound sits between the two values of |w|
+add_test_field_bounds(TwoWay_ManySubsteps "plt00040" z_velocity -0.02 0.02)
 # Anelastic inflow faces give theta without <face>.density: it is made conserved with the
 # base-state density at each height of a stratified column, on an Inflow face, on an
 # inflow_outflow face, and from a dirichlet_file on an inflow_outflow face (#5256)

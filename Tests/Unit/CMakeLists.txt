@@ -219,6 +219,10 @@ target_sources(${erf_exe_name}
     # Motivation: on an x-z slice or a single column the cell size in the one-cell direction is
     # arbitrary, so it must not set the anelastic or diffusive time step.
     ${CMAKE_CURRENT_SOURCE_DIR}/TimeIntegration/ERF_GTestOneCellDirections.cpp
+    # Motivation: the divergence damping coefficient of a substep must be erf.beta_d over the
+    # horizontal acoustic Courant number of the substep, so that the damping per unit time
+    # does not fall as the number of substeps rises (erf-model/ERF#5003).
+    ${CMAKE_CURRENT_SOURCE_DIR}/TimeIntegration/ERF_GTestDivergenceDampingCoeff.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/Diagnostics/ERF_GTestSurfaceFluxDiagnostics.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/Diagnostics/ERF_GTestSeaLevelPressure.cpp
     # Motivation: a Noah-MP 2 m tile with zero weight must not reject the bundle, and a

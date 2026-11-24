@@ -278,10 +278,33 @@ to control horizontally propagating sound waves.
 .. math::
 
    p^{\prime\prime,\tau*} = p^{\prime\prime,\tau}
-     + \beta_d \left( p^{\prime\prime,\tau} - p^{\prime\prime,\tau-\delta\tau} \right)
+     + \beta \left( p^{\prime\prime,\tau} - p^{\prime\prime,\tau-\delta\tau} \right)
 
 where :math:`\tau*` is the forward projected value used in RHS of the acoustic
 substepping equations for horizontal momentum. According to Skamarock et al,
 this is equivalent to including a horizontal diffusion term in the continuity
-equation. A typical damping coefficient of :math:`\beta_d = 0.1` is used by default, as in
-WRF; it can be set with ``erf.beta_d``, which must lie in :math:`[0, 1]`.
+equation. The diffusivity of that term is :math:`\beta c^2 \delta\tau`, with :math:`c` the
+speed of sound, so for a fixed :math:`\beta` the damping per unit time falls as the number of
+substeps rises. The coefficient is therefore scaled with the horizontal acoustic Courant number
+of the substep,
+
+.. math::
+
+   \beta = \frac{\beta_d}{C_r}, \qquad
+   C_r = \delta\tau \, \max \left[ c \left( \frac{m_x}{\Delta x} + \frac{m_y}{\Delta y} \right) \right],
+
+where the maximum is over the cells of the level, :math:`m_x` and :math:`m_y` are the map factors,
+and a two-dimensional run keeps only its own horizontal direction. For a fluid at rest
+:math:`C_r` is the quantity that ``erf.substepping_cfl`` limits. The diffusivity is then
+:math:`\beta_d c^2 \delta\tau / C_r`, which depends on the grid and the sound speed but not on
+the number of substeps or on the flow, and
+:math:`\beta_d` is the coefficient at :math:`C_r = 1`. The default is
+:math:`\beta_d = 0.1`; it can be set with ``erf.beta_d``, which must lie in :math:`[0, 1]`.
+WRF applies :math:`\beta = 0.1` without the scaling. In ERF a run whose substeps have
+:math:`C_r < 1` applies a coefficient larger than :math:`\beta_d`, and :math:`\beta` can exceed
+one when the number of substeps is set by its minimum and not by the acoustic limit.
+``erf.substepping_diag`` prints :math:`C_r` and
+:math:`\beta` for each level. The first substep of a stage has no earlier value to project
+from and is not damped. A single-column run has no horizontal pressure gradient and uses
+:math:`\beta = \beta_d`. With too little damping per unit time, a two-way coupled run with a
+refined level can grow acoustic waves at the coarse-fine faces.

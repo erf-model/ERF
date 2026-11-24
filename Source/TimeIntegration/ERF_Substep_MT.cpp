@@ -48,7 +48,7 @@ using namespace amrex;
  * @param[in   ]  l_use_moisture
  * @param[in   ]  l_reflux should we add fluxes to the FluxRegisters?
  * @param[in   ] l_damp_coef
- * @param[in   ] beta_d divergence damping coefficient: how far (rho theta) is projected forward
+ * @param[in   ] beta_d divergence damping coefficient of this substep (DivergenceDampingCoeff): how far (rho theta) is projected forward
  * @param[in   ] lateral_walls whether the xlo, xhi, ylo and yhi faces are walls (zero normal velocity)
  */
 
