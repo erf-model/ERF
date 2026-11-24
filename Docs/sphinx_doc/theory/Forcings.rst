@@ -377,17 +377,18 @@ applies) and :math:`r = 0` on the faces where the MOST wall law acts instead. Th
 variable-coefficient equation follows the mesh
 (`erf-model/ERF#4887 <https://github.com/erf-model/ERF/issues/4887>`_):
 
-- constant :math:`\Delta z`, map factors of one, a build with FFT and every refined region a
-  rectangle: GMRES, preconditioned by the FFT Poisson solve;
-- constant :math:`\Delta z` and map factors of one, in a build without FFT or with a refined region
-  that is not a rectangle: geometric multigrid with :math:`\sigma` as its face coefficient;
-- stretched :math:`\Delta z`, or map factors other than one on a single level: the multigrid of the
+- constant :math:`\Delta z`, map factors of one, an anelastic level, a build with FFT and every
+  refined region a rectangle: GMRES, preconditioned by the FFT Poisson solve;
+- constant :math:`\Delta z`, map factors of one and an anelastic level, in a build without FFT
+  or with a refined region that is not a rectangle: geometric multigrid with :math:`\sigma` as
+  its face coefficient;
+- stretched :math:`\Delta z`, map factors other than one (on level 0 or on a refined level), or
+  a pseudo-incompressible level: the multigrid of the
   terrain Poisson solver, which takes :math:`\sigma` through its face area factors. A refined
   region that is not a rectangle is solved with the multigrid for such regions on a flat mesh
   (`erf-model/ERF#5332 <https://github.com/erf-model/ERF/pull/5332>`_), which takes the same
-  area factors. A refined level with map factors other than one is refused with this option. On
-  a stretched mesh every projection of the level uses these solvers, also the ones without the
-  drag (the initial projection, and after a regrid), so no FFT is needed.
+  area factors. On a stretched mesh every projection of the level uses these solvers, also the
+  ones without the drag (the initial projection, and after a regrid), so no FFT is needed.
 
 The choice follows the build and the mesh, not ``erf.use_fft``. Refined regions that meet
 across a periodic boundary are solved as one region with multigrid on the level's periodic
@@ -400,7 +401,32 @@ Thin immersed bodies (``erf.zero_xflux_faces``, ``erf.zero_yflux_faces``, ``erf.
 have their own projection, which does not take :math:`\sigma`. The option is refused with them
 when the inputs are read.
 
-A terrain-fitted mesh and a pseudo-incompressible level are not supported. A ``FullyCompressible``
+On a pseudo-incompressible level (:ref:`PseudoIncompressibleEquations`) the projection acts on
+:math:`m = \beta_{pi}\,(\rho\mathbf{u})` with :math:`\beta_{pi} = \rho_0\theta_0/\rho` on the
+faces. This is the coefficient written :math:`\beta` in that section; the subscript keeps it apart
+from the solid fraction :math:`\beta_f` of the drag rate. The two coefficients multiply:
+
+.. math::
+
+    m^{n+1} = \sigma\left(m^* - \beta_{pi}\,\nabla\phi\right), \qquad
+    \nabla\cdot\left(\sigma\beta_{pi}\,\nabla\phi\right) =
+    \nabla\cdot\left(\sigma m^*\right) - S,
+
+with :math:`\phi` as above (the pressure correction times :math:`\Delta t`) and :math:`S` the
+source term of the pseudo-incompressible constraint, which :math:`\sigma` does not multiply. The
+solid faces are not zeroed afterwards, so :math:`\rho\theta` stays at :math:`\rho_0\theta_0` in
+the cells next to the solid as it does elsewhere. The
+``ImmersedBuildingHeatBalance_PseudoIncompressible`` tests check this: after 20 steps
+:math:`\max|\rho\theta - \rho_0\theta_0| / (\rho_0\theta_0)` is
+:math:`6 \times 10^{-11}` with the drag in the projection and :math:`4 \times 10^{-2}` with the
+solid faces zeroed after it. With a stratified sounding and no LES closure the same measure is
+:math:`10^{-8}` (:math:`3 \times 10^{-2}` with the solid faces zeroed). That value follows the
+heat terms of the immersed forcing, which enter :math:`S` one stage late: it is a quarter at half
+the time step, half without the scalar drag of the solid, and the same with a tighter solve. On
+a refined level the two-way coupling leaves a drift of its own, with or without immersed forcing
+(see :ref:`PseudoIncompressibleEquations`).
+
+A terrain-fitted mesh is not supported. A ``FullyCompressible``
 level has no projection: in a hierarchy that mixes the two, the option acts on the levels that
 project and the ``FullyCompressible`` levels keep the drag in the source term; at least one level
 must project. On the levels that project the source term then drops
@@ -619,8 +645,8 @@ explicit treatment zeroes after the projection. The MOST wall law itself adds no
 horizontal wall-law face has :math:`w = 0`, and a :math:`w`-face on the roof row that carries a side
 wall law keeps the roof weight :math:`\beta_f`. The kernels then apply the wall law only, on the
 partial faces that carry it, and the solid faces are not zeroed afterwards. The requirements and
-the choice of solver are those of the terrain case: a mesh without terrain-fitted coordinates, no
-pseudo-incompressible level, and ``erf.compressibility_type`` not ``FullyCompressible`` on at least
+the choice of solver are those of the terrain case: a mesh without terrain-fitted coordinates
+and ``erf.compressibility_type`` not ``FullyCompressible`` on at least
 one level (a ``FullyCompressible`` level keeps the drag in the source term). A level coarser than the 50 m cutoff of the building forcing
 (:math:`\sqrt{\Delta x \Delta y} > 50` m) has no building blanking, and its faces keep
 :math:`\sigma = 1`. As for terrain, the faces on a non-periodic lateral domain boundary and on a

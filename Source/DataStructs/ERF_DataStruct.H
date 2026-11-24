@@ -1729,7 +1729,7 @@ struct SolverChoice {
             }
         }
 
-        // Implicit drag of the immersed forcing inside the anelastic projection (erf-model/ERF#4919
+        // Implicit drag of the immersed forcing inside the projection (erf-model/ERF#4919
         // for terrain, #4887 for buildings): each face momentum becomes (m* - grad phi) / (1 + dt rate),
         // with rate the drag rate of the source term on that face, and the solid is not frozen
         // afterwards, so the projected field stays divergence free in the solid too
@@ -1751,10 +1751,6 @@ struct SolverChoice {
             for (int lev = 0; lev <= max_level; ++lev) {
                 if (compressibility_type[lev] != CompressibilityType::FullyCompressible) {
                     any_projecting_level = true;
-                }
-                if (compressibility_type[lev] == CompressibilityType::PseudoIncompressible) {
-                    amrex::Abort("erf.if_implicit_projection is not yet supported with "
-                                 "erf.compressibility_type = PseudoIncompressible");
                 }
             }
             if (!any_projecting_level) {
@@ -3103,7 +3099,7 @@ struct SolverChoice {
     // Use a point-implicit (linearly-implicit) formulation of the immersed-forcing
     // drag. Defaults to false (explicit forward-Euler source).
     bool        if_implicit_drag      = false;
-    bool        if_implicit_projection = false;  // erf.if_implicit_projection: solid drag (terrain or buildings) inside the anelastic projection
+    bool        if_implicit_projection = false;  // erf.if_implicit_projection: solid drag (terrain or buildings) inside the projection of an Anelastic or PseudoIncompressible level
     // immersed forcing MOST parameters.
     amrex::Real if_z0                    = amrex::Real(0.1);   // [m]
     amrex::Real if_surf_temp_flux        = amrex::Real(1e-8);  // [K m/s]
@@ -3211,7 +3207,7 @@ struct SolverChoice {
     amrex::Real mean_vars_reset_time = -one;
 
     /**
-     * True when the drag of the immersed solid is applied inside the anelastic projection on this
+     * True when the drag of the immersed solid is applied inside the projection on this
      * level (erf.if_implicit_projection on a level that is not FullyCompressible). A
      * FullyCompressible level has no projection, so it keeps the drag in the momentum source.
      */

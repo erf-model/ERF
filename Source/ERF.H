@@ -2515,6 +2515,9 @@ private:
 
     std::unique_ptr<amrex::MultiFab> wrf_C1H;
     std::unique_ptr<amrex::MultiFab> wrf_C2H;
+    // Hybrid coefficients on full (w) levels, used to decouple the wrfbdy geopotential
+    std::unique_ptr<amrex::MultiFab> wrf_C1F;
+    std::unique_ptr<amrex::MultiFab> wrf_C2F;
     std::unique_ptr<amrex::MultiFab> wrf_MUB;
     std::unique_ptr<amrex::MultiFab> wrf_RDNW;
     std::unique_ptr<amrex::MultiFab> wrf_PHB; // Base geopotential

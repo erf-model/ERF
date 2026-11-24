@@ -4088,6 +4088,15 @@ List of Parameters
 |                                   | from ``wrfinput`` and ``wrfbdy``.  Forced to true if     |                              |                    |
 |                                   | ``avg_grid_faces_to_nodes`` is false                     |                              |                    |
 +-----------------------------------+----------------------------------------------------------+------------------------------+--------------------+
+| **erf.check_wrfbdy_invariant**    | diagnostic: at the first ``wrfbdy`` time of a fresh      | Boolean                      | false              |
+|                                   | start, print for each side the largest difference        |                              |                    |
+|                                   | between the decoupled, interpolated boundary u, v,       |                              |                    |
+|                                   | theta, qv and density and the initial state built from   |                              |                    |
+|                                   | ``wrfinput`` (points whose height lies inside the WRF    |                              |                    |
+|                                   | column).  The two should agree when the files come from  |                              |                    |
+|                                   | the same real.exe run; the initial density matches only  |                              |                    |
+|                                   | without the rebalance                                    |                              |                    |
++-----------------------------------+----------------------------------------------------------+------------------------------+--------------------+
 | **erf.interp_atmos_from_coarse**  | For fine levels (lev > 0) with ``WRFInput``              | Boolean                      | false              |
 |                                   | initialization, interpolate atmospheric state (U, V, W,  |                              |                    |
 |                                   | theta, density, moisture) from coarse level via          |                              |                    |
@@ -4504,15 +4513,16 @@ building combinations.
 |                                   | forward-Euler source                                     |                    |                  |
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.if_implicit_projection**    | terrain or buildings immersed forcing (not both), a      | Boolean            | false            |
-|                                   | mesh without terrain-fitted coordinates, no              |                    |                  |
-|                                   | PseudoIncompressible level, at least one level not       |                    |                  |
-|                                   | FullyCompressible: apply the drag of the solid inside    |                    |                  |
+|                                   | mesh without terrain-fitted coordinates, at least one    |                    |                  |
+|                                   | level Anelastic or PseudoIncompressible (not             |                    |                  |
+|                                   | FullyCompressible): apply the drag of the solid inside   |                    |                  |
 |                                   | the projection, m = (m* - grad phi) / (1 + dt rate) on   |                    |                  |
 |                                   | each face, and do not zero the solid faces afterwards,   |                    |                  |
 |                                   | so the projected momenta are divergence free in the      |                    |                  |
 |                                   | solid too. Solver: FFT-preconditioned GMRES (constant    |                    |                  |
-|                                   | dz, map factors of one, FFT build, rectangular refined   |                    |                  |
-|                                   | regions), otherwise multigrid. A FullyCompressible       |                    |                  |
+|                                   | dz, map factors of one, an Anelastic level,              |                    |                  |
+|                                   | FFT build, rectangular refined regions), otherwise       |                    |                  |
+|                                   | multigrid. A FullyCompressible                           |                    |                  |
 |                                   | level keeps the drag in the momentum source.             |                    |                  |
 |                                   | Refused with thin immersed bodies (zero-flux faces)      |                    |                  |
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------+

@@ -324,10 +324,6 @@ the drift correction acts on it.
   the reflux changes every coarse step by about as much as the drift
   correction removes; the upwind direction at the coarse/fine faces is
   not yet made consistent between the levels either,
-- the implicit immersed-forcing drag in the projection
-  (``erf.if_implicit_projection``),
-- a refined level of a flat mesh with map factors other than one (as
-  for an anelastic level),
 - thin immersed bodies (``erf.zero_xflux_faces``, ``erf.zero_yflux_faces``,
   ``erf.zero_zflux_faces``), whose projection has constant coefficients;
   ERF stops if a pseudo-incompressible level has them,

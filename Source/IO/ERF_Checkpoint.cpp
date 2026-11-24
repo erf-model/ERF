@@ -753,7 +753,7 @@ ERF::WriteCheckpointFile () const
 
         if (solverChoice.use_real_bcs && solverChoice.init_type == InitType::WRFInput) {
             if (lev == 0) {
-                amrex::Print() << "Writing C1H/C2H/RDNW/MUB/PHB variables at level " << lev << std::endl;
+                amrex::Print() << "Writing C1H/C2H/C1F/C2F/RDNW/MUB/PHB variables at level " << lev << std::endl;
                 MultiFab tmp1d(ba1d[0],dmap[0],1,0);
 
                 MultiFab::Copy(tmp1d,*wrf_C1H,0,0,1,0);
@@ -761,6 +761,14 @@ ERF::WriteCheckpointFile () const
 
                 MultiFab::Copy(tmp1d,*wrf_C2H,0,0,1,0);
                 VisMF::Write(tmp1d, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "C2H"));
+
+                MultiFab tmp1d_nd(convert(ba1d[0],IntVect(0,0,1)),dmap[0],1,0);
+
+                MultiFab::Copy(tmp1d_nd,*wrf_C1F,0,0,1,0);
+                VisMF::Write(tmp1d_nd, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "C1F"));
+
+                MultiFab::Copy(tmp1d_nd,*wrf_C2F,0,0,1,0);
+                VisMF::Write(tmp1d_nd, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "C2F"));
 
                 MultiFab::Copy(tmp1d,*wrf_RDNW,0,0,1,0);
                 VisMF::Write(tmp1d, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "RDNW"));
@@ -2462,7 +2470,7 @@ ERF::ReadCheckpointFile ()
 
         if (solverChoice.use_real_bcs && solverChoice.init_type == InitType::WRFInput) {
             if (lev == 0) {
-                amrex::Print() << "Reading C1H/C2H/RDNW/MUB/PHB variables at level " << lev << std::endl;
+                amrex::Print() << "Reading C1H/C2H/C1F/C2F/RDNW/MUB/PHB variables at level " << lev << std::endl;
                 //
                 // These are 1-D columns and 2-D/3-D fields on the level-0 grids; all of them
                 // are redistributed the same way, so a changed level-0 decomposition carries
@@ -2472,6 +2480,18 @@ ERF::ReadCheckpointFile ()
                                    lev, 0, 0, 1, IntVect(0), /*src_ghosts=*/true);
                 read_checkpoint_mf(*wrf_C2H,  MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "C2H"),
                                    lev, 0, 0, 1, IntVect(0), /*src_ghosts=*/true);
+                // Checkpoints written before C1F/C2F were stored keep the c1f = 1, c2f = 0
+                // set when the arrays were made; C1H/C2H cannot rebuild them
+                bool has_cf = read_checkpoint_mf_if_present(*wrf_C1F, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "C1F"),
+                                                            lev, 0, 0, 1, IntVect(0), /*src_ghosts=*/true);
+                has_cf = read_checkpoint_mf_if_present(*wrf_C2F, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "C2F"),
+                                                       lev, 0, 0, 1, IntVect(0), /*src_ghosts=*/true) && has_cf;
+                if (!has_cf) {
+                    wrf_C1F->setVal(one);
+                    wrf_C2F->setVal(zero);
+                    amrex::Warning("Checkpoint has no C1F/C2F; using c1f = 1, c2f = 0 to decouple the wrfbdy "
+                                   "geopotential, which is right only for hybrid_opt = 0");
+                }
                 read_checkpoint_mf(*wrf_RDNW, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "RDNW"),
                                    lev, 0, 0, 1, IntVect(0), /*src_ghosts=*/true);
                 read_checkpoint_mf(*wrf_MUB,  MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "MUB"),
