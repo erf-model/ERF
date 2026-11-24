@@ -299,7 +299,7 @@ fill_fab_from_arrays (int iv,
     amrex::Box in_box(amrex::IntVect(0,0,0), amrex::IntVect(ns3-1,ns2-1,ns1-1)); // ns1 may or may not be staggered
     amrex::Box my_box(amrex::IntVect(0,0,0), amrex::IntVect(ns3-1,ns2-1,khi));
 
-    if (var_name == "PH" || var_name == "PHB") {
+    if (var_name == "PH" || var_name == "PHB" || var_name == "C1F" || var_name == "C2F") {
         my_box.setType(amrex::IndexType(amrex::IntVect(0,0,1)));
         my_box.setBig(2, khi+1);
     }

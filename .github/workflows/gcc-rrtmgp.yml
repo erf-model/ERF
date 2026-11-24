@@ -157,7 +157,6 @@ jobs:
           -DERF_ENABLE_KOKKOS:BOOL=ON \
           -DHDF5_ROOT=${HDF5_ROOT} \
           -DNETCDF_ROOT=${NETCDF_ROOT} \
-          -DERF_ENABLE_EKAT:BOOL=${{matrix.rrtmgp}} \
           -DERF_ENABLE_RRTMGP:BOOL=${{matrix.rrtmgp}} \
           -DERF_ENABLE_TESTS:BOOL=ON \
           -DERF_ENABLE_ALL_WARNINGS:BOOL=ON \

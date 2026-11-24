@@ -80,6 +80,9 @@
 #ifdef ERF_USE_FIRE
 #include "ERF_FireCoupler.H"
 #endif
+#ifdef ERF_USE_FLOOD
+#include "ERF_FloodCoupler.H"
+#endif
 #ifdef ERF_USE_DUST
 #include "ERF_DustModel.H"
 #endif
@@ -1320,6 +1323,7 @@ public:
     void turbPert_update_automatic (int lev, double time);
 
     void fill_terrain_surface  (int lev, amrex::MultiFab& z_phys, double elapsed_time);
+    void build_zphys_nd        (int lev, const amrex::MultiFab* crse_znd, amrex::MultiFab& dst, double time);
     void init_zphys            (int lev, double elapsed_time);
     void remake_zphys          (int lev, amrex::Real time, std::unique_ptr<amrex::MultiFab>& temp_zphys_nd);
     void update_terrain_arrays (int lev);
@@ -1469,6 +1473,9 @@ private:
 
     // Initialize the fire coupling and its engine (erf.fire.enable)
     void initializeFire (const int&);
+
+    // Initialize the flood coupling and its engine (erf.flood.enable)
+    void initializeFlood (const int&);
 
 #ifdef ERF_USE_WINDFARM
     // Initialize the windfarm object
@@ -2151,6 +2158,9 @@ private:
 #ifdef ERF_USE_FIRE
     static double last_fire_plot_time;   // double: writeNow() takes double&, as for the other plot times
 #endif
+#ifdef ERF_USE_FLOOD
+    static double last_flood_plot_time;  // double: writeNow() takes double&, as for the other plot times
+#endif
 
     amrex::Vector<int> last_subvol_step;
     amrex::Vector<double> last_subvol_time;
@@ -2515,6 +2525,9 @@ private:
 
     std::unique_ptr<amrex::MultiFab> wrf_C1H;
     std::unique_ptr<amrex::MultiFab> wrf_C2H;
+    // Hybrid coefficients on full (w) levels, used to decouple the wrfbdy geopotential
+    std::unique_ptr<amrex::MultiFab> wrf_C1F;
+    std::unique_ptr<amrex::MultiFab> wrf_C2F;
     std::unique_ptr<amrex::MultiFab> wrf_MUB;
     std::unique_ptr<amrex::MultiFab> wrf_RDNW;
     std::unique_ptr<amrex::MultiFab> wrf_PHB; // Base geopotential
@@ -2600,6 +2613,15 @@ private:
     std::string m_fire_plot_file {"plt_fire_"};
     int         m_fire_plot_int  = -1;
     amrex::Real m_fire_plot_per  = -1.0;
+#endif
+
+#ifdef ERF_USE_FLOOD
+    /// The flood coupling (atmosphere side) and the engine it owns (erf.flood.engine)
+    std::unique_ptr<FloodCoupler> m_flood_coupler = nullptr;
+    FloodCouplingParams           m_flood_params;
+    std::string m_flood_plot_file {"plt_flood_"};
+    int         m_flood_plot_int  = -1;
+    amrex::Real m_flood_plot_per  = -1.0;
 #endif
 
 #ifdef ERF_USE_DUST

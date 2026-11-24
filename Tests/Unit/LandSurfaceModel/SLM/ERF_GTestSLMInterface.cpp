@@ -17,6 +17,7 @@
 #include <AMReX_RealBox.H>
 #include <AMReX_Reduce.H>
 #include <AMReX_Utility.H>
+#include <AMReX_VisMF.H>
 
 #include <gtest/gtest.h>
 
@@ -147,6 +148,100 @@ struct SLMTestState {
         return amrex::Geometry(box, &real_box, 0, is_periodic.data());
     }
 };
+
+/**
+ * Points SLM at the Noah-MP table for the lifetime of the object, which initialization from
+ * WRFInput or metgrid requires, and removes the settings afterwards.
+ */
+class ScopedSLMParameterFile
+{
+public:
+    ScopedSLMParameterFile ()
+    {
+        const std::filesystem::path table =
+            std::filesystem::path(__FILE__).parent_path() / ".." / ".." / ".." / ".." /
+            "Submodules" / "Noah-MP" / "parameters" / "NoahmpTable.TBL";
+        amrex::ParmParse pp("slm");
+        pp.add("use_parameter_file", true);
+        pp.add("parameter_file", table.lexically_normal().string());
+    }
+
+    ~ScopedSLMParameterFile ()
+    {
+        amrex::ParmParse pp("slm");
+        pp.remove("use_parameter_file");
+        pp.remove("parameter_file");
+    }
+};
+
+/**
+ * Makes amrex::Abort throw amrex::RuntimeError for the life of the object.
+ */
+class ScopedThrowOnAbort
+{
+public:
+    ScopedThrowOnAbort () : m_saved(amrex::system::throw_exception)
+    {
+        amrex::system::throw_exception = true;
+    }
+    ~ScopedThrowOnAbort () { amrex::system::throw_exception = m_saved; }
+    ScopedThrowOnAbort (const ScopedThrowOnAbort&) = delete;
+    ScopedThrowOnAbort& operator= (const ScopedThrowOnAbort&) = delete;
+
+private:
+    bool m_saved;
+};
+
+/**
+ * Vegetation parameters that init_landtype must take from the MODIS block of NoahmpTable.TBL.
+ */
+struct ExpectedLandParams {
+    int landtype;
+    amrex::Real ztop;
+    amrex::Real z0;
+    amrex::Real khai_l;
+    amrex::Real rc_min;
+    amrex::Real rgl;
+    amrex::Real hs_rc;
+    int vegetype;
+};
+
+const std::vector<ExpectedLandParams>& expected_land_params ()
+{
+    static const std::vector<ExpectedLandParams> params{
+        { 1, 20.0, 1.09,  0.010, 125.0,  30.0, 47.35, 1},
+        { 2, 20.0, 1.10,  0.010, 150.0,  30.0, 41.69, 1},
+        { 3, 18.0, 0.85,  0.010, 150.0,  30.0, 47.35, 1},
+        { 4, 16.0, 0.80,  0.250, 100.0,  30.0, 54.53, 1},
+        { 5, 16.0, 0.80,  0.250, 125.0,  30.0, 51.93, 1},
+        { 6,  1.1, 0.20,  0.010, 300.0, 100.0, 42.00, 1},
+        { 7,  1.1, 0.06,  0.010, 170.0, 100.0, 39.18, 1},
+        { 8, 13.0, 0.60,  0.010, 300.0, 100.0, 42.00, 1},
+        { 9, 10.0, 0.50,  0.010,  70.0,  65.0, 54.53, 1},
+        {10,  1.0, 0.12, -0.300,  40.0, 100.0, 36.35, 1},
+        {11,  5.0, 0.30, -0.025,  70.0,  65.0, 55.97, 1},
+        {12,  2.0, 0.15, -0.300,  40.0, 100.0, 36.25, 1},
+        {13, 10.0, 1.00, -0.300,   0.0,   0.0,  0.0,  0},
+        {14,  1.5, 0.14, -0.300,  40.0, 100.0, 36.25, 1},
+        {18,  4.0, 0.30,  0.250, 150.0, 100.0, 42.00, 1},
+        {19,  2.0, 0.20,  0.250, 150.0, 100.0, 42.00, 1},
+        {20,  0.5, 0.03,  0.250, 200.0, 100.0, 42.00, 1}};
+    return params;
+}
+
+/**
+ * Reads a 2D field that SLM wrote to a checkpoint and returns its minimum and maximum.
+ */
+std::pair<amrex::Real, amrex::Real>
+read_checkpoint_range (const std::filesystem::path& checkpoint, const int lev,
+                       const std::string& name)
+{
+    amrex::MultiFab mf;
+    // VisMF only splits paths on '/', so avoid the backslashes std::filesystem uses on Windows
+    amrex::VisMF::Read(mf, (checkpoint / ("Level_" + std::to_string(lev)) /
+                            ("SLM_" + name)).generic_string());
+    return {mf.min(0), mf.max(0)};
+}
 
 void configure_slm_parameters ()
 {
@@ -938,6 +1033,7 @@ TEST_F(SLMInterfaceTest, InitializesIndependentMultilevelSLMState)
 
 TEST_F(SLMInterfaceTest, TransfersRawInputStateFromLevelZero)
 {
+    ScopedSLMParameterFile parameter_file;
     initialize_multilevel(2, InitType::WRFInput);
     seed_transfer_state(0, amrex::Real(285.0), amrex::Real(290.0),
                         amrex::Real(0.4), amrex::Real(3.0));
@@ -961,6 +1057,7 @@ TEST_F(SLMInterfaceTest, TransfersRawInputStateFromLevelZero)
 // on a coastline become 12, cropland).
 TEST_F(SLMInterfaceTest, TransfersCategoriesPiecewiseConstant)
 {
+    ScopedSLMParameterFile parameter_file;
     initialize_multilevel(3, InitType::WRFInput);
 
     // On level 1 (4 x 4) a ramp of categories 1, 4, 7, 10 in x for the vegetation type and
@@ -1132,6 +1229,203 @@ TEST_F(SLMInterfaceTest, ReadsDirectSLMCheckpointIntoFreshSLM)
     }
 
     std::filesystem::remove_all(checkpoint);
+}
+
+// Motivation: SLM used to remap every WRF land category above 16 to 14.  Each category now
+// reaches init_landtype unchanged and takes its parameters from the Noah-MP MODIS table.
+TEST_F(SLMInterfaceTest, LandTypesTakeParametersFromNoahMPTable)
+{
+    const std::filesystem::path checkpoint = erf_gtest_temp_path("erf_slm_unit_landtypes");
+    const amrex::Real tol = amrex::Real(1.0e-5);
+
+    for (const auto& expected : expected_land_params()) {
+        initialize_multilevel(2);
+        seed_transfer_state(0, amrex::Real(290.0), amrex::Real(290.0),
+                            amrex::Real(0.4), amrex::Real(0.0));
+        get_slm_data(land_surface, 0, "vegtype")->setVal(expected.landtype);
+        land_surface.Initialize_From_Source(1, 0, amrex::IntVect(2),
+                                             LSMTransferMode::ProcessedState);
+
+        std::filesystem::remove_all(checkpoint);
+        std::filesystem::create_directories(checkpoint / "Level_1");
+        land_surface.WriteCheckpoint(1, checkpoint.string());
+
+        const std::string label = "landtype " + std::to_string(expected.landtype);
+        const std::vector<std::pair<std::string, amrex::Real>> fields{
+            {"landtype", amrex::Real(expected.landtype)},
+            {"ztop", expected.ztop},
+            {"z0_sfc", expected.z0},
+            {"Khai_L", expected.khai_l},
+            {"Rc_min", expected.rc_min},
+            {"Rgl", expected.rgl},
+            {"hs_rc", expected.hs_rc}};
+        for (const auto& [name, value] : fields) {
+            const auto [lo, hi] = read_checkpoint_range(checkpoint, 1, name);
+            EXPECT_NEAR(lo, value, tol) << name << " min for " << label;
+            EXPECT_NEAR(hi, value, tol) << name << " max for " << label;
+        }
+
+        const auto [disp_lo, disp_hi] = read_checkpoint_range(checkpoint, 1, "disp_hgt");
+        EXPECT_NEAR(disp_lo, amrex::Real(0.65) * expected.ztop, tol) << label;
+        EXPECT_NEAR(disp_hi, amrex::Real(0.65) * expected.ztop, tol) << label;
+
+        if (expected.vegetype == 1) {
+            // A vegetated type has a nonzero Rgl, so the radiation stress term cannot divide by zero
+            EXPECT_GT(read_checkpoint_range(checkpoint, 1, "Rgl").first, amrex::Real(0.0)) << label;
+        }
+    }
+    std::filesystem::remove_all(checkpoint);
+}
+
+TEST_F(SLMInterfaceTest, CanopyWaterCapacityUsesLAIAndSAIOnly)
+{
+    initialize_multilevel(2);
+    seed_transfer_state(0, amrex::Real(290.0), amrex::Real(290.0),
+                        amrex::Real(0.4), amrex::Real(0.0));
+    land_surface.Initialize_From_Source(1, 0, amrex::IntVect(2),
+                                         LSMTransferMode::ProcessedState);
+
+    // seed_transfer_state sets LAI to 2 and SAI starts at 0, so no trunk term from
+    // canopy height and basal area is added
+    const std::filesystem::path checkpoint = erf_gtest_temp_path("erf_slm_unit_mwmx");
+    std::filesystem::remove_all(checkpoint);
+    std::filesystem::create_directories(checkpoint / "Level_1");
+    land_surface.WriteCheckpoint(1, checkpoint.string());
+
+    const auto [lo, hi] = read_checkpoint_range(checkpoint, 1, "mw_mx");
+    EXPECT_NEAR(lo, amrex::Real(0.2), amrex::Real(1.0e-6));
+    EXPECT_NEAR(hi, amrex::Real(0.2), amrex::Real(1.0e-6));
+    std::filesystem::remove_all(checkpoint);
+}
+
+TEST_F(SLMInterfaceTest, CheckpointOmitsRemovedBAIAndAlbedoFields)
+{
+    const std::filesystem::path checkpoint = erf_gtest_temp_path("erf_slm_unit_removed");
+    std::filesystem::remove_all(checkpoint);
+    std::filesystem::create_directories(checkpoint / "Level_0");
+    land_surface.WriteCheckpoint(0, checkpoint.string());
+
+    const std::filesystem::path level = checkpoint / "Level_0";
+    EXPECT_TRUE(std::filesystem::exists(level / "SLM_ztop_H"));
+    for (const char* removed : {"BAI", "albedovis_v", "albedonir_v", "albedovis_s",
+                                "albedonir_s"}) {
+        EXPECT_FALSE(std::filesystem::exists(level / (std::string("SLM_") + removed + "_H")))
+            << removed;
+    }
+    std::filesystem::remove_all(checkpoint);
+}
+
+TEST_F(SLMInterfaceTest, InitialSurfaceAlbedosAreDefault)
+{
+    land_surface.Update_Lsm_Vars_Lev(0, state->cons, state->uvel, state->vvel);
+    for (const char* name : {"alb_nir_sfc", "alb_vis_sfc", "alb_nir_sfc_diff",
+                             "alb_vis_sfc_diff"}) {
+        const auto* albedo = get_slm_data(land_surface, 0, name);
+        int n_checked = 0;
+        for (amrex::MFIter mfi(*albedo); mfi.isValid(); ++mfi) {
+            if (mfi.validbox().contains(amrex::IntVect(AMREX_D_DECL(0, 0, -1)))) {
+                EXPECT_NEAR(albedo->const_array(mfi)(0, 0, -1), amrex::Real(0.2),
+                            amrex::Real(1.0e-6)) << name;
+                ++n_checked;
+            }
+        }
+        EXPECT_EQ(n_checked, 1) << name;
+    }
+}
+
+TEST_F(SLMInterfaceTest, ProcessedStateRejectsCategoriesOutsideRange)
+{
+    ScopedThrowOnAbort throw_on_abort;
+    for (const int bad : {-1, 22}) {
+        initialize_multilevel(2);
+        seed_transfer_state(0, amrex::Real(290.0), amrex::Real(290.0),
+                            amrex::Real(0.4), amrex::Real(0.0));
+        get_slm_data(land_surface, 0, "vegtype")->setVal(bad);
+        try {
+            land_surface.Initialize_From_Source(1, 0, amrex::IntVect(2),
+                                                 LSMTransferMode::ProcessedState);
+            ADD_FAILURE() << "expected an abort for category " << bad;
+        } catch (const amrex::RuntimeError& e) {
+            EXPECT_NE(std::string(e.what()).find("[0, 21]"), std::string::npos) << e.what();
+        }
+    }
+}
+
+TEST_F(SLMInterfaceTest, WRFInputRequiresParameterFile)
+{
+    ScopedThrowOnAbort throw_on_abort;
+    for (const InitType init_type : {InitType::WRFInput, InitType::Metgrid}) {
+        try {
+            initialize_multilevel(1, init_type);
+            ADD_FAILURE() << "expected an abort without slm.use_parameter_file";
+        } catch (const amrex::RuntimeError& e) {
+            EXPECT_NE(std::string(e.what()).find("use_parameter_file"), std::string::npos)
+                << e.what();
+        }
+    }
+}
+
+// Motivation: ISLTYP 17-19 used to fall into the default case, which set sand = clay = -100%
+// and made the thermal soil properties wrong.  Categories 8 and 9 follow the STAS table.
+TEST_F(SLMInterfaceTest, SoilCategoriesSetSandAndClay)
+{
+    ScopedSLMParameterFile parameter_file;
+    struct SoilCase { int type; amrex::Real sand; amrex::Real clay; };
+    const std::vector<SoilCase> cases{
+        {1, 92.0, 3.0}, {8, 20.0, 40.0}, {9, 32.0, 34.0}, {16, 0.1, 0.1},
+        {17, 20.0, 60.0}, {18, 0.1, 0.1}, {19, 92.0, 3.0}};
+
+    for (const auto& c : cases) {
+        initialize_multilevel(2, InitType::WRFInput);
+        seed_transfer_state(0, amrex::Real(290.0), amrex::Real(290.0),
+                            amrex::Real(0.4), amrex::Real(0.0));
+        get_slm_data(land_surface, 0, "soiltype")->setVal(c.type);
+        land_surface.Initialize_From_Source(1, 0, amrex::IntVect(2),
+                                             LSMTransferMode::ProcessedState);
+
+        for (const char* name : {"sand", "clay"}) {
+            const amrex::Real expected = (std::string(name) == "sand") ? c.sand : c.clay;
+            const auto* mf = get_slm_data(land_surface, 1, name);
+            EXPECT_NEAR(mf->min(0), expected, amrex::Real(1.0e-4))
+                << name << " min for soil type " << c.type;
+            EXPECT_NEAR(mf->max(0), expected, amrex::Real(1.0e-4))
+                << name << " max for soil type " << c.type;
+        }
+    }
+}
+
+TEST_F(SLMInterfaceTest, SoilCategoriesOutsideRangeAbortOnLandOnly)
+{
+    ScopedSLMParameterFile parameter_file;
+    ScopedThrowOnAbort throw_on_abort;
+
+    for (const int bad : {0, 20}) {
+        initialize_multilevel(2, InitType::WRFInput);
+        seed_transfer_state(0, amrex::Real(290.0), amrex::Real(290.0),
+                            amrex::Real(0.4), amrex::Real(0.0));
+        get_slm_data(land_surface, 0, "soiltype")->setVal(bad);
+        try {
+            land_surface.Initialize_From_Source(1, 0, amrex::IntVect(2),
+                                                 LSMTransferMode::ProcessedState);
+            ADD_FAILURE() << "expected an abort for soil category " << bad;
+        } catch (const amrex::RuntimeError& e) {
+            const std::string msg(e.what());
+            EXPECT_NE(msg.find("[1, 19]"), std::string::npos) << msg;
+            EXPECT_NE(msg.find("min = " + std::to_string(bad)), std::string::npos) << msg;
+        }
+    }
+
+    // Water cells (vegetation type 17) with soil type 14 or 0 must not abort
+    for (const int water_soil : {14, 0}) {
+        initialize_multilevel(2, InitType::WRFInput);
+        seed_transfer_state(0, amrex::Real(290.0), amrex::Real(290.0),
+                            amrex::Real(0.4), amrex::Real(0.0));
+        get_slm_data(land_surface, 0, "vegtype")->setVal(17);
+        get_slm_data(land_surface, 0, "soiltype")->setVal(water_soil);
+        EXPECT_NO_THROW(land_surface.Initialize_From_Source(
+            1, 0, amrex::IntVect(2), LSMTransferMode::ProcessedState))
+            << "water cell with soil type " << water_soil;
+    }
 }
 
 } // namespace

@@ -858,7 +858,7 @@ private:
 
     // TODO: placeholder landmask array - should probably use the one defined by ERF
     amrex::iMultiFab landmask;
-    amrex::iMultiFab landtype; // IGBP landtype (1 to 16)
+    amrex::iMultiFab landtype; // MODIS landtype (0 for water, 1 to 20 on land)
     amrex::iMultiFab nroot; // number of rooted soil layers used by the Noah BTR=1 stress factor
     amrex::MultiFab LAI; // leaf area index
     amrex::MultiFab SAI; // stem area index
@@ -886,7 +886,6 @@ private:
     amrex::MultiFab precip_sfc; // precipitation reaching to soil top through canopy
     amrex::MultiFab mw_mx; // max of mw
     amrex::MultiFab mws_mx; // max of mws
-    amrex::MultiFab BAI; // Basal area index, sq.feet/acre
     amrex::MultiFab IMPERV;
 
     // Packed MF containing 1D arrays of variables used in soil temperature and soil water
@@ -913,10 +912,6 @@ private:
     amrex::MultiFab evp_canop;
     amrex::MultiFab evp_soil;
     amrex::MultiFab evp_air;
-
-    // Albedos
-    amrex::MultiFab albedovis_v, albedonir_v; // visible and NIR albedos for vegetation
-    amrex::MultiFab albedovis_s, albedonir_s; // visible and NIR albedos for soil
 
 
     // Resistances

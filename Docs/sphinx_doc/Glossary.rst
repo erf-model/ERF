@@ -86,9 +86,9 @@ relevant section.
       diffusion with a nonlocal mass-flux plume contribution.  See :ref:`MYNNEDMF`.
 
    EKAT
-      E3SM Kokkos Application Toolkit -- the utility library, bundled as a
-      submodule, required by RRTMGP radiation, for which it provides Kokkos.  See
-      :ref:`sec:build:library`.
+      E3SM Kokkos Application Toolkit -- the utility library through which ERF
+      releases up to 26.11 obtained Kokkos for RRTMGP radiation.  ERF now uses
+      the Kokkos submodule directly.  See :ref:`sec:build:library`.
 
    EOS
       Equation of State -- the thermodynamic relation between pressure, density and
