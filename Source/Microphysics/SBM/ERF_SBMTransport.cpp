@@ -1947,6 +1947,14 @@ SBMTransport::set_particle_mixing (const ParticleMixingConfig& config,
     if (!validate_particle_mixing_config(config, reason)) {
         throw std::invalid_argument("SBM particle mixing: " + reason);
     }
+    // The terrain conductances exist, but the stage operator that matches
+    // them to the native terrain flux and its boundaries is not qualified.
+    if (config.policy != ParticleMixingPolicy::None &&
+        mesh == erf_auxiliary::DiffusionMesh::VariableDz) {
+        throw std::invalid_argument(
+            "SBM particle mixing: the terrain-fitted (VariableDz) stage operator "
+            "is not qualified");
+    }
     if (!validate_particle_mixing_boundaries(config, m_boundaries, reason)) {
         throw std::invalid_argument(reason);
     }

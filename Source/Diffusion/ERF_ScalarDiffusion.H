@@ -1129,6 +1129,7 @@ BuildScalarDiffusionFluxes_T_Impl (
   const amrex::Box& domain,
   const ScalarDiffusionFieldViews& field,
   const ScalarDiffusionFluxPolicy& policy,
+  const ScalarDiffusionCoefficients& vertical_coefficients,
   const bool rotate,
   const amrex::Array4<const amrex::Real>& z_nd,
   const amrex::Array4<const amrex::Real>& z_cc,
@@ -1152,6 +1153,7 @@ BuildScalarDiffusionFluxes_T_Impl (
   if (ybx.bigEnd(2) != dom_hi.z) ybx.growHi(2, 1);
 
   const auto coefficients = policy.coefficients;
+  const auto vertical = vertical_coefficients;
   const auto prescribed = policy.prescribed;
   const auto diagnostic = policy.diagnostic;
   const auto surface = policy.surface;
@@ -1218,8 +1220,8 @@ BuildScalarDiffusionFluxes_T_Impl (
   ParallelFor(zbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
     const Real coeff = ScalarDiffusionFaceCoefficient<
       MultiplyMolecularByDensity, AddTurbulence>(
-      density, rho_comp, mu_turb, coefficients, i, j, k, 0, 0, 1,
-      coefficients.eddy_v_comp);
+      density, rho_comp, mu_turb, vertical, i, j, k, 0, 0, 1,
+      vertical.eddy_v_comp);
     const bool ext_lo =
       ((bc_ptr[bc_comp].lo(2) == ERFBCType::ext_dir) ||
        (bc_ptr[bc_comp].lo(2) == ERFBCType::ext_dir_prim)) &&
@@ -1248,8 +1250,57 @@ BuildScalarDiffusionFluxes_T_Impl (
   });
 }
 
-/** Build all native terrain-grid face fluxes, including the grown horizontal
- * face regions needed by the mapped z-face transfer. */
+/**
+ * Build all native terrain-grid face fluxes, including the grown horizontal
+ * face regions needed by the mapped z-face transfer. The x and y faces read
+ * policy.coefficients and the z faces read `vertical_coefficients` (its
+ * molecular coefficient and eddy_v_comp). Each raw flux carries the
+ * coefficient of its own direction before the single terrain mapping, whose
+ * vertical transfer then combines both. A pass that gives every raw flux the
+ * vertical coefficient does not produce that transfer, even with K_v = 0.
+ */
+inline void
+BuildScalarDiffusionFluxes_T (
+  const amrex::Box& bx,
+  const amrex::Box& domain,
+  const ScalarDiffusionFieldViews& field,
+  const ScalarDiffusionFluxPolicy& policy,
+  const ScalarDiffusionCoefficients& vertical_coefficients,
+  const bool rotate,
+  const amrex::Array4<const amrex::Real>& z_nd,
+  const amrex::Array4<const amrex::Real>& z_cc,
+  const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
+  const amrex::Array4<const amrex::Real>& u,
+  const amrex::Array4<const amrex::Real>& v,
+  const amrex::Array4<const amrex::Real>& mf_ux,
+  const amrex::Array4<const amrex::Real>& mf_vy,
+  const amrex::BCRec* bc_ptr,
+  const int bc_comp)
+{
+  const auto mode = policy.coefficient_mode;
+  const auto& vertical = vertical_coefficients;
+  if (mode.molecular_is_kinematic) {
+    if (mode.add_turbulence) {
+      BuildScalarDiffusionFluxes_T_Impl<true, true>(
+        bx, domain, field, policy, vertical, rotate, z_nd, z_cc, cellSizeInv,
+        u, v, mf_ux, mf_vy, bc_ptr, bc_comp);
+    } else {
+      BuildScalarDiffusionFluxes_T_Impl<true, false>(
+        bx, domain, field, policy, vertical, rotate, z_nd, z_cc, cellSizeInv,
+        u, v, mf_ux, mf_vy, bc_ptr, bc_comp);
+    }
+  } else if (mode.add_turbulence) {
+    BuildScalarDiffusionFluxes_T_Impl<false, true>(
+      bx, domain, field, policy, vertical, rotate, z_nd, z_cc, cellSizeInv,
+      u, v, mf_ux, mf_vy, bc_ptr, bc_comp);
+  } else {
+    BuildScalarDiffusionFluxes_T_Impl<false, false>(
+      bx, domain, field, policy, vertical, rotate, z_nd, z_cc, cellSizeInv,
+      u, v, mf_ux, mf_vy, bc_ptr, bc_comp);
+  }
+}
+
+/** As above, with policy.coefficients on every face. */
 inline void
 BuildScalarDiffusionFluxes_T (
   const amrex::Box& bx,
@@ -1267,26 +1318,9 @@ BuildScalarDiffusionFluxes_T (
   const amrex::BCRec* bc_ptr,
   const int bc_comp)
 {
-  const auto mode = policy.coefficient_mode;
-  if (mode.molecular_is_kinematic) {
-    if (mode.add_turbulence) {
-      BuildScalarDiffusionFluxes_T_Impl<true, true>(
-        bx, domain, field, policy, rotate, z_nd, z_cc, cellSizeInv, u, v,
-        mf_ux, mf_vy, bc_ptr, bc_comp);
-    } else {
-      BuildScalarDiffusionFluxes_T_Impl<true, false>(
-        bx, domain, field, policy, rotate, z_nd, z_cc, cellSizeInv, u, v,
-        mf_ux, mf_vy, bc_ptr, bc_comp);
-    }
-  } else if (mode.add_turbulence) {
-    BuildScalarDiffusionFluxes_T_Impl<false, true>(
-      bx, domain, field, policy, rotate, z_nd, z_cc, cellSizeInv, u, v,
-      mf_ux, mf_vy, bc_ptr, bc_comp);
-  } else {
-    BuildScalarDiffusionFluxes_T_Impl<false, false>(
-      bx, domain, field, policy, rotate, z_nd, z_cc, cellSizeInv, u, v,
-      mf_ux, mf_vy, bc_ptr, bc_comp);
-  }
+  BuildScalarDiffusionFluxes_T(bx, domain, field, policy, policy.coefficients,
+                               rotate, z_nd, z_cc, cellSizeInv, u, v, mf_ux, mf_vy,
+                               bc_ptr, bc_comp);
 }
 
 /**
