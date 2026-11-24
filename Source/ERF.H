@@ -575,7 +575,8 @@ public:
                            amrex::Array<amrex::MultiFab,AMREX_SPACEDIM>& fluxes,
                            amrex::MultiFab& ax_sub, amrex::MultiFab& ay_sub,
                            amrex::MultiFab& az_sub,
-                           amrex::MultiFab& /*dJ_sub*/, amrex::MultiFab& znd_sub);
+                           amrex::MultiFab& /*dJ_sub*/, amrex::MultiFab& znd_sub,
+                           const amrex::MultiFab& mfux_sub, const amrex::MultiFab& mfvy_sub);
 
     void ImposeBCsOnPhi (int lev, amrex::MultiFab& phi, const amrex::Box& subdomain);
 

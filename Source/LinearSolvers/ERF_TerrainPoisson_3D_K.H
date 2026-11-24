@@ -8,6 +8,24 @@
 #include "ERF_NumericalConstants.H"
 
 /**
+ * The square of a face map factor, or one when no map factors are given.
+ *
+ * @tparam T Real-valued array type
+ * @param mf Face map factor (two-dimensional), or a null Array4
+ * @param i x-index of the face
+ * @param j y-index of the face
+ * @return mf(i,j)^2, or one
+ */
+template <typename T>
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+T terrpoisson_mf2 (amrex::Array4<T const> const& mf, int i, int j) noexcept
+{
+    if (!mf) { return T(1); }
+    const T m = mf(i,j,0);
+    return m*m;
+}
+
+/**
  * Compute the x-face terrain Poisson flux.
  *
  * @tparam T Real-valued array and spacing type
@@ -118,14 +136,22 @@ T terrpoisson_flux_y (int i, int j, int k,
  * @param zp Node-centered physical height field
  * @param dxinv Inverse x grid spacing
  * @param dyinv Inverse y grid spacing
+ * @param mf_ux Map factor m_x on x-faces (null: one)
+ * @param mf_vy Map factor m_y on y-faces (null: one)
  * @return z-face flux for the terrain Poisson operator
+ *
+ * The flux is the correction to Omega = w - m_x h_xi u - m_y h_eta v (OmegaFromW): with the
+ * lateral corrections m_x G_x phi and m_y G_y phi, the slope terms carry m_x^2 and m_y^2,
+ * so that the w recovered from Omega has the correction (1/h_zeta) d(phi)/d(zeta).
  */
 template <typename T>
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 T terrpoisson_flux_z (int i, int j, int k,
                       amrex::Array4<T const> const& sol,
                       amrex::Array4<T const> const& zp,
-                      T dxinv, T dyinv) noexcept
+                      T dxinv, T dyinv,
+                      amrex::Array4<T const> const& mf_ux = {},
+                      amrex::Array4<T const> const& mf_vy = {}) noexcept
 {
     using amrex::Real;
 
@@ -187,8 +213,15 @@ T terrpoisson_flux_z (int i, int j, int k,
     Real h_xi_on_zlo  = myhalf * (zp(i+1,j+1,k) + zp(i+1,j,k) - zp(i,j+1,k) - zp(i,j,k)) * dxinv;
     Real h_eta_on_zlo = myhalf * (zp(i+1,j+1,k) + zp(i,j+1,k) - zp(i+1,j,k) - zp(i,j,k)) * dyinv;
 
-    pz_lo -= myhalf * h_xi_on_zlo  * ( (px_hi_md_lo + px_lo_md_lo) - (pz_hi_md_lo + pz_lo_md_lo) );
-    pz_lo -= myhalf * h_eta_on_zlo * ( (py_md_hi_lo + py_md_lo_lo) - (pz_md_hi_lo + pz_md_lo_lo) );
+    // m_x^2 on the x-faces and m_y^2 on the y-faces either side, as in OmegaFromW (grouped
+    // as without them, so that unit map factors give the same answer bit for bit)
+    Real mx2_hi = terrpoisson_mf2(mf_ux, i+1, j  );
+    Real mx2_lo = terrpoisson_mf2(mf_ux, i  , j  );
+    Real my2_hi = terrpoisson_mf2(mf_vy, i  , j+1);
+    Real my2_lo = terrpoisson_mf2(mf_vy, i  , j  );
+
+    pz_lo -= myhalf * h_xi_on_zlo  * ( (mx2_hi * px_hi_md_lo + mx2_lo * px_lo_md_lo) - (mx2_hi * pz_hi_md_lo + mx2_lo * pz_lo_md_lo) );
+    pz_lo -= myhalf * h_eta_on_zlo * ( (my2_hi * py_md_hi_lo + my2_lo * py_md_lo_lo) - (my2_hi * pz_md_hi_lo + my2_lo * pz_md_lo_lo) );
 
     if (k == 0) pz_lo = zero;
 
@@ -207,6 +240,8 @@ T terrpoisson_flux_z (int i, int j, int k,
  * @param zp Node-centered physical height field
  * @param dxinv Inverse x grid spacing
  * @param dyinv Inverse y grid spacing
+ * @param mf_ux Map factor m_x on x-faces (null: one)
+ * @param mf_vy Map factor m_y on y-faces (null: one)
  * @return z-face flux with a low-z Dirichlet value
  */
 template <typename T>
@@ -214,7 +249,9 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 T terrpoisson_flux_zlo_dir (int i, int j, int k,
                             amrex::Array4<T const> const& sol,
                             amrex::Array4<T const> const& zp,
-                            T dxinv, T dyinv) noexcept
+                            T dxinv, T dyinv,
+                            amrex::Array4<T const> const& mf_ux = {},
+                            amrex::Array4<T const> const& mf_vy = {}) noexcept
 {
     using amrex::Real;
 
@@ -268,8 +305,15 @@ T terrpoisson_flux_zlo_dir (int i, int j, int k,
     Real h_xi_on_zlo  = myhalf * (zp(i+1,j+1,k) + zp(i+1,j,k) - zp(i,j+1,k) - zp(i,j,k)) * dxinv;
     Real h_eta_on_zlo = myhalf * (zp(i+1,j+1,k) + zp(i,j+1,k) - zp(i+1,j,k) - zp(i,j,k)) * dyinv;
 
-    pz_lo -= myhalf * h_xi_on_zlo  * ( (px_hi_md_lo + px_lo_md_lo) - (pz_hi_md_lo + pz_lo_md_lo) );
-    pz_lo -= myhalf * h_eta_on_zlo * ( (py_md_hi_lo + py_md_lo_lo) - (pz_md_hi_lo + pz_md_lo_lo) );
+    // m_x^2 on the x-faces and m_y^2 on the y-faces either side, as in OmegaFromW (grouped
+    // as without them, so that unit map factors give the same answer bit for bit)
+    Real mx2_hi = terrpoisson_mf2(mf_ux, i+1, j  );
+    Real mx2_lo = terrpoisson_mf2(mf_ux, i  , j  );
+    Real my2_hi = terrpoisson_mf2(mf_vy, i  , j+1);
+    Real my2_lo = terrpoisson_mf2(mf_vy, i  , j  );
+
+    pz_lo -= myhalf * h_xi_on_zlo  * ( (mx2_hi * px_hi_md_lo + mx2_lo * px_lo_md_lo) - (mx2_hi * pz_hi_md_lo + mx2_lo * pz_lo_md_lo) );
+    pz_lo -= myhalf * h_eta_on_zlo * ( (my2_hi * py_md_hi_lo + my2_lo * py_md_lo_lo) - (my2_hi * pz_md_hi_lo + my2_lo * pz_md_lo_lo) );
 
     return -pz_lo;
 }
@@ -305,6 +349,8 @@ enum TerrainPoissonFaceBit : int {
  * @param dhi High corner of the solve region (used with zf)
  * @param zf Faces of the region whose flux is zero (sum of TerrainPoissonFaceBit values;
  *        0, the default, keeps every face flux)
+ * @param mf_ux Map factor m_x on x-faces (null: one), for the z-face fluxes as in terrpoisson_flux_z
+ * @param mf_vy Map factor m_y on y-faces (null: one)
  *
  * A masked face is a Neumann face of the solve region: a face of the region inside the domain
  * (a coarse/fine face of a refined level) or a Neumann (wall, inflow) face of the domain.  The
@@ -325,7 +371,9 @@ void terrpoisson_adotx (int i, int j, int k, amrex::Array4<T> const& y,
                         T dxinv, T dyinv, T dzinv,
                         amrex::Dim3 const& dlo = amrex::Dim3{0,0,0},
                         amrex::Dim3 const& dhi = amrex::Dim3{0,0,0},
-                        int zf = 0) noexcept
+                        int zf = 0,
+                        amrex::Array4<T const> const& mf_ux = {},
+                        amrex::Array4<T const> const& mf_vy = {}) noexcept
 {
     using amrex::Real;
     Real h_xi, h_eta, h_zeta;
@@ -463,8 +511,15 @@ void terrpoisson_adotx (int i, int j, int k, amrex::Array4<T> const& y,
     //
     // Note we do not need to recalculate pz_...hi here
     //
-    pz_hi -= myhalf * h_xi_on_zhi  * ( (px_hi_md_hi + px_lo_md_hi) - (pz_hi_md_hi + pz_lo_md_hi) );
-    pz_hi -= myhalf * h_eta_on_zhi * ( (py_md_hi_hi + py_md_lo_hi) - (pz_md_hi_hi + pz_md_lo_hi) );
+    // m_x^2 on the x-faces and m_y^2 on the y-faces either side, as in OmegaFromW (grouped
+    // as without them, so that unit map factors give the same answer bit for bit)
+    Real mx2_hi = terrpoisson_mf2(mf_ux, i+1, j  );
+    Real mx2_lo = terrpoisson_mf2(mf_ux, i  , j  );
+    Real my2_hi = terrpoisson_mf2(mf_vy, i  , j+1);
+    Real my2_lo = terrpoisson_mf2(mf_vy, i  , j  );
+
+    pz_hi -= myhalf * h_xi_on_zhi  * ( (mx2_hi * px_hi_md_hi + mx2_lo * px_lo_md_hi) - (mx2_hi * pz_hi_md_hi + mx2_lo * pz_lo_md_hi) );
+    pz_hi -= myhalf * h_eta_on_zhi * ( (my2_hi * py_md_hi_hi + my2_lo * py_md_lo_hi) - (my2_hi * pz_md_hi_hi + my2_lo * pz_md_lo_hi) );
 
     // *********************************************************
     // Lo z-face
@@ -491,8 +546,9 @@ void terrpoisson_adotx (int i, int j, int k, amrex::Array4<T> const& y,
     //
     // Note we do not need to recalculate pz_...lo here
     //
-    pz_lo -= myhalf * h_xi_on_zlo  * ( (px_hi_md_lo + px_lo_md_lo) - (pz_hi_md_lo + pz_lo_md_lo) );
-    pz_lo -= myhalf * h_eta_on_zlo * ( (py_md_hi_lo + py_md_lo_lo) - (pz_md_hi_lo + pz_md_lo_lo) );
+    // The same map factors as on the hi z-face (the faces of the same column)
+    pz_lo -= myhalf * h_xi_on_zlo  * ( (mx2_hi * px_hi_md_lo + mx2_lo * px_lo_md_lo) - (mx2_hi * pz_hi_md_lo + mx2_lo * pz_lo_md_lo) );
+    pz_lo -= myhalf * h_eta_on_zlo * ( (my2_hi * py_md_hi_lo + my2_lo * py_md_lo_lo) - (my2_hi * pz_md_hi_lo + my2_lo * pz_md_lo_lo) );
 
 #else
 
@@ -508,8 +564,8 @@ void terrpoisson_adotx (int i, int j, int k, amrex::Array4<T> const& y,
         Real px_hi = -terrpoisson_flux_x(i+1,j,k,x,zp,dxinv);
         Real py_lo = -terrpoisson_flux_y(i,j  ,k,x,zp,dyinv);
         Real py_hi = -terrpoisson_flux_y(i,j+1,k,x,zp,dyinv);
-        Real pz_lo = -terrpoisson_flux_z(i,j,k  ,x,zp,dxinv,dyinv);
-        Real pz_hi = -terrpoisson_flux_z(i,j,k+1,x,zp,dxinv,dyinv);
+        Real pz_lo = -terrpoisson_flux_z(i,j,k  ,x,zp,dxinv,dyinv,mf_ux,mf_vy);
+        Real pz_hi = -terrpoisson_flux_z(i,j,k+1,x,zp,dxinv,dyinv,mf_ux,mf_vy);
 #endif
     //
     // *********************************************************

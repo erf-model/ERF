@@ -1223,7 +1223,11 @@ void ERF::project_momenta (int lev, double l_time, double l_dt_d, Vector<MultiFa
                 amrex::Abort("The projection on a terrain-fitted mesh: two refined regions of level " + std::to_string(lev) +
                              " meet across the periodic boundary, which is not supported; keep the refinement on one side of it");
             } else if (flat_terrain_solve || solverChoice.terrain_poisson_solver != TerrainPoissonSolver::gmres_fft) {
-                // amrex::MLTerrainPoisson, multigrid alone or under GMRES; no FFT needed
+                // amrex::MLTerrainPoisson, multigrid alone or under GMRES; no FFT needed.
+                // Its z-face slope terms have no m_x^2, m_y^2 (TerrainPoisson's do, see
+                // terrpoisson_flux_z): the divergence is removed all the same, but on sloping
+                // terrain with map factors other than one the w correction differs from
+                // (1/h_zeta) d(phi)/d(zeta) by (m^2 - 1) times the slope terms
                 if (!boxes_make_rectangle) {
                     amrex::Abort("erf.terrain_poisson_solver = mlmg or gmres_mlmg needs the boxes of each "
                                  "region of a level to make a rectangle");
@@ -1237,7 +1241,8 @@ void ERF::project_momenta (int lev, double l_time, double l_dt_d, Vector<MultiFa
                 if (!boxes_make_rectangle) {
                     amrex::Abort("FFT preconditioner for GMRES won't work unless the union of boxes is rectangular");
                 } else {
-                    solve_with_gmres(lev, my_region, rhs_sub[0], phi_sub[0], fluxes_sub[0], ax_sub, ay_sub, az_sub, dJ_sub, znd_sub);
+                    solve_with_gmres(lev, my_region, rhs_sub[0], phi_sub[0], fluxes_sub[0], ax_sub, ay_sub, az_sub, dJ_sub, znd_sub,
+                                     mfux_sub, mfvy_sub);
                 }
 #else
                 amrex::Abort("Rebuild with USE_FFT = TRUE so you can use the FFT preconditioner for GMRES, "
