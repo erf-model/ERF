@@ -88,8 +88,9 @@ the short-circuit dissipation (Green 1992; Liu et al. 1996; Sanz 2003).
 :math:`c = \beta_d f |\boldsymbol{U}|`, which in a dense canopy is fast compared
 with the time step. Each RK stage updates :math:`\rho k` from its value at the
 start of the step, :math:`(\rho k)^n`, over :math:`\Delta t_s` (:math:`\Delta t/3`,
-:math:`\Delta t/2` and :math:`\Delta t` for RK3; :math:`\Delta t` for both stages of
-the RK2 of an anelastic or pseudo-incompressible level). With :math:`P = \beta_p f |\boldsymbol{U}|^3` and :math:`c`
+:math:`\Delta t/2` and :math:`\Delta t` for RK3; at an anelastic or pseudo-incompressible
+level, :math:`\Delta t/2` and :math:`\Delta t` for MidPoint, the default, and :math:`\Delta t`
+for both stages of RK2). With :math:`P = \beta_p f |\boldsymbol{U}|^3` and :math:`c`
 taken from the stage, production and sink are integrated together and exactly
 over the stage,
 

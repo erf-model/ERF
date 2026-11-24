@@ -1078,8 +1078,10 @@ List of Parameters
 |                                      | stage                                                    |                    |                   |
 +--------------------------------------+----------------------------------------------------------+--------------------+-------------------+
 | **erf.ncorr**                        | number of corrector passes in the thin-body              | Integer >= 1       | 1                 |
-|                                      | projection (anelastic runs with zero-flux faces); each   |                    |                   |
-|                                      | pass adds its pressure change to the stored gradient.    |                    |                   |
+|                                      | projection (anelastic runs with zero-flux faces; thin    |                    |                   |
+|                                      | bodies are not supported with PseudoIncompressible);     |                    |                   |
+|                                      | each pass adds its pressure change to the stored         |                    |                   |
+|                                      | gradient.                                                |                    |                   |
 |                                      | Also the number of corrections in the Poisson wall       |                    |                   |
 |                                      | distance                                                 |                    |                   |
 +--------------------------------------+----------------------------------------------------------+--------------------+-------------------+
@@ -2427,16 +2429,19 @@ List of Parameters
 | **erf.moistscal_vert_upw_frac**   | as above, for the vertical advection of moist scalars    | Real in [0,1]      | 1.0              |
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.zero_xflux_faces**          | list of (i,j,k) x-faces across which the advective flux  | List of 3-integer  | none             |
-|                                   | is forced to zero; when not FullyCompressible these      | triples            |                  |
-|                                   | select the thin-body projection                          |                    |                  |
+|                                   | is forced to zero; at an Anelastic level these select    | triples            |                  |
+|                                   | the thin-body projection. Not supported with             |                    |                  |
+|                                   | PseudoIncompressible (ERF stops)                         |                    |                  |
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.zero_yflux_faces**          | list of (i,j,k) y-faces across which the advective flux  | List of 3-integer  | none             |
-|                                   | is forced to zero; when not FullyCompressible these      | triples            |                  |
-|                                   | select the thin-body projection                          |                    |                  |
+|                                   | is forced to zero; at an Anelastic level these select    | triples            |                  |
+|                                   | the thin-body projection. Not supported with             |                    |                  |
+|                                   | PseudoIncompressible (ERF stops)                         |                    |                  |
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.zero_zflux_faces**          | list of (i,j,k) z-faces across which the advective flux  | List of 3-integer  | none             |
-|                                   | is forced to zero; when not FullyCompressible these      | triples            |                  |
-|                                   | select the thin-body projection                          |                    |                  |
+|                                   | is forced to zero; at an Anelastic level these select    | triples            |                  |
+|                                   | the thin-body projection. Not supported with             |                    |                  |
+|                                   | PseudoIncompressible (ERF stops)                         |                    |                  |
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------+
 
 The allowed advection types for the dycore variables are:

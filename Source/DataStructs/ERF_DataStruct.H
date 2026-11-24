@@ -1572,8 +1572,8 @@ struct SolverChoice {
             // The wall heat flux and the wall TKE are written by the slow scalar source; the
             // compressible fast substep (erf.immersed_forcing_substep) does not carry them
             if (immersed_forcing_substep) {
-                amrex::Abort("erf.if_wall_form = fraction_stress runs with the anelastic model (erf.compressibility_type not FullyCompressible on "
-                             "every level); it does not support erf.immersed_forcing_substep = true");
+                amrex::Abort("erf.if_wall_form = fraction_stress runs only where erf.compressibility_type is not FullyCompressible on "
+                             "every level; it does not support erf.immersed_forcing_substep = true");
             }
             // ... and the solid cells are held (rho, theta, the moisture species) by the update of an
             // anelastic or pseudo-incompressible level only
@@ -1898,6 +1898,19 @@ struct SolverChoice {
             amrex::Abort("erf.if_implicit_projection is not supported with thin immersed bodies "
                          "(erf.zero_xflux_faces, erf.zero_yflux_faces, erf.zero_zflux_faces): "
                          "set erf.if_implicit_projection = false or remove the thin bodies");
+        }
+
+        // project_velocity_tb solves the constant-coefficient (anelastic) Poisson equation; it has
+        // no beta = rho0 theta0 / rho, so it would not enforce the pseudo-incompressible constraint
+        if (advChoice.have_zero_flux_faces) {
+            for (int lev = 0; lev <= max_level; ++lev) {
+                if (compressibility_type[lev] == CompressibilityType::PseudoIncompressible) {
+                    amrex::Abort("Thin immersed bodies (erf.zero_xflux_faces, erf.zero_yflux_faces, "
+                                 "erf.zero_zflux_faces) are not supported with "
+                                 "erf.compressibility_type = PseudoIncompressible (level " +
+                                 std::to_string(lev) + ")");
+                }
+            }
         }
 
         // EB advection (EBAdvectionSrcForScalars, EBAdvectionSrcForMom) has only the centered and
