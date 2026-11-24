@@ -2564,6 +2564,16 @@ add_test_box_parity(IsentropicVortexAdvecting_WENO7_BoxParity IsentropicVortexAd
 # add_test_r(IVA_NumDiff                       ""  "erf_exec" "plt00010")
 add_test_r(MovingTerrain_nosub               ""  "erf_exec" "plt00020")
 add_test_r(MovingTerrain_sub                 ""  "erf_exec" "plt00010")
+# The moving-terrain acoustic substep (erf_substep_MT) with map factors that vary in x and y
+# (#5359): its mass and (rho theta) fluxes divide by m_y and m_x and its divergence takes m_x m_y,
+# so with a flow through a periodic, closed domain the mass and rho theta are conserved.  The
+# surface is flat (prob.Ampl=0), so only the substep's map factors are tested; without them
+# MASS drifts by 3e-7 in 20 steps
+foreach(_q MASS "RHO THETA")
+  string(REPLACE " " "" _qn "${_q}")
+  add_test_conservation(Conservation_${_qn}_MovingTerrainSubstep_VaryingMapFactor ScalarDiffusion_Reflux "${_q}"
+      OPTIONS "amr.max_level=0 max_step=20 erf.terrain_type=MovingFittedMesh prob.custom_terrain_type=MovingSineWave prob.Ampl=0 erf.use_lagged_delta_rt=false erf.test_mapfactor_amp=0.1 erf.molec_diff_type=None prob.U_0=10 prob.V_0=5")
+endforeach()
 
 # Problem setups measured from geometry.prob_lo (#4603, #4619, #4623) and the Poiseuille
 # y-velocity perturbation (#4618). Each shift test writes the initial state twice, the
