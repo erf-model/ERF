@@ -239,7 +239,9 @@ ShocStructure::diagnose_length_and_brunt (ShocColumnData& col,
     const auto qv = col.qv.const_array();
     const auto exner = col.exner.const_array();
     const auto tke = col.tke.const_array();
-    const Real max_horiz_len = std::sqrt(dx * dy);
+    const auto mf_area = col.mf_area.const_array();
+    // Computational cell size; the physical one divides it by sqrt(m_x m_y) of the column
+    const Real max_horiz_len_comp = std::sqrt(dx * dy);
     const auto layout = col.layout;
     const Box col_box(IntVect(0,0,0), IntVect(layout.ncell - 1, 0, 0));
 
@@ -255,6 +257,7 @@ ShocStructure::diagnose_length_and_brunt (ShocColumnData& col,
             denom += tke_sqrt * dz(ic,k,0);
         }
         const Real l_inf = (denom > 0.0_rt) ? 0.1_rt * numerator / denom : shoc_min_len();
+        const Real max_horiz_len = max_horiz_len_comp / std::sqrt(mf_area(ic,0,0));
 
         for (int k = 0; k < layout.nlev; ++k) {
             const Real theta_v_k = virtual_theta_from_shoc_state(thetal(ic,k,0), qc(ic,k,0), qi(ic,k,0),
