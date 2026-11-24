@@ -44,7 +44,6 @@ SLM::writeSLM_NetCDF (const MultiFab& mf, const Vector<std::string>& varnames, c
 
         // Write out 2D variables that are constant in time (LAI changes in time and is
         // written with the 2D fields below)
-        writeMFtoNC(ncf, &BAI, "BAI", -1.0);
         writeMFtoNC(ncf, &ztop, "ztop", -1.0);
     }
 
@@ -653,9 +652,6 @@ void SLM::WriteCheckpoint (const int &lev, const std::string &checkpointname) co
     MultiFab::Copy(mf,mws_mx,0,0,1,ng);
     VisMF::Write(mf, MultiFabFileFullPrefix(lev, checkpointname, "Level_", prefix + "mws_mx"));
 
-    MultiFab::Copy(mf,BAI,0,0,1,ng);
-    VisMF::Write(mf, MultiFabFileFullPrefix(lev, checkpointname, "Level_", prefix + "BAI"));
-
     MultiFab::Copy(mf,mw_inc,0,0,1,ng);
     VisMF::Write(mf, MultiFabFileFullPrefix(lev, checkpointname, "Level_", prefix + "mw_inc"));
 
@@ -679,18 +675,6 @@ void SLM::WriteCheckpoint (const int &lev, const std::string &checkpointname) co
 
     MultiFab::Copy(mf,lhf_air,0,0,1,ng);
     VisMF::Write(mf, MultiFabFileFullPrefix(lev, checkpointname, "Level_", prefix + "lhf_air"));
-
-    MultiFab::Copy(mf,albedovis_v,0,0,1,ng);
-    VisMF::Write(mf, MultiFabFileFullPrefix(lev, checkpointname, "Level_", prefix + "albedovis_v"));
-
-    MultiFab::Copy(mf,albedonir_v,0,0,1,ng);
-    VisMF::Write(mf, MultiFabFileFullPrefix(lev, checkpointname, "Level_", prefix + "albedonir_v"));
-
-    MultiFab::Copy(mf,albedovis_s,0,0,1,ng);
-    VisMF::Write(mf, MultiFabFileFullPrefix(lev, checkpointname, "Level_", prefix + "albedovis_s"));
-
-    MultiFab::Copy(mf,albedonir_s,0,0,1,ng);
-    VisMF::Write(mf, MultiFabFileFullPrefix(lev, checkpointname, "Level_", prefix + "albedonir_s"));
 
     MultiFab::Copy(mf,r_a,0,0,1,ng);
     VisMF::Write(mf, MultiFabFileFullPrefix(lev, checkpointname, "Level_", prefix + "r_a"));
@@ -928,8 +912,6 @@ void SLM::ReadCheckpoint (const int &lev, const std::string &checkpointname)
 
     read_field(mws_mx, "mws_mx", 1, IntVect(0), false);
 
-    read_field(BAI, "BAI", 1, IntVect(0), false);
-
     read_field(mw_inc, "mw_inc", 1, IntVect(0), false);
 
     read_field(evapo_dry, "evapo_dry", 1, IntVect(0), false);
@@ -945,14 +927,6 @@ void SLM::ReadCheckpoint (const int &lev, const std::string &checkpointname)
     read_field(lhf_soil, "lhf_soil", 1, IntVect(0), false);
 
     read_field(lhf_air, "lhf_air", 1, IntVect(0), false);
-
-    read_field(albedovis_v, "albedovis_v", 1, IntVect(0), false);
-
-    read_field(albedonir_v, "albedonir_v", 1, IntVect(0), false);
-
-    read_field(albedovis_s, "albedovis_s", 1, IntVect(0), false);
-
-    read_field(albedonir_s, "albedonir_s", 1, IntVect(0), false);
 
     read_field(r_a, "r_a", 1, IntVect(0), false);
 
