@@ -1078,8 +1078,10 @@ List of Parameters
 |                                      | stage                                                    |                    |                   |
 +--------------------------------------+----------------------------------------------------------+--------------------+-------------------+
 | **erf.ncorr**                        | number of corrector passes in the thin-body              | Integer >= 1       | 1                 |
-|                                      | projection (anelastic runs with zero-flux faces); each   |                    |                   |
-|                                      | pass adds its pressure change to the stored gradient.    |                    |                   |
+|                                      | projection (anelastic runs with zero-flux faces; thin    |                    |                   |
+|                                      | bodies are not supported with PseudoIncompressible);     |                    |                   |
+|                                      | each pass adds its pressure change to the stored         |                    |                   |
+|                                      | gradient.                                                |                    |                   |
 |                                      | Also the number of corrections in the Poisson wall       |                    |                   |
 |                                      | distance                                                 |                    |                   |
 +--------------------------------------+----------------------------------------------------------+--------------------+-------------------+
@@ -2427,16 +2429,19 @@ List of Parameters
 | **erf.moistscal_vert_upw_frac**   | as above, for the vertical advection of moist scalars    | Real in [0,1]      | 1.0              |
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.zero_xflux_faces**          | list of (i,j,k) x-faces across which the advective flux  | List of 3-integer  | none             |
-|                                   | is forced to zero; when not FullyCompressible these      | triples            |                  |
-|                                   | select the thin-body projection                          |                    |                  |
+|                                   | is forced to zero; at an Anelastic level these select    | triples            |                  |
+|                                   | the thin-body projection. Not supported with             |                    |                  |
+|                                   | PseudoIncompressible (ERF stops)                         |                    |                  |
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.zero_yflux_faces**          | list of (i,j,k) y-faces across which the advective flux  | List of 3-integer  | none             |
-|                                   | is forced to zero; when not FullyCompressible these      | triples            |                  |
-|                                   | select the thin-body projection                          |                    |                  |
+|                                   | is forced to zero; at an Anelastic level these select    | triples            |                  |
+|                                   | the thin-body projection. Not supported with             |                    |                  |
+|                                   | PseudoIncompressible (ERF stops)                         |                    |                  |
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.zero_zflux_faces**          | list of (i,j,k) z-faces across which the advective flux  | List of 3-integer  | none             |
-|                                   | is forced to zero; when not FullyCompressible these      | triples            |                  |
-|                                   | select the thin-body projection                          |                    |                  |
+|                                   | is forced to zero; at an Anelastic level these select    | triples            |                  |
+|                                   | the thin-body projection. Not supported with             |                    |                  |
+|                                   | PseudoIncompressible (ERF stops)                         |                    |                  |
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------+
 
 The allowed advection types for the dycore variables are:
@@ -3531,10 +3536,12 @@ Lateral Boundary Nudging
 | **erf.bdy_moist_nudge_type**  | which approach is used to nudge the moist variables in   | 0, 1, 2            | 1                          |
 |                               | the boundary region                                      |                    |                            |
 +-------------------------------+----------------------------------------------------------+--------------------+----------------------------+
-| **erf.use_wrf_bdy_density**   | use the dry-air density reconstructed from the           | Boolean            | true                       |
-|                               | ``wrfbdy`` data.  Ignored (set to false) unless real     |                    |                            |
-|                               | boundary conditions are used with ``init_type`` =        |                    |                            |
-|                               | ``WRFInput``                                             |                    |                            |
+| **erf.use_wrf_bdy_density**   | use the dry-air density reconstructed from the           | Boolean            | true if level 0 is         |
+|                               | ``wrfbdy`` data.  Ignored (set to false) unless real     |                    | FullyCompressible, false   |
+|                               | boundary conditions are used with ``init_type`` =        |                    | otherwise                  |
+|                               | ``WRFInput``.  Not supported when level 0 is Anelastic   |                    |                            |
+|                               | or PseudoIncompressible: setting it to true there stops  |                    |                            |
+|                               | the run                                                  |                    |                            |
 +-------------------------------+----------------------------------------------------------+--------------------+----------------------------+
 
 For WRF real boundaries, moisture nudging type 0 relaxes only ``qv`` toward
@@ -4082,6 +4089,15 @@ List of Parameters
 | **erf.rebalance_wrf_input**       | rebalance (hydrostatically re-integrate) the state read  | Boolean                      | true               |
 |                                   | from ``wrfinput`` and ``wrfbdy``.  Forced to true if     |                              |                    |
 |                                   | ``avg_grid_faces_to_nodes`` is false                     |                              |                    |
++-----------------------------------+----------------------------------------------------------+------------------------------+--------------------+
+| **erf.check_wrfbdy_invariant**    | diagnostic: at the first ``wrfbdy`` time of a fresh      | Boolean                      | false              |
+|                                   | start, print for each side the largest difference        |                              |                    |
+|                                   | between the decoupled, interpolated boundary u, v,       |                              |                    |
+|                                   | theta, qv and density and the initial state built from   |                              |                    |
+|                                   | ``wrfinput`` (points whose height lies inside the WRF    |                              |                    |
+|                                   | column).  The two should agree when the files come from  |                              |                    |
+|                                   | the same real.exe run; the initial density matches only  |                              |                    |
+|                                   | without the rebalance                                    |                              |                    |
 +-----------------------------------+----------------------------------------------------------+------------------------------+--------------------+
 | **erf.interp_atmos_from_coarse**  | For fine levels (lev > 0) with ``WRFInput``              | Boolean                      | false              |
 |                                   | initialization, interpolate atmospheric state (U, V, W,  |                              |                    |

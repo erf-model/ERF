@@ -23,6 +23,97 @@ spans_full_column (const Box& bx, const Geometry& geomdata)
     return ( (bx.smallEnd(2) == domain.smallEnd(2)) && (bx.bigEnd(2) == domain.bigEnd(2)) );
 }
 
+//
+// Horizontal derivatives at constant height of the cell-centered velocity component n,
+//    q = dat(.,n) / s with s a two-dimensional factor (a null s is one):
+//    dq/dxi - (dz/dxi) dq/dz, centered.  These are derivatives in the computational
+//    coordinate; the physical x-derivative is m_x times this.  The terrain term is skipped
+//    where the cell centers are level (it would read the vertical ghost cells for nothing).
+//
+AMREX_GPU_DEVICE AMREX_FORCE_INLINE
+Real
+dxi_at_z (int i, int j, int k, int n,
+          Array4<Real const> const& dat, Array4<Real const> const& z,
+          Array4<Real const> const& s, Real two_dx)
+{
+    auto q = [&] (int ii, int jj, int kk) {
+        return (s) ? dat(ii,jj,kk,n) / s(ii,jj,0) : dat(ii,jj,kk,n);
+    };
+    Real d = (q(i+1,j,k) - q(i-1,j,k)) / two_dx;
+    Real slope = (z(i+1,j,k) - z(i-1,j,k)) / two_dx;
+    if (slope != Real(0.0)) {
+        d -= slope * (q(i,j,k+1) - q(i,j,k-1)) / (z(i,j,k+1) - z(i,j,k-1));
+    }
+    return d;
+}
+
+AMREX_GPU_DEVICE AMREX_FORCE_INLINE
+Real
+deta_at_z (int i, int j, int k, int n,
+           Array4<Real const> const& dat, Array4<Real const> const& z,
+           Array4<Real const> const& s, Real two_dy)
+{
+    auto q = [&] (int ii, int jj, int kk) {
+        return (s) ? dat(ii,jj,kk,n) / s(ii,jj,0) : dat(ii,jj,kk,n);
+    };
+    Real d = (q(i,j+1,k) - q(i,j-1,k)) / two_dy;
+    Real slope = (z(i,j+1,k) - z(i,j-1,k)) / two_dy;
+    if (slope != Real(0.0)) {
+        d -= slope * (q(i,j,k+1) - q(i,j,k-1)) / (z(i,j,k+1) - z(i,j,k-1));
+    }
+    return d;
+}
+
+//
+// The components of the vorticity at a cell center from the cell-centered (physical) velocity,
+//    with the map factors m_x, m_y (null: one):
+//      vort_x = m_y dw/deta - dv/dz,  vort_y = du/dz - m_x dw/dxi,
+//      vort_z = m_x m_y [ d(v/m_y)/dxi - d(u/m_x)/deta ]
+//    (horizontal derivatives at constant height)
+//
+AMREX_GPU_DEVICE AMREX_FORCE_INLINE
+Real
+cc_vort_x (int i, int j, int k, Array4<Real const> const& dat, Array4<Real const> const& z,
+           Array4<Real const> const& mfy, Real two_dy)
+{
+    Real dwdy = deta_at_z(i,j,k,2,dat,z,Array4<Real const>{},two_dy);
+    if (mfy) { dwdy *= mfy(i,j,0); }
+    return dwdy - (dat(i,j,k+1,1) - dat(i,j,k-1,1)) / (z(i,j,k+1) - z(i,j,k-1));
+}
+
+AMREX_GPU_DEVICE AMREX_FORCE_INLINE
+Real
+cc_vort_y (int i, int j, int k, Array4<Real const> const& dat, Array4<Real const> const& z,
+           Array4<Real const> const& mfx, Real two_dx)
+{
+    Real dwdx = dxi_at_z(i,j,k,2,dat,z,Array4<Real const>{},two_dx);
+    if (mfx) { dwdx *= mfx(i,j,0); }
+    return (dat(i,j,k+1,0) - dat(i,j,k-1,0)) / (z(i,j,k+1) - z(i,j,k-1)) - dwdx;
+}
+
+AMREX_GPU_DEVICE AMREX_FORCE_INLINE
+Real
+cc_vort_z (int i, int j, int k, Array4<Real const> const& dat, Array4<Real const> const& z,
+           Array4<Real const> const& mfx, Array4<Real const> const& mfy,
+           Real two_dx, Real two_dy)
+{
+    Real vz = dxi_at_z (i,j,k,1,dat,z,mfy,two_dx)   // d(v/m_y)/dxi
+            - deta_at_z(i,j,k,0,dat,z,mfx,two_dy);  // d(u/m_x)/deta
+    if (mfx) { vz *= mfx(i,j,0); }
+    if (mfy) { vz *= mfy(i,j,0); }
+    return vz;
+}
+
+//
+// The map factor of a fab, or a null Array4 (one)
+//
+AMREX_FORCE_INLINE
+Array4<Real const>
+mf_array (const FArrayBox* mf_fab)
+{
+    return (mf_fab) ? mf_fab->const_array() : Array4<Real const>{};
+}
+
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 constexpr Real
 mucape_search_depth_pa ()
@@ -378,7 +469,9 @@ erf_dervortx ( const Box& bx,
                const Geometry& geomdata,
                Real /*time*/,
                const int* /*bcrec*/,
-               const int /*level*/)
+               const int /*level*/,
+               const FArrayBox* /*mfx_fab*/,
+               const FArrayBox* mfy_fab)
 {
     AMREX_ALWAYS_ASSERT(dcomp == 0);
     AMREX_ALWAYS_ASSERT(ncomp == 1);
@@ -386,14 +479,13 @@ erf_dervortx ( const Box& bx,
     auto const dat = datfab.array(); // cell-centered velocity
     auto tfab      = derfab.array(); // cell-centered vorticity x-component
     auto z_arr     = zcc_fab.array(); // cell-centered height z
+    auto mfy       = mf_array(mfy_fab);
 
     const Real two_dy = two * geomdata.CellSize(1);
 
     ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
     {
-        Real two_dz = z_arr(i,j,k+1) - z_arr(i,j,k-1);
-        tfab(i,j,k,dcomp) = (dat(i,j+1,k,2) - dat(i,j-1,k,2)) / two_dy  // dw/dy
-                          - (dat(i,j,k+1,1) - dat(i,j,k-1,1)) / two_dz; // dv/dz
+        tfab(i,j,k,dcomp) = cc_vort_x(i,j,k,dat,z_arr,mfy,two_dy); // dw/dy - dv/dz
     });
 }
 
@@ -407,7 +499,9 @@ erf_dervorty ( const Box& bx,
                const Geometry& geomdata,
                Real /*time*/,
                const int* /*bcrec*/,
-               const int /*level*/)
+               const int /*level*/,
+               const FArrayBox* mfx_fab,
+               const FArrayBox* /*mfy_fab*/)
 {
     AMREX_ALWAYS_ASSERT(dcomp == 0);
     AMREX_ALWAYS_ASSERT(ncomp == 1);
@@ -415,14 +509,13 @@ erf_dervorty ( const Box& bx,
     auto const dat = datfab.array(); // cell-centered velocity
     auto tfab      = derfab.array(); // cell-centered vorticity y-component
     auto z_arr     = zcc_fab.array(); // cell-centered height z
+    auto mfx       = mf_array(mfx_fab);
 
     const Real two_dx = two * geomdata.CellSize(0);
 
     ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
     {
-        Real two_dz = z_arr(i,j,k+1) - z_arr(i,j,k-1);
-        tfab(i,j,k,dcomp) = (dat(i,j,k+1,0) - dat(i,j,k-1,0)) / two_dz  // du/dz
-                          - (dat(i+1,j,k,2) - dat(i-1,j,k,2)) / two_dx; // dw/dx
+        tfab(i,j,k,dcomp) = cc_vort_y(i,j,k,dat,z_arr,mfx,two_dx); // du/dz - dw/dx
     });
 }
 
@@ -432,25 +525,29 @@ erf_dervortz ( const Box& bx,
                int dcomp,
                int ncomp,
                const FArrayBox& datfab,
-               const FArrayBox& /*zcc_fab*/,
+               const FArrayBox& zcc_fab,
                const Geometry& geomdata,
                Real /*time*/,
                const int* /*bcrec*/,
-               const int /*level*/)
+               const int /*level*/,
+               const FArrayBox* mfx_fab,
+               const FArrayBox* mfy_fab)
 {
     AMREX_ALWAYS_ASSERT(dcomp == 0);
     AMREX_ALWAYS_ASSERT(ncomp == 1);
 
     auto const dat = datfab.array(); // cell-centered velocity
     auto tfab      = derfab.array(); // cell-centered vorticity z-component
+    auto z_arr     = zcc_fab.array(); // cell-centered height z
+    auto mfx       = mf_array(mfx_fab);
+    auto mfy       = mf_array(mfy_fab);
 
-    const Real dx = geomdata.CellSize(0);
-    const Real dy = geomdata.CellSize(1);
+    const Real two_dx = two * geomdata.CellSize(0);
+    const Real two_dy = two * geomdata.CellSize(1);
 
     ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
     {
-        tfab(i,j,k,dcomp) = (dat(i+1,j,k,1) - dat(i-1,j,k,1)) / (two*dx)  // dv/dx
-                          - (dat(i,j+1,k,0) - dat(i,j-1,k,0)) / (two*dy); // du/dy
+        tfab(i,j,k,dcomp) = cc_vort_z(i,j,k,dat,z_arr,mfx,mfy,two_dx,two_dy); // dv/dx - du/dy
     });
 }
 
@@ -464,28 +561,27 @@ erf_derenstrophysq ( const Box& bx,
                      const Geometry& geomdata,
                      Real /*time*/,
                      const int* /*bcrec*/,
-                     const int /*level*/)
+                     const int /*level*/,
+                     const FArrayBox* mfx_fab,
+                     const FArrayBox* mfy_fab)
 {
     AMREX_ALWAYS_ASSERT(dcomp == 0);
     AMREX_ALWAYS_ASSERT(ncomp == 1);
 
     auto const dat = datfab.array(); // cell-centered velocity
-    auto tfab      = derfab.array(); // cell-centered vorticity x-component
+    auto tfab      = derfab.array(); // cell-centered enstrophy
     auto z_arr     = zcc_fab.array(); // cell-centered height z
+    auto mfx       = mf_array(mfx_fab);
+    auto mfy       = mf_array(mfy_fab);
 
     const Real two_dx = two * geomdata.CellSize(0);
     const Real two_dy = two * geomdata.CellSize(1);
 
     ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
     {
-        Real two_dz = z_arr(i,j,k+1) - z_arr(i,j,k-1);
-
-        Real vortx = (dat(i,j+1,k,2) - dat(i,j-1,k,2)) / two_dy  // dw/dy
-                    -(dat(i,j,k+1,1) - dat(i,j,k-1,1)) / two_dz; // dv/dz
-        Real vorty = (dat(i,j,k+1,0) - dat(i,j,k-1,0)) / two_dz  // du/dz
-                    -(dat(i+1,j,k,2) - dat(i-1,j,k,2)) / two_dx; // dw/dx
-        Real vortz = (dat(i+1,j,k,1) - dat(i-1,j,k,1)) / two_dx  // dv/dx
-                    -(dat(i,j+1,k,0) - dat(i,j-1,k,0)) / two_dy; // du/dy
+        Real vortx = cc_vort_x(i,j,k,dat,z_arr,mfy,two_dy);
+        Real vorty = cc_vort_y(i,j,k,dat,z_arr,mfx,two_dx);
+        Real vortz = cc_vort_z(i,j,k,dat,z_arr,mfx,mfy,two_dx,two_dy);
 
         tfab(i,j,k,dcomp) = vortx*vortx + vorty*vorty + vortz*vortz;
     });
@@ -636,24 +732,28 @@ erf_derlocalhelicity ( const Box& bx,
                        int dcomp,
                        int /*ncomp*/,
                        const FArrayBox& datfab,
-                       const FArrayBox& /*zcc_fab*/,
+                       const FArrayBox& zcc_fab,
                        const Geometry& geomdata,
                        Real /*time*/,
                        const int* /*bcrec*/,
-                       const int /*level*/)
+                       const int /*level*/,
+                       const FArrayBox* mfx_fab,
+                       const FArrayBox* mfy_fab)
 {
     AMREX_ALWAYS_ASSERT(dcomp == 0);
 
     auto const dat = datfab.array(); // cell-centered velocity
     auto dfab      = derfab.array(); // cell-centered local helicity
+    auto z_arr     = zcc_fab.array(); // cell-centered height z
+    auto mfx       = mf_array(mfx_fab);
+    auto mfy       = mf_array(mfy_fab);
 
     const Real two_dx = Real(2.0)*geomdata.CellSize(0);
     const Real two_dy = Real(2.0)*geomdata.CellSize(1);
 
     ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
     {
-        Real vortz = (dat(i+1,j,k,1) - dat(i-1,j,k,1)) / two_dx  // dv/dx
-                   - (dat(i,j+1,k,0) - dat(i,j-1,k,0)) / two_dy; // du/dy
+        Real vortz = cc_vort_z(i,j,k,dat,z_arr,mfx,mfy,two_dx,two_dy); // dv/dx - du/dy
         Real w     = dat(i,j,k,2);
 
         // Helicity
@@ -671,21 +771,24 @@ erf_dervortstretching ( const Box& bx,
                         const Geometry& geomdata,
                         Real /*time*/,
                         const int* /*bcrec*/,
-                        const int /*level*/)
+                        const int /*level*/,
+                        const FArrayBox* mfx_fab,
+                        const FArrayBox* mfy_fab)
 {
     AMREX_ALWAYS_ASSERT(dcomp == 0);
 
     auto const dat = datfab.array();  // cell-centered velocity
     auto dfab      = derfab.array();  // cell-centered vorticity stretching
     auto z_arr     = zcc_fab.array(); // cell-centered height z
+    auto mfx       = mf_array(mfx_fab);
+    auto mfy       = mf_array(mfy_fab);
 
     const Real two_dx = two * geomdata.CellSize(0);
     const Real two_dy = two * geomdata.CellSize(1);
 
     ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
     {
-        Real vortz = (dat(i+1,j,k,1) - dat(i-1,j,k,1)) / two_dx  // dv/dx
-                   - (dat(i,j+1,k,0) - dat(i,j-1,k,0)) / two_dy; // du/dy
+        Real vortz = cc_vort_z(i,j,k,dat,z_arr,mfx,mfy,two_dx,two_dy); // dv/dx - du/dy
 
         // As in the vorticity components, the vertical derivative uses the
         //    physical heights of the cell centers so that it is correct on a
@@ -708,7 +811,9 @@ erf_derhelicity ( const Box& bx,
                   const Geometry& geomdata,
                   Real /*time*/,
                   const int* /*bcrec*/,
-                  const int /*level*/)
+                  const int /*level*/,
+                  const FArrayBox* mfx_fab,
+                  const FArrayBox* mfy_fab)
 {
     AMREX_ALWAYS_ASSERT(dcomp == 0);
 
@@ -719,9 +824,11 @@ erf_derhelicity ( const Box& bx,
     auto const dat = datfab.array();  // cell-centered velocity
     auto dfab      = derfab.array();  // integral of local helicity
     auto z_arr     = zcc_fab.array(); // cell-centered height z
+    auto mfx       = mf_array(mfx_fab);
+    auto mfy       = mf_array(mfy_fab);
 
-    const Real dx = geomdata.CellSize(0);
-    const Real dy = geomdata.CellSize(1);
+    const Real two_dx = two * geomdata.CellSize(0);
+    const Real two_dy = two * geomdata.CellSize(1);
 
     // Collapse to i,j box (ignore vertical for now)
     Box b2d = makeSlab(bx,2,0);
@@ -746,8 +853,7 @@ erf_derhelicity ( const Box& bx,
                 Real z_lo = myhalf * (z_arr(i,j,k) + z_arr(i,j,k-1));
                 Real dz = z_hi - z_lo;
 
-                Real vortz = (dat(i+1,j,k,1) - dat(i-1,j,k,1)) / (two*dx)  // dv/dx
-                           - (dat(i,j+1,k,0) - dat(i,j-1,k,0)) / (two*dy); // du/dy
+                Real vortz = cc_vort_z(i,j,k,dat,z_arr,mfx,mfy,two_dx,two_dy); // dv/dx - du/dy
                 Real w     = dat(i,j,k,2); // vertical velocity
 
                 int_hel += vortz * w * dz;

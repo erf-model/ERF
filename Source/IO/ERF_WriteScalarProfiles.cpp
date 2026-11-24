@@ -341,7 +341,9 @@ ERF::sum_derived_quantities (double time)
 
         auto& dest2_fab = enstrophysq[mfi];
         derived::erf_derenstrophysq(bx, dest2_fab, 0, 1, src_fab, (*z_phys_cc[lev])[mfi], Geom(lev),
-                                    static_cast<Real>(t_new[0]), nullptr, lev);
+                                    static_cast<Real>(t_new[0]), nullptr, lev,
+                                    &(*mapfac[lev][MapFacType::m_x])[mfi],
+                                    &(*mapfac[lev][MapFacType::m_y])[mfi]);
     }
 
     // Copy the MF holding (u^2 + v^2 + w^2) into the MF that will hold rho (u^2 + v^2 + w^2)
