@@ -870,6 +870,32 @@ ERF::FillPlot3DVars (int lev,
             mf_comp++;
         }
     }; // end calculate_derived
+
+    // The same for the quantities made from the vorticity, which take the map factors as well
+    auto calculate_derived_vort = [&](const std::string& der_name,
+                                      MultiFab& src_mf,
+                                      decltype(derived::erf_dervortz)& der_function)
+    {
+        if (containerHasElement(plot_var_names, der_name)) {
+            MultiFab dmf(mf_dst, make_alias, mf_comp, 1);
+            // As above, no tiling in z ("helicity" is a whole-column operation)
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
+            for (MFIter mfi(dmf, TileNoZ()); mfi.isValid(); ++mfi)
+            {
+                const Box& bx = mfi.tilebox();
+                auto& dfab = dmf[mfi];
+                auto& sfab = src_mf[mfi];
+                auto& zfab = (*z_phys_cc[lev])[mfi];
+                der_function(bx, dfab, 0, 1, sfab, zfab, Geom(lev), tnew, nullptr, lev,
+                             &(*mapfac[lev][MapFacType::m_x])[mfi],
+                             &(*mapfac[lev][MapFacType::m_y])[mfi]);
+            }
+
+            mf_comp++;
+        }
+    }; // end calculate_derived_vort
     // ***************************************************************************************
 
     // *****************************************************************************************
@@ -938,12 +964,12 @@ ERF::FillPlot3DVars (int lev,
     }
     calculate_derived("mucape"         ,  vars_new[lev][Vars::cons], derived::erf_dermucape);
 
-    calculate_derived("vorticity_x",    mf_cc_vel[lev], derived::erf_dervortx);
-    calculate_derived("vorticity_y",    mf_cc_vel[lev], derived::erf_dervorty);
-    calculate_derived("vorticity_z",    mf_cc_vel[lev], derived::erf_dervortz);
-    calculate_derived("helicity",       mf_cc_vel[lev], derived::erf_derhelicity);
-    calculate_derived("local_helicity", mf_cc_vel[lev], derived::erf_derlocalhelicity);
-    calculate_derived("vort_stretching", mf_cc_vel[lev], derived::erf_dervortstretching);
+    calculate_derived_vort("vorticity_x",    mf_cc_vel[lev], derived::erf_dervortx);
+    calculate_derived_vort("vorticity_y",    mf_cc_vel[lev], derived::erf_dervorty);
+    calculate_derived_vort("vorticity_z",    mf_cc_vel[lev], derived::erf_dervortz);
+    calculate_derived_vort("helicity",       mf_cc_vel[lev], derived::erf_derhelicity);
+    calculate_derived_vort("local_helicity", mf_cc_vel[lev], derived::erf_derlocalhelicity);
+    calculate_derived_vort("vort_stretching", mf_cc_vel[lev], derived::erf_dervortstretching);
     calculate_derived("magvel",         mf_cc_vel[lev], derived::erf_dermagvel);
 
     if (containerHasElement(plot_var_names, "divU"))
@@ -953,6 +979,35 @@ ERF::FillPlot3DVars (int lev,
         u[0] = &(vars_new[lev][Vars::xvel]);
         u[1] = &(vars_new[lev][Vars::yvel]);
         u[2] = &(vars_new[lev][Vars::zvel]);
+        // On a terrain-fitted mesh compute_divergence takes the contravariant vertical
+        // velocity Omega in place of w. As in the dycore (and the Omega tagging), it is zero on
+        // the bottom face and equal to w on the top face, which validate_flat_top makes flat.
+        // NOTE: with MovingFittedMesh the mesh velocity z_t is not subtracted
+        MultiFab omega;
+        if (SolverChoice::mesh_type == MeshType::VariableDz) {
+            const int klo = geom[lev].Domain().smallEnd(2);
+            const int khi = geom[lev].Domain().bigEnd(2);
+            const auto dxInv = geom[lev].InvCellSizeArray();
+            omega.define(vars_new[lev][Vars::zvel].boxArray(), vars_new[lev][Vars::zvel].DistributionMap(), 1, 0);
+            for (MFIter mfi(omega, TilingIfNotGPU()); mfi.isValid(); ++mfi)
+            {
+                const Box& tbz = mfi.tilebox();
+                const Array4<      Real>& om_arr = omega.array(mfi);
+                const Array4<const Real>& u_arr  = vars_new[lev][Vars::xvel].const_array(mfi);
+                const Array4<const Real>& v_arr  = vars_new[lev][Vars::yvel].const_array(mfi);
+                const Array4<const Real>& w_arr  = vars_new[lev][Vars::zvel].const_array(mfi);
+                const Array4<const Real>& z_nd   = z_phys_nd[lev]->const_array(mfi);
+                const Array4<const Real>& mf_u   = mapfac[lev][MapFacType::u_x]->const_array(mfi);
+                const Array4<const Real>& mf_v   = mapfac[lev][MapFacType::v_y]->const_array(mfi);
+                ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                {
+                    om_arr(i,j,k) = (k <= klo  ) ? zero :
+                                    (k >= khi+1) ? w_arr(i,j,k) :
+                        OmegaFromW(i,j,k,w_arr(i,j,k),u_arr,v_arr,mf_u,mf_v,z_nd,dxInv);
+                });
+            }
+            u[2] = &omega;
+        }
         compute_divergence(lev, dmf, u, *mapfac[lev][MapFacType::m_x],
                            *mapfac[lev][MapFacType::m_y], *mapfac[lev][MapFacType::v_x],
                            *mapfac[lev][MapFacType::u_y], *ax[lev], *ay[lev],
