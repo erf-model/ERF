@@ -104,15 +104,17 @@ DiffusionSrcForState_EB (const Box& bx, const Box& domain,
                                      + mu_turb(i-1, j, k, eddy_x) );
             }
 
-            bool ext_dir_on_xlo = ( (bc_ptr[bc_comp].lo(0) == ERFBCType::ext_dir)      ||
-                                    (bc_ptr[bc_comp].lo(0) == ERFBCType::ext_dir_prim) ||
-                                    (bc_ptr[bc_comp].lo(0) == ERFBCType::ext_dir_upwind && u(dom_lo.x,j,k) >= zero) );
-            ext_dir_on_xlo &= (i == dom_lo.x);
+            // The face index comes first: a box away from a domain face holds no
+            // velocity there.
+            bool ext_dir_on_xlo = ( (i == dom_lo.x) &&
+                                   ( (bc_ptr[bc_comp].lo(0) == ERFBCType::ext_dir)      ||
+                                     (bc_ptr[bc_comp].lo(0) == ERFBCType::ext_dir_prim) ||
+                                     (bc_ptr[bc_comp].lo(0) == ERFBCType::ext_dir_upwind && u(dom_lo.x,j,k) >= zero) ) );
 
-            bool ext_dir_on_xhi = ( (bc_ptr[bc_comp].hi(0) == ERFBCType::ext_dir)      ||
-                                    (bc_ptr[bc_comp].hi(0) == ERFBCType::ext_dir_prim) ||
-                                    (bc_ptr[bc_comp].hi(0) == ERFBCType::ext_dir_upwind && u(dom_hi.x+1,j,k) <= zero) );
-            ext_dir_on_xhi &= (i == dom_hi.x+1);
+            bool ext_dir_on_xhi = ( (i == dom_hi.x+1) &&
+                                   ( (bc_ptr[bc_comp].hi(0) == ERFBCType::ext_dir)      ||
+                                     (bc_ptr[bc_comp].hi(0) == ERFBCType::ext_dir_prim) ||
+                                     (bc_ptr[bc_comp].hi(0) == ERFBCType::ext_dir_upwind && u(dom_hi.x+1,j,k) <= zero) ) );
 
             if (ext_dir_on_xlo) {
                 xflux(i,j,k) = -rhoAlpha * ( -(Real(8.)/three) * cell_prim(i-1, j, k, prim_index)
@@ -146,15 +148,15 @@ DiffusionSrcForState_EB (const Box& bx, const Box& domain,
                                      + mu_turb(i, j-1, k, eddy_y) );
             }
 
-            bool ext_dir_on_ylo = ( (bc_ptr[bc_comp].lo(1) == ERFBCType::ext_dir)      ||
-                                    (bc_ptr[bc_comp].lo(1) == ERFBCType::ext_dir_prim) ||
-                                    (bc_ptr[bc_comp].lo(1) == ERFBCType::ext_dir_upwind && v(i,dom_lo.y,k) >= zero) );
-            ext_dir_on_ylo &= (j == dom_lo.y);
+            bool ext_dir_on_ylo = ( (j == dom_lo.y) &&
+                                   ( (bc_ptr[bc_comp].lo(1) == ERFBCType::ext_dir)      ||
+                                     (bc_ptr[bc_comp].lo(1) == ERFBCType::ext_dir_prim) ||
+                                     (bc_ptr[bc_comp].lo(1) == ERFBCType::ext_dir_upwind && v(i,dom_lo.y,k) >= zero) ) );
 
-            bool ext_dir_on_yhi = ( (bc_ptr[bc_comp].hi(1) == ERFBCType::ext_dir)      ||
-                                    (bc_ptr[bc_comp].hi(1) == ERFBCType::ext_dir_prim) ||
-                                    (bc_ptr[bc_comp].hi(1) == ERFBCType::ext_dir_upwind && v(i,dom_hi.y+1,k) <= zero) );
-            ext_dir_on_yhi &= (j == dom_hi.y+1);
+            bool ext_dir_on_yhi = ( (j == dom_hi.y+1) &&
+                                   ( (bc_ptr[bc_comp].hi(1) == ERFBCType::ext_dir)      ||
+                                     (bc_ptr[bc_comp].hi(1) == ERFBCType::ext_dir_prim) ||
+                                     (bc_ptr[bc_comp].hi(1) == ERFBCType::ext_dir_upwind && v(i,dom_hi.y+1,k) <= zero) ) );
 
             if (ext_dir_on_ylo) {
                 yflux(i,j,k) = -rhoAlpha * ( -(Real(8.)/three) * cell_prim(i, j-1, k, prim_index)
