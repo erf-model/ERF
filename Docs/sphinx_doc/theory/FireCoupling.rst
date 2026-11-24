@@ -121,7 +121,11 @@ coupled to ERF the same way.
   holds in the checkpoint, so a restarted run injects the same heat in its
   first step as an uninterrupted one. It also provides helpers a fire engine
   may use: a wind sampler (``ERF_FireWindExtract.H``) and the ground height
-  of each atmospheric column (``ERF_FireSurfaceHeight.H``).
+  of each atmospheric column (``ERF_FireSurfaceHeight.H``). The fire grid,
+  the engine registry, the common inputs and the mesh checks are thin
+  wrappers over a layer the fire and the flood couplings share
+  (``Source/SurfaceCoupling``), which is compiled into any build with either
+  coupling.
 * **The fire engine** (``FireEngine`` in ``ERF_FireEngine.H``) is the fire
   model itself: it advances the front on the fire grid and reports, after
   each step, the sensible and latent heat flux into the air on the fire grid

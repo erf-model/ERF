@@ -1,5 +1,7 @@
 #include <ERF_FireCouplingParams.H>
 #include <ERF_FireEngineRegistry.H>
+#include <ERF_FireGrid.H>
+#include <ERF_SurfaceCouplingParams.H>
 #include <AMReX_ParmParse.H>
 #include <AMReX_Print.H>
 
@@ -26,38 +28,11 @@ FireCouplingParams::read ()
         if (!(v >= 0.0)) { fail(std::string("erf.fire.") + key + " must be >= 0, got " + std::to_string(v)); }
     };
 
-    pp.query("enable", c.enable);
     pp.query("fire_debug", c.fire_debug);
-    pp.query("grid_ratio", c.grid_ratio);
-    if (c.grid_ratio < 1) {
-        fail("erf.fire.grid_ratio must be >= 1, got " + std::to_string(c.grid_ratio));
-    }
-    pp.query("anchor_level", c.anchor_level);
-    if (c.anchor_level < -1) {
-        fail("erf.fire.anchor_level must be -1 (the finest level) or a level >= 0, got "
-             + std::to_string(c.anchor_level));
-    }
-
-    // The engine: one compiled into this executable (ERF_REGISTER_FIRE_ENGINE).
-    // With a single engine it is the default; with several the deck names one.
-    const std::vector<std::string> engines = fire_engine_names();
-    if (engines.size() == 1) { c.engine = engines.front(); }
-    const bool engine_given = pp.query("engine", c.engine);
-    if (engine_given || c.enable) {
-        if (engines.empty()) {
-            fail(std::string(c.enable ? "erf.fire.enable = true" : "erf.fire.engine is set")
-                 + ", but no fire engine is compiled into this executable: Source/FireCoupling holds "
-                   "only the coupling to the atmosphere. Build with an engine directory (GNU make "
-                   "FIRE_HOME, CMake ERF_FIRE_ENGINE_DIRS); Source/FireCoupling/ERF_FireEngineTemplate.H "
-                   "lists what an engine provides.");
-        }
-        if (!engine_given && engines.size() > 1) {
-            std::string list;
-            for (const auto& a : engines) { list += (list.empty() ? "" : ", ") + std::string("\"") + a + "\""; }
-            fail("several fire engines are compiled in (" + list + "): set erf.fire.engine to one of them");
-        }
-        one_of("engine", c.engine, engines);
-    }
+    // enable, grid_ratio, anchor_level and engine: the inputs every surface
+    // coupling reads (ERF_SurfaceCouplingParams.H)
+    read_surface_coupling_common(pp, fire_coupling_names(), fire_engine_names(),
+                                 c.enable, c.grid_ratio, c.anchor_level, c.engine);
 
     pp.query("heat_flux_alfg", c.heat_flux_alfg);
     pp.query("fire_atm_feedback", c.fire_atm_feedback);

@@ -89,7 +89,10 @@ default), by ``erf.flood.grid_ratio`` (:math:`C`, default 1). Flood cell
 (zero on level 0). The grid keeps the level's box decomposition and MPI owners,
 so the maps between the two grids need no communication. The helpers in
 ``ERF_FloodGrid.H`` copy an atmospheric surface field to every flood cell under
-it and average flood cells back to their column.
+it and average flood cells back to their column. They, the engine registry, the
+common inputs and the start-up checks below are thin wrappers over a layer the
+flood and the fire couplings share (``Source/SurfaceCoupling``), which is
+compiled into any build with either coupling.
 
 The level must satisfy, checked at start-up with a message that names the
 input to change:
