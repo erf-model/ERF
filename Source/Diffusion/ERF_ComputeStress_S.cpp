@@ -23,11 +23,11 @@ using namespace amrex;
  * @param[in,out] tau32 32 strain -> stress
  * @param[in]  er_arr expansion rate
  * @param[in]  mf_mx x map factor at cell centers
- * @param[in]  mf_ux x map factor at x-faces
+ * @param[in]  mf_ux x map factor at x-faces (unused)
  * @param[in]  mf_vx x map factor at y-faces
  * @param[in]  mf_my y map factor at cell centers
  * @param[in]  mf_uy y map factor at x-faces
- * @param[in]  mf_vy y map factor at y-faces
+ * @param[in]  mf_vy y map factor at y-faces (unused)
  * @param[in,out] tau13i contribution to stress from du/dz
  * @param[in,out] tau23i contribution to stress from dv/dz
  */
@@ -40,11 +40,11 @@ ComputeStressConsVisc_S (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
                          Array4<Real>& tau23, Array4<Real>& tau32,
                          const Array4<const Real>& er_arr,
                          const Array4<const Real>& mf_mx,
-                         const Array4<const Real>& mf_ux,
+                         const Array4<const Real>& /*mf_ux*/,
                          const Array4<const Real>& mf_vx,
                          const Array4<const Real>& mf_my,
                          const Array4<const Real>& mf_uy,
-                         const Array4<const Real>& mf_vy,
+                         const Array4<const Real>& /*mf_vy*/,
                          Array4<Real>& tau13i,
                          Array4<Real>& tau23i)
 {
@@ -156,11 +156,11 @@ ComputeStressConsVisc_S (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
  * @param[in,out] tau32 32 strain -> stress
  * @param[in]  er_arr expansion rate
  * @param[in]  mf_mx x map factor at cell centers
- * @param[in]  mf_ux x map factor at x-faces
+ * @param[in]  mf_ux x map factor at x-faces (unused)
  * @param[in]  mf_vx x map factor at y-faces
  * @param[in]  mf_my y map factor at cell centers
  * @param[in]  mf_uy y map factor at x-faces
- * @param[in]  mf_vy y map factor at y-faces
+ * @param[in]  mf_vy y map factor at y-faces (unused)
  * @param[in,out] tau13i contribution to stress from du/dz
  * @param[in,out] tau23i contribution to stress from dv/dz
  */
@@ -174,11 +174,11 @@ ComputeStressVarVisc_S (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
                         Array4<Real>& tau23, Array4<Real>& tau32,
                         const Array4<const Real>& er_arr,
                         const Array4<const Real>& mf_mx,
-                        const Array4<const Real>& mf_ux,
+                        const Array4<const Real>& /*mf_ux*/,
                         const Array4<const Real>& mf_vx,
                         const Array4<const Real>& mf_my,
                         const Array4<const Real>& mf_uy,
-                        const Array4<const Real>& mf_vy,
+                        const Array4<const Real>& /*mf_vy*/,
                         Array4<Real>& tau13i,
                         Array4<Real>& tau23i)
 {
