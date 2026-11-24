@@ -44,14 +44,12 @@ int count_invalid_coefficient_reads (const amrex::Geometry& geom,
         for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
             Box read = amrex::grow(mfi.validbox(), dir, 1);
             if (!geom.isPeriodic(dir)) {
-                const auto closed = [&] (const amrex::Orientation::Side side) {
-                    return boundary.kind[static_cast<std::size_t>(
-                               amrex::Orientation(dir, side))] == DiffusionFaceKind::Closed;
-                };
-                if (closed(amrex::Orientation::low)) {
+                // Face kinds are indexed as amrex::Orientation: low dir, high dir + AMREX_SPACEDIM.
+                if (boundary.kind[static_cast<std::size_t>(dir)] == DiffusionFaceKind::Closed) {
                     read.setSmall(dir, amrex::max(read.smallEnd(dir), domain.smallEnd(dir)));
                 }
-                if (closed(amrex::Orientation::high)) {
+                if (boundary.kind[static_cast<std::size_t>(dir + AMREX_SPACEDIM)] ==
+                    DiffusionFaceKind::Closed) {
                     read.setBig(dir, amrex::min(read.bigEnd(dir), domain.bigEnd(dir)));
                 }
             }
