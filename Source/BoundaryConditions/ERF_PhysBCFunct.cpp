@@ -132,6 +132,8 @@ void ERFPhysBCFunct_cons::operator() (MultiFab& mf, MultiFab& xvel, MultiFab& yv
             Box cbx2 = bx; cbx2.grow(nghost);
 
             Array4<const Real> z_nd_arr;
+            const Array4<const Real>& mf_x_arr = m_mapfac_x->const_array(mfi);
+            const Array4<const Real>& mf_y_arr = m_mapfac_y->const_array(mfi);
 
             if (m_z_phys_nd) {
                 z_nd_arr = m_z_phys_nd->const_array(mfi);
@@ -149,7 +151,7 @@ void ERFPhysBCFunct_cons::operator() (MultiFab& mf, MultiFab& xvel, MultiFab& yv
                 }
 
                 // We send the full FAB box with ghost cells
-                impose_vertical_cons_bcs(cons_arr,cbx2,domain,z_nd_arr,dxInv,icomp,ncomp,time,do_terrain_adjustment);
+                impose_vertical_cons_bcs(cons_arr,cbx2,domain,z_nd_arr,mf_x_arr,mf_y_arr,dxInv,icomp,ncomp,time,do_terrain_adjustment);
             }
 
         } // MFIter
@@ -224,6 +226,8 @@ void ERFPhysBCFunct_u::operator() (MultiFab& mf, MultiFab& xvel, MultiFab& yvel,
             Box xbx2 = surroundingNodes(bx,0); xbx2.grow(nghost);
 
             Array4<const Real> z_nd_arr;
+            const Array4<const Real>& mf_x_arr = m_mapfac_x->const_array(mfi);
+            const Array4<const Real>& mf_y_arr = m_mapfac_y->const_array(mfi);
 
             if (m_z_phys_nd) {
                 z_nd_arr = m_z_phys_nd->const_array(mfi);
@@ -239,7 +243,7 @@ void ERFPhysBCFunct_u::operator() (MultiFab& mf, MultiFab& xvel, MultiFab& yvel,
                     impose_inflow_profile_xvel(dest_arr,velx_arr,vely_arr,z_nd_arr,xbx1,domain,bccomp);
                 }
 
-                impose_vertical_xvel_bcs(dest_arr,xbx2,domain,z_nd_arr,dxInv,bccomp,time);
+                impose_vertical_xvel_bcs(dest_arr,xbx2,domain,z_nd_arr,mf_x_arr,mf_y_arr,dxInv,bccomp,time);
             }
         } // MFIter
     } // OpenMP
@@ -313,6 +317,8 @@ void ERFPhysBCFunct_v::operator() (MultiFab& mf, MultiFab& xvel, MultiFab& yvel,
             Box ybx2 = surroundingNodes(bx,1); ybx2.grow(nghost);
 
             Array4<const Real> z_nd_arr;
+            const Array4<const Real>& mf_x_arr = m_mapfac_x->const_array(mfi);
+            const Array4<const Real>& mf_y_arr = m_mapfac_y->const_array(mfi);
 
             if (m_z_phys_nd) {
                 z_nd_arr = m_z_phys_nd->const_array(mfi);
@@ -328,7 +334,7 @@ void ERFPhysBCFunct_v::operator() (MultiFab& mf, MultiFab& xvel, MultiFab& yvel,
                     impose_inflow_profile_yvel(dest_arr,velx_arr,vely_arr,z_nd_arr,ybx1,domain,bccomp);
                 }
 
-                impose_vertical_yvel_bcs(dest_arr,ybx2,domain,z_nd_arr,dxInv,bccomp,time);
+                impose_vertical_yvel_bcs(dest_arr,ybx2,domain,z_nd_arr,mf_x_arr,mf_y_arr,dxInv,bccomp,time);
             }
 
         } // MFIter

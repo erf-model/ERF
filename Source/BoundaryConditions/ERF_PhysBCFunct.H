@@ -65,6 +65,7 @@ public:
      * @param[in] bc_extdir_vals external Dirichlet values for boundary faces
      * @param[in] bc_neumann_vals Neumann values for boundary faces
      * @param[in] terrain_type terrain type for the level
+     * @param[in] mapfac_lev map-factor MultiFabs for the level
      * @param[in] z_phys_nd nodal physical height MultiFab
      * @param[in] use_real_bcs whether real-data boundary conditions are active
      * @param[in] th_bc_data optional theta boundary data (one profile in z)
@@ -77,6 +78,7 @@ public:
                          amrex::Array<amrex::Array<amrex::Real,AMREX_SPACEDIM*2>,AMREX_SPACEDIM+NBCVAR_max> bc_extdir_vals,
                          amrex::Array<amrex::Array<amrex::Real,AMREX_SPACEDIM*2>,AMREX_SPACEDIM+NBCVAR_max> bc_neumann_vals,
                          const TerrainType& terrain_type,
+                         amrex::Vector<std::unique_ptr<amrex::MultiFab>>& mapfac_lev,
                          std::unique_ptr<amrex::MultiFab>& z_phys_nd,
                          const bool use_real_bcs,
                          amrex::Real* th_bc_data,
@@ -91,6 +93,8 @@ public:
           m_use_real_bcs(use_real_bcs),
           m_th_bc_data(th_bc_data)
     {
+        m_mapfac_x = mapfac_lev[MapFacType::m_x].get();
+        m_mapfac_y = mapfac_lev[MapFacType::m_y].get();
         for (int ori = 0; ori < 2*AMREX_SPACEDIM; ++ori) { m_th_file_face[ori] = th_file_face[ori]; }
     }
 
@@ -172,6 +176,8 @@ public:
      * @param[in]     bx                    box holding data to be filled
      * @param[in]     domain                simulation domain
      * @param[in]     z_nd                  nodal physical height
+     * @param[in]     mf_x                  map factor m_x at the cell centers
+     * @param[in]     mf_y                  map factor m_y at the cell centers
      * @param[in]     dxInv                 inverse cell size
      * @param[in]     icomp                 starting component
      * @param[in]     ncomp                 number of components
@@ -181,6 +187,8 @@ public:
     void impose_vertical_cons_bcs (const amrex::Array4<amrex::Real>& dest_arr,
                                    const amrex::Box& bx, const amrex::Box& domain,
                                    const amrex::Array4<amrex::Real const>& z_nd,
+                                   const amrex::Array4<amrex::Real const>& mf_x,
+                                   const amrex::Array4<amrex::Real const>& mf_y,
                                    const amrex::GpuArray<amrex::Real,AMREX_SPACEDIM> dxInv,
                                    int icomp, int ncomp, const double time,
                                    bool do_terrain_adjustment = true);
@@ -208,6 +216,8 @@ private:
     amrex::Array<amrex::Array<amrex::Real, AMREX_SPACEDIM*2>,AMREX_SPACEDIM+NBCVAR_max> m_bc_extdir_vals;
     amrex::Array<amrex::Array<amrex::Real, AMREX_SPACEDIM*2>,AMREX_SPACEDIM+NBCVAR_max> m_bc_neumann_vals;
     TerrainType      m_terrain_type;
+    amrex::MultiFab* m_mapfac_x;
+    amrex::MultiFab* m_mapfac_y;
     amrex::MultiFab* m_z_phys_nd;
     bool             m_use_real_bcs;
     amrex::Real*     m_th_bc_data;
@@ -231,6 +241,7 @@ public:
      * @param[in] bc_extdir_vals external Dirichlet values for boundary faces
      * @param[in] bc_neumann_vals Neumann values for boundary faces
      * @param[in] terrain_type terrain type for the level
+     * @param[in] mapfac_lev map-factor MultiFabs for the level
      * @param[in] z_phys_nd nodal physical height MultiFab
      * @param[in] use_real_bcs whether real-data boundary conditions are active
      * @param[in] u_bc_data optional x-velocity boundary data
@@ -241,6 +252,7 @@ public:
                       amrex::Array<amrex::Array<amrex::Real,AMREX_SPACEDIM*2>,AMREX_SPACEDIM+NBCVAR_max> bc_extdir_vals,
                       amrex::Array<amrex::Array<amrex::Real,AMREX_SPACEDIM*2>,AMREX_SPACEDIM+NBCVAR_max> bc_neumann_vals,
                       const TerrainType& terrain_type,
+                      amrex::Vector<std::unique_ptr<amrex::MultiFab>>& mapfac_lev,
                       std::unique_ptr<amrex::MultiFab>& z_phys_nd,
                       const bool use_real_bcs,
                       amrex::Real* u_bc_data)
@@ -253,7 +265,10 @@ public:
           m_z_phys_nd(z_phys_nd.get()),
           m_use_real_bcs(use_real_bcs),
           m_u_bc_data(u_bc_data)
-    { }
+    {
+        m_mapfac_x = mapfac_lev[MapFacType::u_x].get();
+        m_mapfac_y = mapfac_lev[MapFacType::u_y].get();
+    }
 
     /**
      * Destroy the x-velocity physical boundary-condition functor.
@@ -310,6 +325,8 @@ public:
      * @param[in]     bx       box holding data to be filled
      * @param[in]     domain   simulation domain
      * @param[in]     z_nd     nodal physical height
+     * @param[in]     mf_x     map factor m_x at the x faces
+     * @param[in]     mf_y     map factor m_y at the x faces
      * @param[in]     dxInv    inverse cell size
      * @param[in]     bccomp   boundary-condition component
      * @param[in]     time     time at which data should be filled
@@ -317,6 +334,8 @@ public:
     void impose_vertical_xvel_bcs (const amrex::Array4<amrex::Real>& dest_arr,
                                    const amrex::Box& bx, const amrex::Box& domain,
                                    const amrex::Array4<amrex::Real const>& z_nd,
+                                   const amrex::Array4<amrex::Real const>& mf_x,
+                                   const amrex::Array4<amrex::Real const>& mf_y,
                                    const amrex::GpuArray<amrex::Real,AMREX_SPACEDIM> dxInv,
                                    int bccomp,
                                    const double time);
@@ -329,6 +348,8 @@ private:
     amrex::Array<amrex::Array<amrex::Real, AMREX_SPACEDIM*2>,AMREX_SPACEDIM+NBCVAR_max> m_bc_extdir_vals;
     amrex::Array<amrex::Array<amrex::Real, AMREX_SPACEDIM*2>,AMREX_SPACEDIM+NBCVAR_max> m_bc_neumann_vals;
     TerrainType      m_terrain_type;
+    amrex::MultiFab* m_mapfac_x;
+    amrex::MultiFab* m_mapfac_y;
     amrex::MultiFab* m_z_phys_nd;
     bool             m_use_real_bcs;
     amrex::Real*     m_u_bc_data;
@@ -349,6 +370,7 @@ public:
      * @param[in] bc_extdir_vals external Dirichlet values for boundary faces
      * @param[in] bc_neumann_vals Neumann values for boundary faces
      * @param[in] terrain_type terrain type for the level
+     * @param[in] mapfac_lev map-factor MultiFabs for the level
      * @param[in] z_phys_nd nodal physical height MultiFab
      * @param[in] use_real_bcs whether real-data boundary conditions are active
      * @param[in] v_bc_data optional y-velocity boundary data
@@ -359,6 +381,7 @@ public:
                       amrex::Array<amrex::Array<amrex::Real,AMREX_SPACEDIM*2>,AMREX_SPACEDIM+NBCVAR_max> bc_extdir_vals,
                       amrex::Array<amrex::Array<amrex::Real,AMREX_SPACEDIM*2>,AMREX_SPACEDIM+NBCVAR_max> bc_neumann_vals,
                       const TerrainType& terrain_type,
+                      amrex::Vector<std::unique_ptr<amrex::MultiFab>>& mapfac_lev,
                       std::unique_ptr<amrex::MultiFab>& z_phys_nd,
                       const bool use_real_bcs,
                       amrex::Real* v_bc_data)
@@ -371,7 +394,10 @@ public:
           m_z_phys_nd(z_phys_nd.get()),
           m_use_real_bcs(use_real_bcs),
           m_v_bc_data(v_bc_data)
-    { }
+    {
+        m_mapfac_x = mapfac_lev[MapFacType::v_x].get();
+        m_mapfac_y = mapfac_lev[MapFacType::v_y].get();
+    }
 
     /**
      * Destroy the y-velocity physical boundary-condition functor.
@@ -428,6 +454,8 @@ public:
      * @param[in]     bx       box holding data to be filled
      * @param[in]     domain   simulation domain
      * @param[in]     z_nd     nodal physical height
+     * @param[in]     mf_x     map factor m_x at the y faces
+     * @param[in]     mf_y     map factor m_y at the y faces
      * @param[in]     dxInv    inverse cell size
      * @param[in]     bccomp   boundary-condition component
      * @param[in]     time     time at which data should be filled
@@ -435,6 +463,8 @@ public:
     void impose_vertical_yvel_bcs (const amrex::Array4<amrex::Real>& dest_arr,
                                    const amrex::Box& bx, const amrex::Box& domain,
                                    const amrex::Array4<amrex::Real const>& z_nd,
+                                   const amrex::Array4<amrex::Real const>& mf_x,
+                                   const amrex::Array4<amrex::Real const>& mf_y,
                                    const amrex::GpuArray<amrex::Real,AMREX_SPACEDIM> dxInv,
                                    int bccomp,
                                    const double time);
@@ -447,6 +477,8 @@ private:
     amrex::Array<amrex::Array<amrex::Real, AMREX_SPACEDIM*2>,AMREX_SPACEDIM+NBCVAR_max> m_bc_extdir_vals;
     amrex::Array<amrex::Array<amrex::Real, AMREX_SPACEDIM*2>,AMREX_SPACEDIM+NBCVAR_max> m_bc_neumann_vals;
     TerrainType      m_terrain_type;
+    amrex::MultiFab* m_mapfac_x;
+    amrex::MultiFab* m_mapfac_y;
     amrex::MultiFab* m_z_phys_nd;
     bool             m_use_real_bcs;
     amrex::Real*     m_v_bc_data;
