@@ -383,7 +383,10 @@ ERF::AverageDownTo (int crse_lev, int scomp, int ncomp, bool do_full_state_and_m
 
     // The momenta of immersed forcing keep the plain face average with either cell average: it
     // is the fine mass flux through the coarse face, which keeps the anelastic constraint (a
-    // fluid-weighted face average does not, and advecting theta with it heats the flow)
+    // fluid-weighted face average does not, and advecting theta with it heats the flow).
+    // On a pseudo-incompressible level it keeps the coarse mass flux consistent with the
+    // averaged-down rho, but satisfies div(beta rho u) = S on the coarse level only to within
+    // the variation of beta along a coarse face, since the coarse beta is not the fine one
     if (SolverChoice::terrain_type != TerrainType::EB) {
         // Anelastic or pseudo-incompressible over terrain, or on a flat mesh with map factors other
         // than one: the momenta as mass fluxes (see average_down_mass_flux)

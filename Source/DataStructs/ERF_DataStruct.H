@@ -1572,8 +1572,8 @@ struct SolverChoice {
             // The wall heat flux and the wall TKE are written by the slow scalar source; the
             // compressible fast substep (erf.immersed_forcing_substep) does not carry them
             if (immersed_forcing_substep) {
-                amrex::Abort("erf.if_wall_form = fraction_stress runs with the anelastic model (erf.compressibility_type not FullyCompressible on "
-                             "every level); it does not support erf.immersed_forcing_substep = true");
+                amrex::Abort("erf.if_wall_form = fraction_stress runs only where erf.compressibility_type is not FullyCompressible on "
+                             "every level; it does not support erf.immersed_forcing_substep = true");
             }
             // ... and the solid cells are held (rho, theta, the moisture species) by the update of an
             // anelastic or pseudo-incompressible level only
@@ -1900,6 +1900,19 @@ struct SolverChoice {
                          "set erf.if_implicit_projection = false or remove the thin bodies");
         }
 
+        // project_velocity_tb solves the constant-coefficient (anelastic) Poisson equation; it has
+        // no beta = rho0 theta0 / rho, so it would not enforce the pseudo-incompressible constraint
+        if (advChoice.have_zero_flux_faces) {
+            for (int lev = 0; lev <= max_level; ++lev) {
+                if (compressibility_type[lev] == CompressibilityType::PseudoIncompressible) {
+                    amrex::Abort("Thin immersed bodies (erf.zero_xflux_faces, erf.zero_yflux_faces, "
+                                 "erf.zero_zflux_faces) are not supported with "
+                                 "erf.compressibility_type = PseudoIncompressible (level " +
+                                 std::to_string(lev) + ")");
+                }
+            }
+        }
+
         // EB advection (EBAdvectionSrcForScalars, EBAdvectionSrcForMom) has only the centered and
         // upwind schemes; with any other the fluxes are never set and, in a Release build, the
         // fields are not advected at all.  The moist scalars default to WENO3, so they are checked
@@ -2098,7 +2111,14 @@ struct SolverChoice {
         // What's the strength of the bdy nudging?
         pp.queryAdd("bdy_nudge_factor",bdy_nudge_factor);
 
-        // Optionally use the dry-air density reconstructed from wrfbdy.
+        // Optionally use the dry-air density reconstructed from wrfbdy.  It defaults to true only
+        // when level 0 is FullyCompressible: an anelastic level holds rho at rho0, and a
+        // pseudo-incompressible level ties rho theta to rho0 theta0, so neither can take the WRF
+        // density.  An explicit true there still aborts (ERF::ParameterSanityChecks).
+        if (!compressibility_type.empty() &&
+            compressibility_type[0] != CompressibilityType::FullyCompressible) {
+            use_wrf_bdy_density = false;
+        }
         pp.queryAdd("use_wrf_bdy_density", use_wrf_bdy_density);
 
         if (!use_real_bcs || init_type != InitType::WRFInput) {

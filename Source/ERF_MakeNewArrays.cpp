@@ -470,6 +470,11 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     if (lev == 0) {
         wrf_C1H  = std::make_unique<MultiFab>(ba1d[lev],dm,1,IntVect(ng[0],ng[1],ng[2]));
         wrf_C2H  = std::make_unique<MultiFab>(ba1d[lev],dm,1,IntVect(ng[0],ng[1],ng[2]));
+        wrf_C1F  = std::make_unique<MultiFab>(convert(ba1d[lev],IntVect(0,0,1)),dm,1,IntVect(ng[0],ng[1],0));
+        wrf_C2F  = std::make_unique<MultiFab>(convert(ba1d[lev],IntVect(0,0,1)),dm,1,IntVect(ng[0],ng[1],0));
+        // Pure sigma (hybrid_opt = 0) until a wrfinput or checkpoint says otherwise
+        wrf_C1F->setVal(one);
+        wrf_C2F->setVal(zero);
         wrf_RDNW = std::make_unique<MultiFab>(ba1d[lev],dm,1,IntVect(ng[0],ng[1],ng[2]));
         wrf_MUB  = std::make_unique<MultiFab>(ba2d[lev],dm,1,IntVect(ng[0],ng[1],ng[2]));
         wrf_PHB  = std::make_unique<MultiFab>(convert(ba,IntVect(0,0,1)),dm,1,IntVect(ngrow+1,ngrow+1,0));
