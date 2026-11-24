@@ -3536,10 +3536,12 @@ Lateral Boundary Nudging
 | **erf.bdy_moist_nudge_type**  | which approach is used to nudge the moist variables in   | 0, 1, 2            | 1                          |
 |                               | the boundary region                                      |                    |                            |
 +-------------------------------+----------------------------------------------------------+--------------------+----------------------------+
-| **erf.use_wrf_bdy_density**   | use the dry-air density reconstructed from the           | Boolean            | true                       |
-|                               | ``wrfbdy`` data.  Ignored (set to false) unless real     |                    |                            |
-|                               | boundary conditions are used with ``init_type`` =        |                    |                            |
-|                               | ``WRFInput``                                             |                    |                            |
+| **erf.use_wrf_bdy_density**   | use the dry-air density reconstructed from the           | Boolean            | true if level 0 is         |
+|                               | ``wrfbdy`` data.  Ignored (set to false) unless real     |                    | FullyCompressible, false   |
+|                               | boundary conditions are used with ``init_type`` =        |                    | otherwise                  |
+|                               | ``WRFInput``.  Not supported when level 0 is Anelastic   |                    |                            |
+|                               | or PseudoIncompressible: setting it to true there stops  |                    |                            |
+|                               | the run                                                  |                    |                            |
 +-------------------------------+----------------------------------------------------------+--------------------+----------------------------+
 
 For WRF real boundaries, moisture nudging type 0 relaxes only ``qv`` toward

@@ -2111,7 +2111,14 @@ struct SolverChoice {
         // What's the strength of the bdy nudging?
         pp.queryAdd("bdy_nudge_factor",bdy_nudge_factor);
 
-        // Optionally use the dry-air density reconstructed from wrfbdy.
+        // Optionally use the dry-air density reconstructed from wrfbdy.  It defaults to true only
+        // when level 0 is FullyCompressible: an anelastic level holds rho at rho0, and a
+        // pseudo-incompressible level ties rho theta to rho0 theta0, so neither can take the WRF
+        // density.  An explicit true there still aborts (ERF::ParameterSanityChecks).
+        if (!compressibility_type.empty() &&
+            compressibility_type[0] != CompressibilityType::FullyCompressible) {
+            use_wrf_bdy_density = false;
+        }
         pp.queryAdd("use_wrf_bdy_density", use_wrf_bdy_density);
 
         if (!use_real_bcs || init_type != InitType::WRFInput) {
