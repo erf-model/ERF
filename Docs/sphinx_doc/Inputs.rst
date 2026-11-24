@@ -5417,8 +5417,10 @@ execution restrictions.
    * - ``erf.sbm_particle_mixing``
      - Particle mixing policy. ``HostPassiveScalar`` mixes the spectrum with
        ERF's Smagorinsky or Deardorff LES scalar eddy diffusivity;
-       ``ConstantReference`` with constant kinematic diffusivities. Single
-       level, constant- or stretched-z mesh, periodic and wall faces only.
+       ``ConstantReference`` with constant kinematic diffusivities. One or two
+       levels, constant- or stretched-z mesh. An ``Inflow`` face mixes with its
+       ``sbm_inflow_z`` spectrum, an ``inflow_outflow`` face only where the
+       carrier enters, and outflow and wall faces carry no mixing.
      - ``None``, ``ConstantReference``, ``HostPassiveScalar``
      - ``None``
    * - ``erf.sbm_particle_mixing_kh``, ``erf.sbm_particle_mixing_kv``

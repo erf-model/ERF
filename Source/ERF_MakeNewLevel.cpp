@@ -1475,7 +1475,7 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
         FillPatchFineLevel(lev, time, {&temp_lev_new[Vars::cons],&temp_lev_new[Vars::xvel],
                            &temp_lev_new[Vars::yvel],&temp_lev_new[Vars::zvel]},
                           {&temp_lev_new[Vars::cons],&rU_new[lev],&rV_new[lev],&rW_new[lev]},
-                           false);
+                           false, false, true, true);
     } else {
         //
         // The base state may be copied from its halo as well as its valid region: the
