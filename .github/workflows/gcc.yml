@@ -343,7 +343,7 @@ jobs:
         if [[ "${{ steps.gnumake-base.outcome }}" == success && "${{ steps.gnumake-structure.outcome }}" == success && "${{ steps.gnumake-flood.outcome }}" == success ]]; then
           ccache --evict-older-than "$(( $(date +%s) - GNUMAKE_BUILD_START + 120 ))s"
         else
-          echo 'Skipping cache pruning because both builds did not succeed.'
+          echo 'Skipping cache pruning because not every build succeeded.'
         fi
         echo '```' >> "$GITHUB_STEP_SUMMARY"
         ccache -s | tee -a "$GITHUB_STEP_SUMMARY"

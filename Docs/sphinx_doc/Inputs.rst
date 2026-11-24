@@ -6913,9 +6913,11 @@ A flood engine reads its own inputs besides.
 +------------------------------------------------+------------------------------------------------------------+--------------------------------+------------------------+
 | **erf.flood.plot_int**                         | Steps between flood plotfiles; <= 0 disables. With neither | Integer                        | erf.plot_int_1         |
 |                                                | this nor plot_per given, both take erf.plot_int_1 and      |                                |                        |
-|                                                | erf.plot_per_1                                             |                                |                        |
+|                                                | erf.plot_per_1, so the engine writes a plotfile at every   |                                |                        |
+|                                                | 3D plotfile                                                |                                |                        |
 +------------------------------------------------+------------------------------------------------------------+--------------------------------+------------------------+
-| **erf.flood.plot_per**                         | Seconds between flood plotfiles; <= 0 disables             | Real                           | erf.plot_per_1         |
+| **erf.flood.plot_per**                         | Seconds between flood plotfiles; <= 0 disables; see        | Real                           | erf.plot_per_1         |
+|                                                | erf.flood.plot_int for the fallback                        |                                |                        |
 +------------------------------------------------+------------------------------------------------------------+--------------------------------+------------------------+
 
 .. _inputs-particles:

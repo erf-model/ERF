@@ -147,8 +147,15 @@ finer level's accumulators down onto it once the finer level has caught up
 (and, with super-droplet microphysics in two-way mode, also at each plotfile
 and regrid). The flood takes that correction, of either sign, in its next
 step, so under the finer level it lags the averaged accumulation by one
-correction; the run total is unchanged. In single precision :math:`P^n` is
-resolved to the round-off of :math:`A`.
+correction; the run total is unchanged.
+
+.. warning::
+
+   In a single-precision build the accumulators are single precision. As
+   :math:`A` grows over a long or wet run, each step's :math:`P^n` is a
+   shrinking fraction of it and keeps fewer digits; at 0.1 mm/h on 0.5 s
+   steps over 100 mm already accumulated, about 10 % of the rain is lost
+   to round-off. Use a double-precision build for long flood runs.
 
 The two components follow ERF's surface precipitation diagnostics. Kessler
 and the super-droplet model hand rain only. SAM hands rain as liquid and snow
@@ -178,8 +185,10 @@ Output
 ------
 
 The engine's own plotfile is written with the prefix ``erf.flood.plot_file``
-on the schedule ``erf.flood.plot_int`` / ``erf.flood.plot_per`` (by default
-the 3D plotfile's). As for the fire, no flood plotfile is added at the end of
+on the schedule ``erf.flood.plot_int`` / ``erf.flood.plot_per``. With
+neither given, the engine writes its plotfile at every 3D plotfile
+(``erf.plot_int_1`` / ``erf.plot_per_1``); an engine whose plotfile is large
+may want its own, sparser schedule. As for the fire, no flood plotfile is added at the end of
 a run that stops between two plot times. A field the engine names in :cpp:`plot_var_names` (each
 must start with ``flood_``) can also be listed in ``erf.plot_vars_1``; it is
 written on the :math:`k = 0` cells of the flood grid's level as the mean over
