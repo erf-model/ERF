@@ -1405,6 +1405,20 @@ ERF::InitData_post ()
         restart();
     }
 
+    // The EB strain, stress and diffusion kernels (ComputeStrain_EB, ComputeStress_EB,
+    //    DiffusionSrcForMom_EB, DiffusionSrcForState_EB) do not carry the map factors,
+    //    so reject EB with diffusion when any map factor differs from one.
+    if (solverChoice.terrain_type == TerrainType::EB) {
+        for (int lev = 0; lev <= finest_level; ++lev) {
+            const DiffChoice& dc = solverChoice.diffChoice;
+            const TurbChoice& tc = solverChoice.turbChoice[lev];
+            const bool l_use_diff = (dc.molec_diff_type != MolecDiffType::None) || tc.use_kturb;
+            if (l_use_diff && has_nonunit_mapfac(lev)) {
+                Abort("EB terrain with diffusion does not support map factors other than one");
+            }
+        }
+    }
+
     // Faces of the resolved buildings, from the blanking both paths have built.
     init_ibseb();
 
