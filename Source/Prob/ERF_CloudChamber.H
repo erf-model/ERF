@@ -857,8 +857,11 @@ inline Initialization parse_initialization (const amrex::Real* problo,
     } else {
         pp_erf.query_enum_case_insensitive("compressibility_type", compressibility_type);
     }
-    if (compressibility_type == CompressibilityType::FullyCompressible) {
-        amrex::Error("Cloud Chamber: erf.compressibility_type = Anelastic or PseudoIncompressible is required");
+    // The chamber initializer corrects only rho theta and the moisture at the fixed base-state
+    // density, so it needs the anelastic equations; PseudoIncompressible is not supported
+    if (compressibility_type != CompressibilityType::Anelastic) {
+        amrex::Error("Cloud Chamber: erf.compressibility_type = Anelastic is required "
+                     "(FullyCompressible and PseudoIncompressible are not supported)");
     }
     bool use_gravity = false;
     if (!pp_erf.query("use_gravity", use_gravity) || !use_gravity) {
