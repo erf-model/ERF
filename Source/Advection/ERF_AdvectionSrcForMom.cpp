@@ -226,10 +226,10 @@ AdvectionSrcForMom (const MFIter& mfi,
 
         bool do_lo = true;
 
-        AdvectionSrcForOpenBC_Normal(tbx_xlo, 0, rho_u_rhs, u, cell_data, cellSizeInv, do_lo);
+        AdvectionSrcForOpenBC_Normal(tbx_xlo, 0, rho_u_rhs, u, cell_data, mf_ux, cellSizeInv, do_lo);
         AdvectionSrcForOpenBC_Tangent_Ymom(tby_xlo, 0, rho_v_rhs, v,
                                            rho_u, rho_v, omega,
-                                           ay, az, detJ, cellSizeInv,
+                                           ay, az, detJ, mf_vx, mf_vy, mf_uy, cellSizeInv,
                                            do_lo);
     }
     if (xhi_open)
@@ -240,10 +240,10 @@ AdvectionSrcForMom (const MFIter& mfi,
 
         tby_xhi = TrimOpenBCCorner(tby_xhi, 1, domain, ylo_open, yhi_open);
 
-        AdvectionSrcForOpenBC_Normal(tbx_xhi, 0, rho_u_rhs, u, cell_data, cellSizeInv);
+        AdvectionSrcForOpenBC_Normal(tbx_xhi, 0, rho_u_rhs, u, cell_data, mf_ux, cellSizeInv);
         AdvectionSrcForOpenBC_Tangent_Ymom(tby_xhi, 0, rho_v_rhs, v,
                                            rho_u, rho_v, omega,
-                                           ay, az, detJ, cellSizeInv);
+                                           ay, az, detJ, mf_vx, mf_vy, mf_uy, cellSizeInv);
     }
     if (ylo_open)
     {
@@ -256,9 +256,9 @@ AdvectionSrcForMom (const MFIter& mfi,
         bool do_lo = true;
         AdvectionSrcForOpenBC_Tangent_Xmom(tbx_ylo, 1, rho_u_rhs, u,
                                            rho_u, rho_v, omega,
-                                           ax, az, detJ, cellSizeInv,
+                                           ax, az, detJ, mf_ux, mf_uy, mf_vx, cellSizeInv,
                                            do_lo);
-        AdvectionSrcForOpenBC_Normal(tby_ylo, 1, rho_v_rhs, v, cell_data, cellSizeInv, do_lo);
+        AdvectionSrcForOpenBC_Normal(tby_ylo, 1, rho_v_rhs, v, cell_data, mf_vy, cellSizeInv, do_lo);
     }
     if (yhi_open)
     {
@@ -270,8 +270,8 @@ AdvectionSrcForMom (const MFIter& mfi,
 
         AdvectionSrcForOpenBC_Tangent_Xmom(tbx_yhi, 1, rho_u_rhs, u,
                                            rho_u, rho_v, omega,
-                                           ax, az, detJ, cellSizeInv);
-        AdvectionSrcForOpenBC_Normal(tby_yhi, 1, rho_v_rhs, v, cell_data, cellSizeInv);
+                                           ax, az, detJ, mf_ux, mf_uy, mf_vx, cellSizeInv);
+        AdvectionSrcForOpenBC_Normal(tby_yhi, 1, rho_v_rhs, v, cell_data, mf_vy, cellSizeInv);
     }
 
     for (const OpenBCPatch& patch : OpenBCTangentPatches(tbz, domain,
@@ -279,7 +279,7 @@ AdvectionSrcForMom (const MFIter& mfi,
     {
         AdvectionSrcForOpenBC_Tangent_Zmom(patch.box, patch.x_side, patch.y_side, rho_w_rhs, w,
                                            rho_u, rho_v, omega,
-                                           ax, ay, az, detJ, cellSizeInv,
+                                           ax, ay, az, detJ, mf_mx, mf_my, mf_uy, mf_vx, cellSizeInv,
                                            domhi_z);
     }
 }
