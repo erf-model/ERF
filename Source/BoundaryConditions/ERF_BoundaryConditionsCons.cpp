@@ -630,7 +630,7 @@ void ERFPhysBCFunct_cons::impose_vertical_cons_bcs (const Array4<Real>& dest_arr
         );
     }
 
-    if (do_terrain_adjustment &&  m_z_phys_nd) {
+    if (do_terrain_adjustment && m_z_phys_nd) {
         const auto&  bx_lo = lbound(bx);
         const auto&  bx_hi = ubound(bx);
         const BCRec* bc_ptr_h = bcrs.data();
@@ -674,8 +674,8 @@ void ERFPhysBCFunct_cons::impose_vertical_cons_bcs (const Array4<Real>& dest_arr
                         // Map factors at the cell center, clamped to the (2D) map-factor box
                         int im = amrex::min(amrex::max(ii,mf_lo.x),mf_hi.x);
                         int jm = amrex::min(amrex::max(jj,mf_lo.y),mf_hi.y);
-                        Real mfx = mf_x(im,jm,0);
-                        Real mfy = mf_y(im,jm,0);
+                        Real mfx = (mf_x) ? mf_x(im,jm,0) : one;
+                        Real mfy = (mf_y) ? mf_y(im,jm,0) : one;
                         Real slope_x = mfx * met_h_xi;
                         Real slope_y = mfy * met_h_eta;
 
