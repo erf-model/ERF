@@ -2,8 +2,6 @@
 #include "ERF_SBMCanonicalIdentity.H"
 #include "ERF_IndexDefines.H"
 
-#include <AMReX_iMultiFab.H>
-
 #include <cmath>
 
 namespace erf_sbm {
@@ -315,70 +313,6 @@ particle_mixing_boundary (const SBMPhysicalBoundaryConfig& boundaries,
     boundary.kind = boundaries.diffusion;
     boundary.carrier = carrier;
     return boundary;
-}
-
-void
-fill_particle_mixing_density_ghosts (
-    amrex::MultiFab& density,
-    const int component,
-    const amrex::Geometry& geom,
-    const SBMPhysicalBoundaryConfig& boundaries,
-    const std::array<amrex::Real, physical_face_count>& face_density)
-{
-    AMREX_ALWAYS_ASSERT(density.nGrowVect().allGE(amrex::IntVect(1)));
-    density.FillBoundary(component, 1, geom.periodicity());
-    constexpr int is_covered = 0;
-    constexpr int is_notcovered = 1;
-    constexpr int is_physbnd = 2;
-    constexpr int is_interior = 3;
-    amrex::iMultiFab mask(density.boxArray(), density.DistributionMap(), 1, 1);
-    mask.BuildMask(geom.Domain(), geom.periodicity(), is_covered, is_notcovered,
-                   is_physbnd, is_interior);
-    const amrex::Box& domain = geom.Domain();
-    // ERF gives the ghost beyond a face the face's density only where one is
-    // prescribed, a positive stored value (face_rho_is_extdir); an anelastic
-    // inflow face stores zero and takes the interior density, as the nearest
-    // valid cell below does.
-    amrex::GpuArray<int, physical_face_count> prescribed{};
-    amrex::GpuArray<amrex::Real, physical_face_count> values{};
-    for (int face = 0; face < physical_face_count; ++face) {
-        const auto f = static_cast<std::size_t>(face);
-        prescribed[face] = (boundaries.diffusion[f] != erf_auxiliary::DiffusionFaceKind::Closed &&
-                            face_density[f] > amrex::Real(0.0)) ? 1 : 0;
-        values[face] = face_density[f];
-    }
-    for (amrex::MFIter mfi(density, false); mfi.isValid(); ++mfi) {
-        const amrex::Box valid = mfi.validbox();
-        const auto rho = density.array(mfi);
-        const auto m = mask.const_array(mfi);
-        const auto vlo = amrex::lbound(valid);
-        const auto vhi = amrex::ubound(valid);
-        const auto dlo = amrex::lbound(domain);
-        const auto dhi = amrex::ubound(domain);
-        const auto prescribed_faces = prescribed;
-        const auto face_values = values;
-        amrex::ParallelFor(amrex::grow(valid, 1), [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-            const int kind = m(i, j, k);
-            if (kind == is_interior || kind == is_covered) { return; }
-            if (kind == is_physbnd) {
-                // The prescribed density of the first open face the ghost lies beyond.
-                const int index[3] = {i, j, k};
-                const int lo[3] = {dlo.x, dlo.y, dlo.z};
-                const int hi[3] = {dhi.x, dhi.y, dhi.z};
-                for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
-                    const int face = index[dir] < lo[dir] ? dir
-                                   : (index[dir] > hi[dir] ? dir + AMREX_SPACEDIM : -1);
-                    if (face >= 0 && prescribed_faces[face] != 0) {
-                        rho(i, j, k, component) = face_values[face];
-                        return;
-                    }
-                }
-            }
-            rho(i, j, k, component) = rho(amrex::min(amrex::max(i, vlo.x), vhi.x),
-                                          amrex::min(amrex::max(j, vlo.y), vhi.y),
-                                          amrex::min(amrex::max(k, vlo.z), vhi.z), component);
-        });
-    }
 }
 
 } // namespace erf_sbm

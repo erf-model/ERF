@@ -935,12 +935,13 @@ where no rate is known yet; the stage check guards both, and aborts rather
 than shrinking the step. Where the eddy diffusivity can
 approach the advective limit, for example an LES started from a strong
 perturbation, leave margin with a smaller ``erf.cfl`` or shrink the first step
-with ``erf.init_shrink``. The estimate reads the ghost cells a stage reads:
-beyond an inflow face that mixes, the density ERF gives that ghost, the face's
-``<face>.density`` in a compressible run and the interior density in an
-anelastic one. At a coarse/fine boundary it takes the nearest fine cell in
-place of the stage's interpolated coarse value, and it is made before the step
-regrids, on the previous step's grids; the stage check guards both.
+with ``erf.init_shrink``. The estimate fills the density ghost cells it reads
+with the same ERF steps that fill the stage state at the start of the step:
+the interpolated coarse density at a coarse/fine boundary, and beyond an
+inflow face that mixes, the density ERF gives that ghost (``<face>.density``,
+boundary planes, or the interior density in an anelastic run). It is made
+before the step regrids, on the previous step's grids, and later stages see
+their own density; the stage check guards both.
 
 The limiter keeps a roundoff margin of :math:`128\,\epsilon` times each
 cell's gross budget, so a cell it drains exactly to a bound cannot round

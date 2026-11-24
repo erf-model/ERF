@@ -131,24 +131,6 @@ struct ParticleMixingConfig
     const SBMPhysicalBoundaryConfig& boundaries,
     const std::array<const amrex::MultiFab*, AMREX_SPACEDIM>& carrier);
 
-/**
- * Fill the one-cell ghost layer of a density copy the way a stage sees it,
- * for a timestep estimate made before ERF fills the step's ghost cells:
- * same-level and periodic neighbors by FillBoundary; beyond an open
- * diffusive face, that face's density where ERF prescribes one (a positive
- * `face_density`, as in a compressible run); and every other ghost cell,
- * including those of an anelastic inflow face, which ERF fills from the
- * interior, and those at a coarse/fine boundary, from the nearest valid cell of
- * its box. A stage reads interpolated coarse values there, so the estimate is
- * approximate at a coarse/fine boundary; the stage check guards it.
- */
-void fill_particle_mixing_density_ghosts (
-    amrex::MultiFab& density,
-    int component,
-    const amrex::Geometry& geom,
-    const SBMPhysicalBoundaryConfig& boundaries,
-    const std::array<amrex::Real, physical_face_count>& face_density);
-
 } // namespace erf_sbm
 
 #endif

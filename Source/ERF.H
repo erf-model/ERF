@@ -817,8 +817,10 @@ public:
     void MakeNewLevelFromScratch (int lev, amrex::Real time, const amrex::BoxArray& ba,
                                   const amrex::DistributionMapping& dm) override;
 
-    // compute dt from CFL considerations
-    double estTimeStep (int lev, long& dt_fast_ratio) const;
+    // compute dt from CFL considerations; sbm_mixing_density is required when SBM
+    //    mixes particles (fill_sbm_mixing_density)
+    double estTimeStep (int lev, long& dt_fast_ratio,
+                        const amrex::MultiFab* sbm_mixing_density = nullptr) const;
 
     // largest explicit diffusion rates (eddy and molecular, 1/s) on level lev, momentum and scalars, for the
     // diffusive time-step check (erf.diffusive_dt_check / erf.diffusive_dt_limit)
@@ -1430,6 +1432,9 @@ private:
                            const amrex::DistributionMapping& dm);
     void sbm_synchronize_levels (int nstep);
     void configure_sbm_physical_boundaries ();
+    // Rho and RhoTheta of a level for the SBM particle-mixing timestep
+    //    estimate, Rho's ghost cell filled as ERF fills a stage's state
+    void fill_sbm_mixing_density (int lev, amrex::MultiFab& density);
 
     void Construct_ERFFillPatchers (int lev);
 

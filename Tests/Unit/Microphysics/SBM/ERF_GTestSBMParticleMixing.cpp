@@ -669,75 +669,6 @@ void run_open_face_validation ()
     EXPECT_NE(diagnostic.find("requires the dry-air carrier"), std::string::npos) << diagnostic;
 }
 
-// A level covering part of an x-bounded domain: box A spans the inflow face,
-// box B only part of y, and the rest of the domain lies beyond a coarse/fine
-// boundary. Ghosts take the inflow density beyond the open face, their
-// periodic or same-level images, and otherwise the nearest valid cell. An
-// inflow face without a density of its own (anelastic, where ERF stores zero
-// and fills the ghost from the interior) leaves its ghosts to the nearest cell.
-void run_estimate_density_ghosts (const Real inflow_density)
-{
-    const Box domain(IntVect(0), IntVect(7, 5, 4));
-    const amrex::RealBox real_box({0.0, 0.0, 0.0}, {1.0, 1.0, 1.0});
-    const int periodic[AMREX_SPACEDIM] = {0, 1, 1};
-    const Geometry geom(domain, &real_box, amrex::CoordSys::cartesian, periodic);
-    amrex::BoxList boxes;
-    boxes.push_back(Box(IntVect(0, 0, 0), IntVect(3, 5, 4)));
-    boxes.push_back(Box(IntVect(4, 0, 0), IntVect(5, 2, 4)));
-    const BoxArray ba(std::move(boxes));
-    const DistributionMapping dm(ba);
-    MultiFab rho(ba, dm, 1, 1);
-    rho.setVal(std::numeric_limits<Real>::quiet_NaN());
-    const auto value = [] AMREX_GPU_HOST_DEVICE (int i, int j, int k) noexcept {
-        return Real(1.0) + Real(0.1) * Real(i) + Real(0.01) * Real(j) + Real(0.001) * Real(k);
-    };
-    for (amrex::MFIter mfi(rho); mfi.isValid(); ++mfi) {
-        const auto a = rho.array(mfi);
-        amrex::ParallelFor(mfi.validbox(), [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-            a(i, j, k, 0) = value(i, j, k);
-        });
-    }
-    erf_sbm::SBMPhysicalBoundaryConfig faces;
-    faces.kind[0] = erf_sbm::AdvectionFaceKind::PrescribedInflow;
-    faces.kind[3] = erf_sbm::AdvectionFaceKind::AdvectiveOutflow;
-    faces.diffusion[0] = DiffusionFaceKind::Dirichlet;
-    std::array<Real, erf_sbm::physical_face_count> face_density{};
-    face_density[0] = inflow_density;
-    face_density[3] = Real(9.0);
-    erf_sbm::fill_particle_mixing_density_ghosts(rho, 0, geom, faces, face_density);
-
-    amrex::ReduceOps<amrex::ReduceOpSum> reduce_op;
-    amrex::ReduceData<int> reduce_data(reduce_op);
-    using ReduceTuple = typename decltype(reduce_data)::Type;
-    for (amrex::MFIter mfi(rho); mfi.isValid(); ++mfi) {
-        const Box valid = mfi.validbox();
-        const auto lo = amrex::lbound(valid);
-        const auto hi = amrex::ubound(valid);
-        const auto a = rho.const_array(mfi);
-        reduce_op.eval(mfi.fabbox(), reduce_data,
-            [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept -> ReduceTuple {
-                Real expected;
-                const int jw = (j + 6) % 6;
-                const int kw = (k + 5) % 5;
-                const bool in_a = i >= 0 && i <= 3;
-                const bool in_b = i >= 4 && i <= 5 && jw <= 2;
-                if (i < 0 && inflow_density > Real(0.0)) {
-                    expected = inflow_density;
-                } else if (in_a || in_b) {
-                    expected = value(i, jw, kw);
-                } else {
-                    expected = value(amrex::min(amrex::max(i, lo.x), hi.x),
-                                     amrex::min(amrex::max(j, lo.y), hi.y),
-                                     amrex::min(amrex::max(k, lo.z), hi.z));
-                }
-                return {a(i, j, k, 0) == expected ? 0 : 1};
-            });
-    }
-    int mismatches = amrex::get<0>(reduce_data.value(reduce_op));
-    amrex::ParallelAllReduce::Sum(mismatches, amrex::ParallelContext::CommunicatorSub());
-    EXPECT_EQ(mismatches, 0);
-}
-
 void run_zero_coefficient_identity ()
 {
     const auto g = make_grid(GridOptions{});
@@ -1800,11 +1731,6 @@ TEST(AuxiliaryDiffusion, StretchedGridTransmissibilityMatchesHostDiffusion) { ru
 TEST(AuxiliaryDiffusion, PhysicalFacesCarryNoDiffusiveTransfer) { run_physical_faces(); }
 TEST(AuxiliaryDiffusion, OpenFacesExchangeOverHalfTheEdgeCell) { run_open_faces(); }
 TEST(AuxiliaryDiffusion, OpenFacesValidateTheirGhostsAndCarrier) { run_open_face_validation(); }
-TEST(SBMParticleMixing, EstimateDensityGhostsFollowTheStage)
-{
-    run_estimate_density_ghosts(Real(7.0));
-    run_estimate_density_ghosts(Real(0.0));
-}
 TEST(AuxiliaryDiffusion, ZeroCoefficientIsTheIdentity) { run_zero_coefficient_identity(); }
 TEST(AuxiliaryDiffusion, ExchangeConservesInventory)
 {
