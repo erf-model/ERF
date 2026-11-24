@@ -5762,6 +5762,46 @@ if(ERF_ENABLE_NETCDF AND ERF_TEST_PYTHON)
           "@PY@ same plt2dA00002 plt2dB00002 --log @LOG@ && @PY@ log @LOG@ 'NOTE: erf.radiation.seb_init_skin_from_file is not used on a restart'" 3)
     endif()
 
+    # The wrfbdy conversion against the initial state (issue #5149). make_wrf_hybrid.py
+    # writes a wrfinput/wrfbdy pair on the hybrid coordinate (hybrid_opt = 2) over a hill,
+    # with map factors up to 1.05, coupled the way real.exe couples it: PH with
+    # c1f mu + c2f, U and V with (c1h mu + c2h)/msfuy and /msfvx. With
+    # erf.check_wrfbdy_invariant ERF prints, for each side and field, the largest difference
+    # between the decoupled and interpolated boundary data at the first time and the initial
+    # state; check_invariant.py compares it with the tolerances. The legs: the pair as made;
+    # without C1F/C2F in wrfinput, when the fallback c1f = 1, c2f = 0 must make u, v and the
+    # density fail; the same on the sigma coordinate, where the fallback is exact; winds
+    # coupled without the map factors, when u and v must fail; and, with MPI, four ranks.
+    function(add_test_wrfbdy_hybrid TEST_NAME MAKE_OPTIONS CHECK_OPTIONS)
+      set(_launch "")
+      set(_np 1)
+      if(ARGC GREATER 3)
+        set(_np ${ARGV3})
+        set(_launch "${MPIEXEC_EXECUTABLE} ${MPIEXEC_NUMPROC_FLAG} ${ARGV3} ${MPIEXEC_PREFLAGS} ")
+      endif()
+      set(TEST_FILES_DIR WRFBdy_HybridInvariant)
+      setup_test()
+      resolve_test_exe("" "erf_exec" TEST_EXE)
+      set(_log ${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.log)
+      set(_make "${ERF_TEST_PYTHON} make_wrf_hybrid.py ${MAKE_OPTIONS} > generate.log")
+      set(_exe "${_launch}${TEST_EXE} WRFBdy_HybridInvariant.i amrex.call_addr2line=0")
+      set(_run "( ${_exe} > ${_log} 2>&1 || ( tail -n 40 ${_log} && false ) )")
+      set(_check "${ERF_TEST_PYTHON} check_invariant.py ${_log} ${CHECK_OPTIONS}")
+      add_test(${TEST_NAME} sh -c "${_make} && ${_run} && ${_check}")
+      set_tests_properties(${TEST_NAME} PROPERTIES TIMEOUT 300 PROCESSORS ${_np}
+          WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
+          LABELS "regression;wrfinput;wrfbdy" ATTACHED_FILES_ON_FAIL "${_log}")
+    endfunction(add_test_wrfbdy_hybrid)
+    add_test_wrfbdy_hybrid(WRFBdy_HybridInvariant "" "")
+    add_test_wrfbdy_hybrid(WRFBdy_HybridInvariant_NoCF "--no-cf"
+        "--fail u --fail v --fail rho --log 'wrfinput has no C1F/C2F'")
+    add_test_wrfbdy_hybrid(WRFBdy_HybridInvariant_Sigma_NoCF "--hybrid0 --no-cf"
+        "--log 'wrfinput has no C1F/C2F'")
+    add_test_wrfbdy_hybrid(WRFBdy_HybridInvariant_NoMapFac "--bdy-without-msf" "--fail u --fail v")
+    if(ERF_ENABLE_MPI)
+      add_test_wrfbdy_hybrid(WRFBdy_HybridInvariant_MPI "" "" 4)
+    endif()
+
     # The deep (restoring) temperature of the same balance from the TMN of the wrfinput file
     # (erf.radiation.seb_init_t_deep_from_file), on the same deck. make_wrfinput.py writes
     # TMN = 275 + 0.25 i + 0.5 j; erf.radiation.seb_t_deep_default is 290 K. check_skin.py
