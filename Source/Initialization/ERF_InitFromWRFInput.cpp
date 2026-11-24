@@ -524,6 +524,11 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev, bool read_atmos_state)
     NC_names.push_back("LANDMASK");
     NC_names.push_back("C1H");
     NC_names.push_back("C2H");
+    // The full-level hybrid coefficients are needed only to decouple the level-0 wrfbdy data
+    if (lev == 0) {
+        NC_names.push_back("C1F");
+        NC_names.push_back("C2F");
+    }
     NC_names.push_back("RDNW");
     NC_names.push_back("XLAT");
     NC_names.push_back("XLONG");
@@ -768,7 +773,8 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev, bool read_atmos_state)
                 (var_name == "U")       || (var_name == "V")       || (var_name == "W")      ||
                 (var_name == "THM")     || (var_name == "QVAPOR")  || (var_name == "QCLOUD") ||
                 (var_name == "QICE")    || (var_name == "QRAIN")   || (var_name == "QSNOW")  ||
-                (var_name == "QGRAUP")  || (var_name == "PH")      || (var_name == "PHB");
+                (var_name == "QGRAUP")  || (var_name == "PH")      || (var_name == "PHB")    ||
+                (var_name == "C1F")     || (var_name == "C2F");
             // With a land model these names are its required inputs; without one they
             // are the optional fields of wrf_surface_fields.
             const WRFSurfaceFields::Descriptor* sfc_desc =
@@ -1207,6 +1213,25 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev, bool read_atmos_state)
                 cur_fab.template copy<RunOn::Device>(var_fab, 0, 0, 1);
               }
               var_fab.clear();
+          } else if ( var_name == "C1F" || var_name == "C2F" ) {
+              // Only read at level 0 (see NC_names above)
+              MultiFab* mf_CF = (var_name == "C1F") ? wrf_C1F.get() : wrf_C2F.get();
+              if (success) {
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
+                  for ( MFIter mfi(*mf_CF, false); mfi.isValid(); ++mfi )
+                  {
+                    FArrayBox &cur_fab = (*mf_CF)[mfi];
+                    cur_fab.template copy<RunOn::Device>(var_fab, 0, 0, 1);
+                  }
+                  var_fab.clear();
+              } else if (var_name == "C1F") {
+                  // Files written before WRF v4 have no hybrid coordinate; keep the
+                  // c1f = 1, c2f = 0 set when the arrays were made
+                  Print() << "WARNING: wrfinput has no C1F/C2F; using c1f = 1, c2f = 0 to decouple the wrfbdy "
+                          << "geopotential, which is right only for hybrid_opt = 0\n";
+              }
           } else if ( var_name == "RDNW" ) {
               if (lev == 0) {
                   mf_RDNW = wrf_RDNW.get();
@@ -1526,43 +1551,9 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev, bool read_atmos_state)
     // After the last file: reduce the checks over the ranks, report, fill the ghost cells
     if (read_surface_fields) { wrf_surface_fields.finish_level(lev, geom[lev].periodicity()); }
 
-    // Convert the velocities using the map factors
-    //
-    // NOTE: only the velocities read from the file need this.  On the
-    //       interp_atmos_from_coarse path they are filled from the coarse level after this
-    //       function returns, already in ERF's units.
-    if (read_atmos_state) {
-        for ( MFIter mfi(lev_new[Vars::xvel], TilingIfNotGPU()); mfi.isValid(); ++mfi )
-        {
-            Box bx = mfi.tilebox();
-            const Array4<      Real>& dst_arr = lev_new[Vars::xvel].array(mfi);
-            const Array4<const Real>& src_arr = mapfac[lev][MapFacType::u_x]->const_array(mfi);
-            ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
-            {
-                dst_arr(i,j,k) /= src_arr(i,j,0);
-            });
-        }
-        for ( MFIter mfi(lev_new[Vars::yvel], TilingIfNotGPU()); mfi.isValid(); ++mfi )
-        {
-            Box bx = mfi.tilebox();
-            const Array4<      Real>& dst_arr = lev_new[Vars::yvel].array(mfi);
-            const Array4<const Real>& src_arr = mapfac[lev][MapFacType::v_x]->const_array(mfi);
-            ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
-            {
-                dst_arr(i,j,k) /= src_arr(i,j,0);
-            });
-        }
-        for ( MFIter mfi(lev_new[Vars::zvel], TilingIfNotGPU()); mfi.isValid(); ++mfi )
-        {
-            Box bx = mfi.tilebox();
-            const Array4<      Real>& dst_arr = lev_new[Vars::zvel].array(mfi);
-            const Array4<const Real>& src_arr = mapfac[lev][MapFacType::m_x]->const_array(mfi);
-            ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
-            {
-                dst_arr(i,j,k) /= src_arr(i,j,0);
-            });
-        }
-    } // read_atmos_state
+    // NOTE: wrfinput carries the physical velocities (WRF's coupled momenta are
+    //       mu u / m_y, mu v / m_x and mu w / m_y), and ERF holds the physical velocities
+    //       too, so no map factor is applied here.
 
     // **************************************************************************
     // Compute min and max of terrain
@@ -2462,7 +2453,9 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev, bool read_atmos_state)
             {
                 read_and_convert_from_wrfbdy(itime, nc_bdy_file,
                                              bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi,
-                                             wrf_MUB, wrf_C1H, wrf_C2H, wrf_RDNW, wrf_PHB, z_phys_cc[lev], z_phys_nd[lev],
+                                             wrf_MUB, wrf_C1H, wrf_C2H, wrf_C1F, wrf_C2F, wrf_RDNW, wrf_PHB,
+                                             mapfac[lev],
+                                             z_phys_cc[lev], z_phys_nd[lev],
                                              lev_new[Vars::xvel], lev_new[Vars::yvel], lev_new[Vars::cons],
                                              r_hse, area_vec, geom[lev], use_moist, use_theta_m_bdy,
                                              solverChoice.rebalance_wrf_input, domain_bcs_type,
@@ -2484,7 +2477,9 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev, bool read_atmos_state)
                 for (int itime = 3; itime < ntimes_total; ++itime) {
                     read_and_convert_from_wrfbdy(itime, nc_bdy_file,
                                                  bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi,
-                                                 wrf_MUB, wrf_C1H, wrf_C2H, wrf_RDNW, wrf_PHB, z_phys_cc[lev], z_phys_nd[lev],
+                                                 wrf_MUB, wrf_C1H, wrf_C2H, wrf_C1F, wrf_C2F, wrf_RDNW, wrf_PHB,
+                                                 mapfac[lev],
+                                                 z_phys_cc[lev], z_phys_nd[lev],
                                                  lev_new[Vars::xvel], lev_new[Vars::yvel], lev_new[Vars::cons],
                                                  r_hse, area_vec, geom[lev], use_moist, use_theta_m_bdy,
                                                  solverChoice.rebalance_wrf_input, domain_bcs_type,

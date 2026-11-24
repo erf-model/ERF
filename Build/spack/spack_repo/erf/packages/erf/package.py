@@ -37,7 +37,7 @@ class Erf(CMakePackage, CudaPackage, ROCmPackage):
     # version-keyed patches apply. ERF 24.10 needs amrex::decompose() from 24.11.
     # ERF 26.11 pins five commits beyond AMReX 26.11, including the FillPatch
     # fix for multilevel ERF tests with Clang FPE trapping (AMReX #6163).
-    _amrex_develop = "7036a3703857b5e2e6a78121f693e69bbb46f528"
+    _amrex_develop = "77a35ff455d7864fa5d9eff3ef99ba1b29e78355"
     _amrex_newer = {"24.10": "24.11"}
     _amrex_release_commits = {"26.11": "1d9bd90c35837dd54b20e5e8f94651ebfdcf5f96"}
     version("develop", branch="development")

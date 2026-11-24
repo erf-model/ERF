@@ -361,12 +361,14 @@ scalars and the turbulent kinetic energy are extrapolated from the interior with
 zero gradient, and the moisture components other than :math:`q_v`
 (cloud and precipitating hydrometeors) are set to zero; hydrometeors are
 neither read from ``wrfbdy`` nor nudged toward WRF values. For compressible ``WRFInput`` boundaries,
-``erf.use_wrf_bdy_density`` (true by default) uses the converted WRF dry-air
+``erf.use_wrf_bdy_density`` (true by default when level 0 is FullyCompressible,
+false otherwise) uses the converted WRF dry-air
 density as the target for ``rho``, ``rho*theta``, and ``rho*qv`` and relaxes
 ``rho`` in the Davies zone. Pressure is still diagnosed from the ERF equation
 of state rather than directly nudged. This option is not supported for
 MetGrid-only boundaries, generic boundary-plane input, or anelastic or
-pseudo-incompressible runs (ERF stops if level 0 is not FullyCompressible).
+pseudo-incompressible runs (ERF stops if it is set to true when level 0 is not
+FullyCompressible).
 
 .. |wrfbdy| image:: figures/wrfbdy_BCs.png
            :width: 600
