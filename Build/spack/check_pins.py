@@ -1,19 +1,21 @@
 #!/usr/bin/env python3
 """Check that ERF's Spack recipe pins the same external commits as ERF's tree.
 
-The recipe (Build/spack/spack_repo/erf/packages/erf/package.py) fetches the RRTMGP/EKAT
-stack, Noah-MP and the EAMxx sources as pinned git resources instead of submodules or
-clone scripts, so release tarballs can be built. This compares those pins with ERF's tree:
+The recipe (Build/spack/spack_repo/erf/packages/erf/package.py) fetches the RRTMGP/Kokkos
+stack (RRTMGP/EKAT up to 26.11), Noah-MP and the EAMxx sources as pinned git resources
+instead of submodules or clone scripts, so release tarballs can be built. This compares
+those pins with ERF's tree:
 
-  * the @develop pins against the ref given with --ref (default HEAD): the RRTMGP, ekat,
+  * the @develop pins against the ref given with --ref (default HEAD): the RRTMGP, kokkos,
     Noah-MP and AMReX gitlinks;
   * each tagged release the recipe offers against that tag, including any AMReX
     release commit override and, for 26.09 to 26.11 (the releases with the EAMxx SHOC), the
     E3SM commit in Build/GNU_Ekat/eamxx_clone.sh, for the tags available locally
     (`git fetch --tags` to get them all);
-  * EKAT's own pins at each pinned EKAT commit: the extern/* gitlinks, and for a TPL that
-    EKAT fetches with FetchContent the GIT_TAG in its cmake/tpls/EkatBuild*.cmake; read from
-    a local Submodules/ekat checkout when it has that commit and from the GitHub API otherwise.
+  * EKAT's own pins at each pinned EKAT commit (releases up to 26.11): the extern/*
+    gitlinks, and for a TPL that EKAT fetches with FetchContent the GIT_TAG in its
+    cmake/tpls/EkatBuild*.cmake; read from a local Submodules/ekat checkout when it has
+    that commit and from the GitHub API otherwise.
 
 It also lists release tags that the recipe does not offer yet (a warning, or a failure
 with --strict).
@@ -37,6 +39,8 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 PACKAGE_PY = os.path.join(HERE, "spack_repo", "erf", "packages", "erf", "package.py")
 EAMXX_CLONE = "Build/GNU_Ekat/eamxx_clone.sh"
 EKAT_EXTERNS = ("kokkos", "yaml-cpp", "spdlog", "Catch2")
+# The RRTMGP stack's submodules: ekat up to 26.11, kokkos directly after.
+STACK_SUBMODULES = ("Submodules/RRTMGP", "Submodules/ekat", "Submodules/kokkos")
 # Where EKAT pins a TPL it fetches with FetchContent instead of a submodule (Kokkos 5 EKAT).
 EKAT_TPL_FILES = {
     "yaml-cpp": "cmake/tpls/EkatBuildYamlCpp.cmake",
@@ -131,7 +135,7 @@ def in_range(spec, version):
 
 
 def stack_for(version, stacks):
-    """The RRTMGP/EKAT stack whose version range covers a release or develop."""
+    """The RRTMGP/Kokkos stack whose version range covers a release or develop."""
     for spec, stack in stacks.items():
         if in_range(spec, version):
             return {dest: commit for _, _, commit, dest in stack}
@@ -221,8 +225,9 @@ def main():
     develop_noahmp = dict(noahmp).get("develop")
     check("develop Noah-MP", links.get("Submodules/Noah-MP"), develop_noahmp)
     check("develop AMReX", links.get("Submodules/AMReX"), amrex_develop)
-    for path in ("Submodules/RRTMGP", "Submodules/ekat"):
-        check(f"develop {path}", links.get(path), develop_stack.get(path))
+    for path in STACK_SUBMODULES:
+        if links.get(path) or develop_stack.get(path):
+            check(f"develop {path}", links.get(path), develop_stack.get(path))
     # develop has no EAMxx SHOC, and so no E3SM pin, since 26.11
 
     # Each release the recipe offers, where the tag is available locally.
@@ -241,8 +246,10 @@ def main():
         if v in amrex_releases:
             check(f"{v} AMReX", tag_links.get("Submodules/AMReX"), amrex_releases[v])
         if vtuple(v) >= (25, 10):
-            for path in ("Submodules/RRTMGP", "Submodules/ekat"):
-                check(f"{v} {path}", tag_links.get(path), stack_for(v, stacks).get(path))
+            tag_stack = stack_for(v, stacks)
+            for path in STACK_SUBMODULES:
+                if tag_links.get(path) or tag_stack.get(path):
+                    check(f"{v} {path}", tag_links.get(path), tag_stack.get(path))
         if vtuple(v) >= (25, 12):
             check(f"{v} Noah-MP", tag_links.get("Submodules/Noah-MP"), noahmp_pin_for(v, noahmp))
         if (26, 9) <= vtuple(v) <= (26, 11):
@@ -251,6 +258,8 @@ def main():
     # EKAT's own pins (submodules or FetchContent tags) at each pinned EKAT commit.
     for spec, stack in stacks.items():
         by_path = {dest: commit for _, _, commit, dest in stack}
+        if "Submodules/ekat" not in by_path:
+            continue
         externs = ekat_externs(by_path["Submodules/ekat"], root)
         if externs is None:
             continue
@@ -307,10 +316,8 @@ def main():
         failures.remove("develop AMReX")
     if any(f.startswith("develop Submodules/") for f in failures):
         print(
-            "The RRTMGP/EKAT pins moved: add or update the entry in _rrtmgp_stacks in "
-            "package.py (ERF's RRTMGP and ekat gitlinks, then EKAT's extern/kokkos gitlink and "
-            "the GIT_TAG commits in its cmake/tpls/EkatBuild*.cmake at the new EKAT commit) "
-            "and rerun."
+            "The RRTMGP/Kokkos pins moved: add or update the entry in _rrtmgp_stacks in "
+            "package.py (ERF's RRTMGP and kokkos gitlinks) and rerun."
         )
 
     summary = os.environ.get("GITHUB_STEP_SUMMARY")

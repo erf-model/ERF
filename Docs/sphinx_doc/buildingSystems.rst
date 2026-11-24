@@ -655,7 +655,7 @@ CMake can also generate makefiles for the Ninja build system for faster compilat
    * ``ERF_ENABLE_RRTMGP`` - RRTMGP radiation model
 
      - Requires ``ERF_ENABLE_NETCDF=ON`` and ``ERF_ENABLE_MPI=ON``
-     - Automatically enables ``ERF_ENABLE_EKAT=ON`` (provides Kokkos)
+     - Automatically enables Kokkos, from ``Submodules/kokkos`` or from the install that ``-DKokkos_ROOT`` points at
 
    * Native SHOC - Native SHOC turbulence and cloud macrophysics
 
@@ -675,7 +675,7 @@ CMake can also generate makefiles for the Ninja build system for faster compilat
    * ``ERF_ENABLE_SYCL`` - Intel GPUs
 
    .. note::
-      The Kokkos-based RRTMGP radiation package supports all three GPU backends through EKAT's Kokkos integration.
+      The Kokkos-based RRTMGP radiation package supports all three GPU backends through Kokkos.
 
 .. dropdown:: Logging Options (CMake 3.25+)
    :icon: bug
@@ -778,7 +778,7 @@ CMake can also generate makefiles for the Ninja build system for faster compilat
    .. code-block:: bash
 
       cd Build
-      ./setup_cmake_validation.sh default    # or perlmutter, gnu_ekat
+      ./setup_cmake_validation.sh default    # or perlmutter, gnu_kokkos
       cd ../build_default
       ./run.sh     # List available scripts
       ./run.sh 1   # Run first script

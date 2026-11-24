@@ -2,36 +2,54 @@ AMREX_HOME ?= $(ERF_HOME)/Submodules/AMReX
 
 ERF_ABS_HOME := $(abspath $(ERF_HOME))
 
-# EKAT/Kokkos policy:
-# - If EKAT_HOME is not supplied by the including GNUmakefile, the environment,
-#   or the command line, assume ERF should use the bundled EKAT submodule and
-#   build/install it under Submodules/ekat when Kokkos is needed. The bundled
+# Kokkos policy (RRTMGP is written in Kokkos):
+# - If ERF_KOKKOS_HOME is not supplied by the including GNUmakefile, the environment,
+#   or the command line, assume ERF should use the bundled Kokkos submodule and
+#   build/install it under Submodules/kokkos when Kokkos is needed. The bundled
 #   build and install directories are keyed by the Kokkos backend selection
-#   (see EKAT_CONFIG_TAG below), so configurations that disagree about a
+#   (see ERF_KOKKOS_CONFIG_TAG below), so configurations that disagree about a
 #   backend do not share, overwrite, or silently reuse one another's install.
-# - If EKAT_HOME is supplied, assume it points at a usable EKAT/Kokkos install
-#   and do not rebuild it unless BUILD_EKAT=TRUE is explicitly requested.
-# - EKAT_INSTALL_LIBDIR defaults to lib, but can be set to lib64 or another
+# - If ERF_KOKKOS_HOME is supplied, assume it points at a usable Kokkos install
+#   and do not rebuild it unless ERF_BUILD_KOKKOS=TRUE is explicitly requested.
+#   The generic KOKKOS_HOME, which shells and HPC modules often set, is not read.
+# - ERF_KOKKOS_INSTALL_LIBDIR defaults to lib, but can be set to lib64 or another
 #   install libdir on systems with a different CMake layout.
-# - EKAT_BUILD_JOBS (default 4) is the number of parallel jobs for building the
-#   bundled EKAT/Kokkos.  Compiling Kokkos with nvcc takes a lot of memory per
+# - ERF_KOKKOS_BUILD_JOBS (default 4) is the number of parallel jobs for building the
+#   bundled Kokkos.  Compiling Kokkos with nvcc takes a lot of memory per
 #   job, and an unbounded build can exhaust a workstation's memory.
 # - With USE_CUDA=TRUE, NVCC_WRAPPER_DEFAULT_COMPILER is the host compiler of
-#   Kokkos' nvcc_wrapper for the EKAT/Kokkos build. It defaults to mpicxx (CC
+#   Kokkos' nvcc_wrapper for the Kokkos build. It defaults to mpicxx (CC
 #   under the Cray PE), and must be an MPI C++ wrapper, never nvcc.
 #
 # The config-dependent paths are derived after the Make.defs include, where the
 # USE_* backend switches and COMP have been normalized.
-ifeq ($(origin EKAT_HOME), undefined)
-  ERF_EKAT_HOME_IS_DEFAULT := TRUE
-  BUILD_EKAT ?= TRUE
+ifeq ($(origin ERF_KOKKOS_HOME), undefined)
+  ERF_KOKKOS_HOME_IS_DEFAULT := TRUE
+  ERF_BUILD_KOKKOS ?= TRUE
 else
-  ERF_EKAT_HOME_IS_DEFAULT := FALSE
-  BUILD_EKAT ?= FALSE
+  ERF_KOKKOS_HOME_IS_DEFAULT := FALSE
+  ERF_BUILD_KOKKOS ?= FALSE
 endif
 
-EKAT_SOURCE_DIR ?= $(ERF_ABS_HOME)/Submodules/ekat
-EKAT_INSTALL_LIBDIR ?= lib
+ERF_KOKKOS_SOURCE_DIR ?= $(ERF_ABS_HOME)/Submodules/kokkos
+ERF_KOKKOS_INSTALL_LIBDIR ?= lib
+
+# ERF used to get Kokkos through EKAT, and the EKAT_* build variables are gone.
+# Stop rather than silently ignore a GNUmakefile or command line that still
+# sets them; one that only comes from the environment may be meant for another
+# code, so it gets a warning.
+erf_old_ekat_vars := EKAT_HOME BUILD_EKAT EKAT_SOURCE_DIR EKAT_INSTALL_LIBDIR EKAT_BUILD_JOBS \
+  EKAT_BUILD_DIR EKAT_LIB_DIR EKAT_EXTRA_CMAKE_FLAGS
+erf_old_ekat_hint := ERF no longer uses EKAT; use the KOKKOS_ equivalent (EKAT_HOME -> ERF_KOKKOS_HOME, \
+  BUILD_EKAT -> ERF_BUILD_KOKKOS, EKAT_* -> KOKKOS_*). ERF_KOKKOS_HOME must point at a plain Kokkos install
+erf_old_ekat_set := $(strip $(foreach v,$(erf_old_ekat_vars),$(if $(filter file command line override,$(origin $(v))),$(v))))
+erf_old_ekat_env := $(strip $(foreach v,$(erf_old_ekat_vars),$(if $(filter environment%,$(origin $(v))),$(v))))
+ifneq ($(erf_old_ekat_set),)
+  $(error $(erf_old_ekat_set) set: $(erf_old_ekat_hint))
+endif
+ifneq ($(erf_old_ekat_env),)
+  $(warning $(erf_old_ekat_env) in the environment ignored: $(erf_old_ekat_hint))
+endif
 
 # Map an AMReX-style TRUE/FALSE switch onto a CMake ON/OFF value.
 erf_bool_onoff = $(if $(filter TRUE,$(1)),ON,OFF)
@@ -119,50 +137,40 @@ ifeq ($(USE_WDM6_FORT), TRUE)
   endif
 endif
 
-# Key the bundled EKAT/Kokkos build and install trees by the configuration that
+# Key the bundled Kokkos build and install trees by the configuration that
 # is actually baked into the installed Kokkos headers: the compiler and the set
-# of enabled backends. A single fixed install under Submodules/ekat/build is
-# shared by every configuration, and build_ekat below skips the CMake configure
-# whenever an install is already present, so once a USE_CUDA=TRUE build has
-# populated it a later USE_CUDA=FALSE build in the same source tree compiles
+# of enabled backends. If a single fixed install were shared by every
+# configuration, then since build_kokkos below skips the CMake configure
+# whenever an install is already present, once a USE_CUDA=TRUE build had
+# populated it a later USE_CUDA=FALSE build in the same source tree would compile
 # against Kokkos headers that #define KOKKOS_ENABLE_CUDA using a host compiler
 # that never defines __CUDACC__, which Kokkos_Setup_Cuda.hpp rejects outright.
-# The CMake build avoids this by configuring EKAT inside each build directory;
+# The CMake build avoids this by configuring Kokkos inside each build directory;
 # keying the paths here gives the GNU Make build the same isolation.
-EKAT_CONFIG_TAG := $(if $(strip $(COMP)),$(strip $(COMP)),unknown-comp)
+ERF_KOKKOS_CONFIG_TAG := $(if $(strip $(COMP)),$(strip $(COMP)),unknown-comp)
 ifeq ($(USE_MPI), TRUE)
-  EKAT_CONFIG_TAG := $(EKAT_CONFIG_TAG).MPI
+  ERF_KOKKOS_CONFIG_TAG := $(ERF_KOKKOS_CONFIG_TAG).MPI
 endif
 ifeq ($(USE_OMP), TRUE)
-  EKAT_CONFIG_TAG := $(EKAT_CONFIG_TAG).OMP
+  ERF_KOKKOS_CONFIG_TAG := $(ERF_KOKKOS_CONFIG_TAG).OMP
 endif
 ifeq ($(USE_CUDA), TRUE)
-  EKAT_CONFIG_TAG := $(EKAT_CONFIG_TAG).CUDA
+  ERF_KOKKOS_CONFIG_TAG := $(ERF_KOKKOS_CONFIG_TAG).CUDA
 endif
 ifeq ($(USE_HIP), TRUE)
-  EKAT_CONFIG_TAG := $(EKAT_CONFIG_TAG).HIP
+  ERF_KOKKOS_CONFIG_TAG := $(ERF_KOKKOS_CONFIG_TAG).HIP
 endif
 ifeq ($(USE_SYCL), TRUE)
-  EKAT_CONFIG_TAG := $(EKAT_CONFIG_TAG).SYCL
+  ERF_KOKKOS_CONFIG_TAG := $(ERF_KOKKOS_CONFIG_TAG).SYCL
 endif
 
-DEFAULT_EKAT_HOME := $(EKAT_SOURCE_DIR)/build/$(EKAT_CONFIG_TAG)/install
-ifeq ($(ERF_EKAT_HOME_IS_DEFAULT), TRUE)
-  EKAT_HOME := $(DEFAULT_EKAT_HOME)
+ERF_DEFAULT_KOKKOS_HOME := $(ERF_KOKKOS_SOURCE_DIR)/build/$(ERF_KOKKOS_CONFIG_TAG)/install
+ifeq ($(ERF_KOKKOS_HOME_IS_DEFAULT), TRUE)
+  ERF_KOKKOS_HOME := $(ERF_DEFAULT_KOKKOS_HOME)
 endif
-EKAT_BUILD_DIR ?= $(EKAT_SOURCE_DIR)/build/$(EKAT_CONFIG_TAG)
-EKAT_INSTALL_PREFIX := $(abspath $(EKAT_HOME))
-EKAT_LIB_DIR ?= $(EKAT_INSTALL_PREFIX)/$(EKAT_INSTALL_LIBDIR)
-
-# Before the paths were keyed, the bundled EKAT was configured directly in
-# $(EKAT_SOURCE_DIR)/build. Nothing reads that tree any more, and leaving it in
-# place is how a CUDA-enabled install came to be reused by host-only builds, so
-# say plainly that it is dead and can go.
-ifeq ($(USE_KOKKOS), TRUE)
-  ifneq ($(wildcard $(EKAT_SOURCE_DIR)/build/CMakeCache.txt),)
-    $(warning Unused EKAT build from the old unkeyed layout found in $(EKAT_SOURCE_DIR)/build. It is no longer used by any configuration; remove it with: rm -rf $(EKAT_SOURCE_DIR)/build/CMakeCache.txt $(EKAT_SOURCE_DIR)/build/CMakeFiles $(EKAT_SOURCE_DIR)/build/install)
-  endif
-endif
+ERF_KOKKOS_BUILD_DIR ?= $(ERF_KOKKOS_SOURCE_DIR)/build/$(ERF_KOKKOS_CONFIG_TAG)
+ERF_KOKKOS_INSTALL_PREFIX := $(abspath $(ERF_KOKKOS_HOME))
+ERF_KOKKOS_LIB_DIR ?= $(ERF_KOKKOS_INSTALL_PREFIX)/$(ERF_KOKKOS_INSTALL_LIBDIR)
 
 EBASE = ERF
 ifeq ($(USE_NETCDF), TRUE)
@@ -663,24 +671,23 @@ ifeq ($(USE_MULTIBLOCK), TRUE)
   DEFINES += -DERF_USE_MULTIBLOCK
 endif
 
-# NOTE: EKAT provides KOKKOS
 ifeq ($(USE_KOKKOS), TRUE)
-  # Assumes Kokkos comes from the EKAT install selected above. Some platforms
+  # Assumes Kokkos comes from the install selected above. Some platforms
   # do not need or provide libdl; set KOKKOS_EXTRA_LIBS= in that case.
   KOKKOS_EXTRA_LIBS ?= -ldl
   DEFINES   += -DERF_USE_KOKKOS
-  INCLUDE_LOCATIONS += $(EKAT_HOME)/include/kokkos
-  LIBRARY_LOCATIONS += $(EKAT_LIB_DIR)
+  INCLUDE_LOCATIONS += $(ERF_KOKKOS_HOME)/include
+  LIBRARY_LOCATIONS += $(ERF_KOKKOS_LIB_DIR)
   LIBRARIES += -lkokkoscore $(KOKKOS_EXTRA_LIBS)
 endif
 
 ifeq ($(USE_KOKKOS), TRUE)
 # When using CUDA, employ the KOKKOS nvcc wrapper (nvcc isn't GCC-compatible)
-EKAT_CXX := $(CXX)
+ERF_KOKKOS_CXX := $(CXX)
 ifeq ($(USE_CUDA), TRUE)
-    EKAT_CXX := $(EKAT_SOURCE_DIR)/extern/kokkos/bin/nvcc_wrapper
-    # nvcc_wrapper's host compiler is the MPI C++ wrapper, so that it finds mpi.h (EKAT is
-    # always built with MPI).  It cannot be $(CXX): in a CUDA build that is nvcc itself on
+    ERF_KOKKOS_CXX := $(ERF_KOKKOS_SOURCE_DIR)/bin/nvcc_wrapper
+    # nvcc_wrapper's host compiler is the MPI C++ wrapper, the same host compiler AMReX
+    # uses for ERF.  It cannot be $(CXX): in a CUDA build that is nvcc itself on
     # some sites (Perlmutter), and on others the MPI wrapper with OMPI_CXX/MPICH_CXX/
     # MPICXX_CXX=nvcc exported by Make.defs, so that nvcc and the wrapper call each other
     # in a loop.  So take the MPI wrapper by name (Cray's CC under the Cray PE) ...
@@ -690,39 +697,33 @@ ifeq ($(USE_CUDA), TRUE)
         NVCC_WRAPPER_DEFAULT_COMPILER ?= $(shell command -v mpicxx 2>/dev/null)
     endif
     export NVCC_WRAPPER_DEFAULT_COMPILER
-    # ... and configure and build EKAT without the variables Make.defs exports to point the
+    # ... and configure and build Kokkos without the variables Make.defs exports to point the
     # MPI wrappers at nvcc (and the OMPI flags with nvcc's -Xcompiler), and without CC/CXX
-    EKAT_ENV := env -u CC -u CXX \
+    ERF_KOKKOS_ENV := env -u CC -u CXX \
       -u OMPI_CC -u OMPI_CXX -u OMPI_CFLAGS -u OMPI_CXXFLAGS \
       -u MPICH_CC -u MPICH_CXX -u MPICXX_CXX -u MPICC_CC
-    EKAT_MPI_CMAKE_FLAGS := -D MPI_CXX_COMPILER:FILEPATH="$(NVCC_WRAPPER_DEFAULT_COMPILER)"
 endif
-EKAT_BUILD_JOBS ?= 4
+ERF_KOKKOS_BUILD_JOBS ?= 4
 
-# These defaults build the subset of EKAT/Kokkos needed by ERF. Backend choices
+# These defaults build the Kokkos needed by ERF. Backend choices
 # mirror the AMReX-style USE_OMP/USE_CUDA/USE_HIP/USE_SYCL switches from the
-# including GNUmakefile. Use EKAT_EXTRA_CMAKE_FLAGS for compiler, architecture,
+# including GNUmakefile. Use ERF_KOKKOS_EXTRA_CMAKE_FLAGS for compiler, architecture,
 # or site-specific CMake options that are not represented here.
-EKAT_CMAKE_FLAGS := \
+ERF_KOKKOS_CMAKE_FLAGS := \
   -D CMAKE_BUILD_TYPE:STRING=Release \
-  -D CMAKE_CXX_COMPILER:STRING="$(EKAT_CXX)" \
+  -D CMAKE_CXX_COMPILER:STRING="$(ERF_KOKKOS_CXX)" \
   -D CMAKE_CXX_STANDARD:STRING=20 \
-  -D CMAKE_INSTALL_PREFIX:PATH="$(EKAT_INSTALL_PREFIX)" \
-  -D CMAKE_INSTALL_LIBDIR:PATH="$(EKAT_INSTALL_LIBDIR)" \
-  -D CMAKE_DISABLE_FIND_PACKAGE_spdlog:BOOL=TRUE \
-  -D EKAT_ENABLE_MPI:BOOL=ON \
-  -D EKAT_ENABLE_FORTRAN:BOOL=OFF \
-  -D EKAT_ENABLE_TESTS:BOOL=OFF \
-  -D EKAT_ENABLE_KOKKOS:BOOL=ON \
-  -D EKAT_ENABLE_LOGGING:BOOL=ON \
+  -D CMAKE_INSTALL_PREFIX:PATH="$(ERF_KOKKOS_INSTALL_PREFIX)" \
+  -D CMAKE_INSTALL_LIBDIR:PATH="$(ERF_KOKKOS_INSTALL_LIBDIR)" \
   -D Kokkos_ENABLE_DEPRECATED_CODE:BOOL=OFF \
   -D Kokkos_ENABLE_EXPLICIT_INSTANTIATION:BOOL=OFF \
-  -D Kokkos_ENABLE_SERIAL:BOOL=ON
+  -D Kokkos_ENABLE_SERIAL:BOOL=ON \
+  -D Kokkos_ENABLE_IMPL_VIEW_LEGACY:BOOL=ON
 
 # Every backend is passed explicitly, including the OFF cases. CMake cache
 # variables persist across configures, so a backend that is only ever passed as
 # ON can never be turned back off by reconfiguring an existing build directory.
-EKAT_CMAKE_FLAGS += \
+ERF_KOKKOS_CMAKE_FLAGS += \
   -D Kokkos_ENABLE_OPENMP:BOOL=$(call erf_bool_onoff,$(USE_OMP)) \
   -D Kokkos_ENABLE_CUDA:BOOL=$(call erf_bool_onoff,$(USE_CUDA)) \
   -D Kokkos_ENABLE_HIP:BOOL=$(call erf_bool_onoff,$(USE_HIP)) \
@@ -731,27 +732,27 @@ EKAT_CMAKE_FLAGS += \
 # Backend sub-options are only meaningful when their backend is on, and some
 # Kokkos versions reject or deprecate them otherwise, so these stay gated.
 ifeq ($(USE_CUDA), TRUE)
-  EKAT_CMAKE_FLAGS += \
+  ERF_KOKKOS_CMAKE_FLAGS += \
     -D Kokkos_ENABLE_CUDA_LAMBDA:BOOL=ON \
     -D Kokkos_ENABLE_CUDA_RELOCATABLE_DEVICE_CODE:BOOL=ON
 endif
 ifeq ($(USE_HIP), TRUE)
-  EKAT_CMAKE_FLAGS += \
+  ERF_KOKKOS_CMAKE_FLAGS += \
     -D Kokkos_ENABLE_HIP_LAMBDA:BOOL=ON \
     -D Kokkos_ENABLE_HIP_RELOCATABLE_DEVICE_CODE:BOOL=ON
 endif
 ifeq ($(USE_SYCL), TRUE)
-  EKAT_CMAKE_FLAGS += \
+  ERF_KOKKOS_CMAKE_FLAGS += \
     -D Kokkos_ENABLE_SYCL_LAMBDA:BOOL=ON
 endif
-EKAT_CMAKE_FLAGS += $(EKAT_MPI_CMAKE_FLAGS) $(EKAT_EXTRA_CMAKE_FLAGS)
+ERF_KOKKOS_CMAKE_FLAGS += $(ERF_KOKKOS_EXTRA_CMAKE_FLAGS)
 
-# The backend state build_ekat expects to find recorded in the installed
+# The backend state build_kokkos expects to find recorded in the installed
 # KokkosCore_config.h. Keying the paths by configuration keeps configurations
 # apart, but it cannot detect an install that was built by other means, hand
 # modified, or left behind by an older layout, so the install is verified
 # against this list rather than merely tested for existence.
-EKAT_KOKKOS_EXPECTED := \
+ERF_KOKKOS_EXPECTED_CONFIG := \
   KOKKOS_ENABLE_SERIAL=ON \
   KOKKOS_ENABLE_OPENMP=$(call erf_bool_onoff,$(USE_OMP)) \
   KOKKOS_ENABLE_CUDA=$(call erf_bool_onoff,$(USE_CUDA)) \
@@ -818,44 +819,44 @@ INCLUDE_LOCATIONS += $(AMREX_HOME)/Tools/C_scripts
 
 include $(AMREX_HOME)/Tools/GNUMake/Make.rules
 
-# Prebuild targets are feature-gated. In particular, all should not build EKAT
+# Prebuild targets are feature-gated. In particular, all should not build Kokkos
 # unless GNUmakefile selected a Kokkos-using feature, directly or indirectly.
 ERF_PREBUILD_TARGETS :=
 
-.PHONY: build_ekat build_noahmp
+.PHONY: build_kokkos build_noahmp
 
 ifeq ($(USE_KOKKOS), TRUE)
-ERF_PREBUILD_TARGETS += build_ekat
+ERF_PREBUILD_TARGETS += build_kokkos
 
-build_ekat:
-ifeq ($(BUILD_EKAT), TRUE)
+build_kokkos:
+ifeq ($(ERF_BUILD_KOKKOS), TRUE)
 	@# An install is reused only when it exists and its recorded Kokkos backends
 	@# match this configuration. The existence check accepts static or shared
 	@# Kokkos libraries.
 	@set -e; \
-	kokkos_cfg="$(EKAT_INSTALL_PREFIX)/include/kokkos/KokkosCore_config.h"; \
-	if [ -f "$(EKAT_INSTALL_PREFIX)/include/kokkos/Kokkos_Core.hpp" ] && ls "$(EKAT_LIB_DIR)"/libkokkoscore.* >/dev/null 2>&1; then \
+	kokkos_cfg="$(ERF_KOKKOS_INSTALL_PREFIX)/include/KokkosCore_config.h"; \
+	if [ -f "$(ERF_KOKKOS_INSTALL_PREFIX)/include/Kokkos_Core.hpp" ] && ls "$(ERF_KOKKOS_LIB_DIR)"/libkokkoscore.* >/dev/null 2>&1; then \
 	  mismatch=''; \
-	  for spec in $(EKAT_KOKKOS_EXPECTED); do \
+	  for spec in $(ERF_KOKKOS_EXPECTED_CONFIG); do \
 	    macro=$${spec%%=*}; want=$${spec##*=}; \
 	    if grep -qx "#define $$macro" "$$kokkos_cfg" 2>/dev/null; then have=ON; else have=OFF; fi; \
 	    if [ "$$want" != "$$have" ]; then mismatch="$$mismatch $$macro(want=$$want,found=$$have)"; fi; \
 	  done; \
 	  if [ -z "$$mismatch" ]; then exit 0; fi; \
-	  echo "EKAT/Kokkos install in $(EKAT_INSTALL_PREFIX) does not match this configuration:$$mismatch"; \
-	  if [ "$(ERF_EKAT_HOME_IS_DEFAULT)" != "TRUE" ]; then \
-	    echo "EKAT_HOME was supplied externally, so it will not be removed."; \
-	    echo "Point EKAT_HOME at a matching install, or unset it to build the bundled EKAT."; \
+	  echo "Kokkos install in $(ERF_KOKKOS_INSTALL_PREFIX) does not match this configuration:$$mismatch"; \
+	  if [ "$(ERF_KOKKOS_HOME_IS_DEFAULT)" != "TRUE" ]; then \
+	    echo "ERF_KOKKOS_HOME was supplied externally, so it will not be removed."; \
+	    echo "Point ERF_KOKKOS_HOME at a matching install, or unset it to build the bundled Kokkos."; \
 	    exit 1; \
 	  fi; \
 	  echo "Removing the stale bundled build and reconfiguring from scratch."; \
-	  rm -rf "$(EKAT_BUILD_DIR)" "$(EKAT_INSTALL_PREFIX)"; \
+	  rm -rf "$(ERF_KOKKOS_BUILD_DIR)" "$(ERF_KOKKOS_INSTALL_PREFIX)"; \
 	fi; \
 	if [ "$(USE_CUDA)" = "TRUE" ]; then \
 	  host_cxx="$(NVCC_WRAPPER_DEFAULT_COMPILER)"; \
 	  host_out=''; host_rc=1; \
 	  if [ -n "$$host_cxx" ]; then \
-	    host_rc=0; host_out=$$($(EKAT_ENV) timeout 30 "$$host_cxx" --version 2>&1) || host_rc=$$?; \
+	    host_rc=0; host_out=$$($(ERF_KOKKOS_ENV) timeout 30 "$$host_cxx" --version 2>&1) || host_rc=$$?; \
 	  fi; \
 	  if [ $$host_rc -ne 0 ] || printf '%s\n' "$$host_out" | grep -qi -e nvcc -e 'cuda compiler'; then \
 	    echo "nvcc_wrapper's host compiler NVCC_WRAPPER_DEFAULT_COMPILER='$$host_cxx' is missing,"; \
@@ -866,35 +867,35 @@ ifeq ($(BUILD_EKAT), TRUE)
 	  fi; \
 	  echo "nvcc_wrapper host compiler: $$host_cxx ($$(printf '%s\n' "$$host_out" | head -n 1))"; \
 	fi; \
-	echo "Building EKAT/Kokkos in $(EKAT_BUILD_DIR)"; \
-	$(EKAT_ENV) cmake -S "$(EKAT_SOURCE_DIR)" -B "$(EKAT_BUILD_DIR)" $(EKAT_CMAKE_FLAGS); \
-	$(EKAT_ENV) cmake --build "$(EKAT_BUILD_DIR)" --target install --parallel $(EKAT_BUILD_JOBS)
+	echo "Building Kokkos in $(ERF_KOKKOS_BUILD_DIR)"; \
+	$(ERF_KOKKOS_ENV) cmake -S "$(ERF_KOKKOS_SOURCE_DIR)" -B "$(ERF_KOKKOS_BUILD_DIR)" $(ERF_KOKKOS_CMAKE_FLAGS); \
+	$(ERF_KOKKOS_ENV) cmake --build "$(ERF_KOKKOS_BUILD_DIR)" --target install --parallel $(ERF_KOKKOS_BUILD_JOBS)
 else
-	@# EKAT_HOME was supplied externally unless BUILD_EKAT=TRUE was requested.
+	@# ERF_KOKKOS_HOME was supplied externally unless ERF_BUILD_KOKKOS=TRUE was requested.
 	@# Nothing here may rebuild or delete it, so a backend disagreement is a
 	@# hard error rather than a reconfigure.
 	@set -e; \
-	kokkos_cfg="$(EKAT_INSTALL_PREFIX)/include/kokkos/KokkosCore_config.h"; \
-	if [ ! -f "$(EKAT_INSTALL_PREFIX)/include/kokkos/Kokkos_Core.hpp" ] || ! ls "$(EKAT_LIB_DIR)"/libkokkoscore.* >/dev/null 2>&1; then \
-	  echo "EKAT/Kokkos install not found under EKAT_HOME=$(EKAT_HOME)"; \
-	  echo "Set BUILD_EKAT=TRUE to build the bundled EKAT install, or set EKAT_HOME to a valid install."; \
+	kokkos_cfg="$(ERF_KOKKOS_INSTALL_PREFIX)/include/KokkosCore_config.h"; \
+	if [ ! -f "$(ERF_KOKKOS_INSTALL_PREFIX)/include/Kokkos_Core.hpp" ] || ! ls "$(ERF_KOKKOS_LIB_DIR)"/libkokkoscore.* >/dev/null 2>&1; then \
+	  echo "Kokkos install not found under ERF_KOKKOS_HOME=$(ERF_KOKKOS_HOME)"; \
+	  echo "Set ERF_BUILD_KOKKOS=TRUE to build the bundled Kokkos install, or set ERF_KOKKOS_HOME to a valid install."; \
 	  exit 1; \
 	fi; \
 	mismatch=''; \
-	for spec in $(EKAT_KOKKOS_EXPECTED); do \
+	for spec in $(ERF_KOKKOS_EXPECTED_CONFIG); do \
 	  macro=$${spec%%=*}; want=$${spec##*=}; \
 	  if grep -qx "#define $$macro" "$$kokkos_cfg" 2>/dev/null; then have=ON; else have=OFF; fi; \
 	  if [ "$$want" != "$$have" ]; then mismatch="$$mismatch $$macro(want=$$want,found=$$have)"; fi; \
 	done; \
 	if [ -n "$$mismatch" ]; then \
-	  echo "EKAT/Kokkos install under EKAT_HOME=$(EKAT_HOME) does not match this configuration:$$mismatch"; \
+	  echo "Kokkos install under ERF_KOKKOS_HOME=$(ERF_KOKKOS_HOME) does not match this configuration:$$mismatch"; \
 	  echo "Building against it would compile ERF and the installed Kokkos headers for different backends."; \
-	  echo "Set BUILD_EKAT=TRUE to build a matching bundled install, or point EKAT_HOME at one."; \
+	  echo "Set ERF_BUILD_KOKKOS=TRUE to build a matching bundled install, or point ERF_KOKKOS_HOME at one."; \
 	  exit 1; \
 	fi
 endif
 else
-build_ekat:
+build_kokkos:
 endif
 
 ifeq ($(USE_NOAHMP), TRUE)
@@ -916,7 +917,7 @@ build_noahmp:
 endif
 
 ifeq ($(USE_KOKKOS), TRUE)
-$(objForExecs): | build_ekat
+$(objForExecs): | build_kokkos
 endif
 
 all: $(ERF_PREBUILD_TARGETS) $(executable)
@@ -962,5 +963,5 @@ ifeq ($(USE_NOAHMP), TRUE)
 	$(MAKE) -C $(NOAHMP_HOME)/drivers/erf -f Makefile clean_noahmp
 endif
 ifeq ($(USE_KOKKOS), TRUE)
-	rm -rf $(EKAT_SOURCE_DIR)/build/*
+	rm -rf $(ERF_KOKKOS_SOURCE_DIR)/build/*
 endif
