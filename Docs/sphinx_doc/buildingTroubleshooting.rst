@@ -174,7 +174,7 @@ If the CUDA toolkit is *older* than the Cray MPICH GTL library expects, configur
    ld: .../libmpi_gtl_cuda.so: undefined reference to `cudaMalloc@libcudart.so.13'
    CMake Error: The C++ compiler ".../CC" is not able to compile a simple test program.
 
-With the Kokkos 4.5.1 that EKAT vendored before the Kokkos 5 update, a CUDA toolkit *newer* than Kokkos supported let configure succeed and failed the compile instead:
+With the Kokkos 4.5.1 that ERF used (through EKAT) before the Kokkos 5 update, a CUDA toolkit *newer* than Kokkos supported let configure succeed and failed the compile instead:
 
 .. code-block:: text
 
@@ -186,7 +186,7 @@ With the Kokkos 4.5.1 that EKAT vendored before the Kokkos 5 update, a CUDA tool
 **Cause:** the CUDA runtime must match the one Cray MPICH was built against.
 
 * Cray MPICH's GPU Transport Layer (``libmpi_gtl_cuda.so``) records a specific CUDA runtime soname as a hard ``DT_NEEDED`` dependency. The wrapper links it unconditionally (not ``--as-needed``), so that soname must resolve even for a trivial test program. ``cray-mpich/9.1.0`` and later need ``libcudart.so.13``; ``8.1.28`` through ``9.0.1`` need ``libcudart.so.12``. A soname major-version mismatch cannot be papered over with ``-L``, ``-rpath``, or any other link flag.
-* The Kokkos now vendored under ``Submodules/ekat/extern/kokkos`` (5.1) guards ``cudaGraphAddDependencies``, ``cudaMemAdvise``, and ``cudaMemPrefetchAsync`` on ``CUDART_VERSION >= 13000``, so EKAT-enabled builds accept either CUDA 12 (12.2 or newer, the Kokkos minimum) or CUDA 13. The older Kokkos 4.5.1 called all three with their pre-CUDA-13 signatures and forced CUDA 12; if the compile errors above appear, the EKAT submodule is out of date (``git submodule update --init --recursive``).
+* The Kokkos now vendored under ``Submodules/kokkos`` (5.1) guards ``cudaGraphAddDependencies``, ``cudaMemAdvise``, and ``cudaMemPrefetchAsync`` on ``CUDART_VERSION >= 13000``, so RRTMGP builds accept either CUDA 12 (12.2 or newer, the Kokkos minimum) or CUDA 13. The older Kokkos 4.5.1 called all three with their pre-CUDA-13 signatures and forced CUDA 12; if the compile errors above appear, the Kokkos submodule is out of date (``git submodule update --init Submodules/kokkos``).
 
 **Diagnosis:** three commands establish whether this is the problem.
 
@@ -244,7 +244,7 @@ Then reconfigure in a **fresh** build directory, not the one that failed — ERF
    ``/opt/cray/pe/lib64`` follows the new default (see :ref:`troubleshoot-runtime-libs`).
 
 .. tip::
-   Both AMReX and the vendored Kokkos guard these CUDA APIs on ``CUDART_VERSION >= 13000``, so either matched pair (CUDA 12 with ``cray-mpich`` 8.1.28–9.0.1, or CUDA 13 with ``cray-mpich`` 9.1.0 and later) builds with or without EKAT.
+   Both AMReX and the vendored Kokkos guard these CUDA APIs on ``CUDART_VERSION >= 13000``, so either matched pair (CUDA 12 with ``cray-mpich`` 8.1.28–9.0.1, or CUDA 13 with ``cray-mpich`` 9.1.0 and later) builds with or without Kokkos.
 
 .. _troubleshoot-runtime-libs:
 

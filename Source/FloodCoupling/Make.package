@@ -1,0 +1,13 @@
+CEXE_sources += ERF_FloodCoupler.cpp
+CEXE_sources += ERF_FloodCouplingParams.cpp
+CEXE_sources += ERF_FloodEngineRegistry.cpp
+CEXE_sources += ERF_FloodGrid.cpp
+CEXE_sources += ERF_FloodPrerequisites.cpp
+
+CEXE_headers += ERF_FloodCoupler.H
+CEXE_headers += ERF_FloodCouplingParams.H
+CEXE_headers += ERF_FloodEngine.H
+CEXE_headers += ERF_FloodEngineRegistry.H
+CEXE_headers += ERF_FloodEngineTemplate.H
+CEXE_headers += ERF_FloodGrid.H
+CEXE_headers += ERF_FloodPrerequisites.H

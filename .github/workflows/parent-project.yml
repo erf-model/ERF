@@ -55,7 +55,7 @@ jobs:
       with:
         persist-credentials: false
 
-    # Only AMReX is needed: no unit tests (googletest) and no EKAT, RRTMGP or WW3.
+    # Only AMReX is needed: no unit tests (googletest) and no Kokkos, RRTMGP or WW3.
     - name: Check out AMReX
       run: git submodule update --init --depth 1 Submodules/AMReX
 

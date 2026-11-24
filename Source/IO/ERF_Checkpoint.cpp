@@ -798,6 +798,14 @@ ERF::WriteCheckpointFile () const
     }
 #endif
 
+#ifdef ERF_USE_FLOOD
+    // The flood: the engine's state (FloodEngine::write_checkpoint), then the
+    // flood grid it belongs to (Level_<lev>/FloodGrid)
+    if (m_flood_coupler) {
+        m_flood_coupler->write_checkpoint(checkpointname);
+    }
+#endif
+
 #ifdef ERF_USE_DUST
     // The dust model's own state (DustModel::write_checkpoint), which
     // DustModel::initialize reads back on a restart
@@ -1665,6 +1673,15 @@ ERF::ReadCheckpointFile ()
             unsupported.push_back("the fire model (its fire grid is built from the run's level "
                                   "boxes and its state is still read onto them; refused whichever "
                                   "level the fire grid is on)");
+        }
+#endif
+#ifdef ERF_USE_FLOOD
+        // As for the fire: the flood grid is built from the level's boxes and
+        // the engine's state is read onto them.
+        if (m_flood_coupler) {
+            unsupported.push_back("the flood coupling (its flood grid is built from the run's level "
+                                  "boxes and the engine's state is read onto them; refused whichever "
+                                  "level the flood grid is on)");
         }
 #endif
 

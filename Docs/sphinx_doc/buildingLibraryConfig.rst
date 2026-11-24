@@ -318,7 +318,7 @@ Or with GNU Make:
    make USE_RRTMGP=TRUE USE_NETCDF=TRUE USE_MPI=TRUE
 
 .. note::
-   RRTMGP automatically enables EKAT (provides Kokkos) and requires both NetCDF and MPI.
+   RRTMGP automatically enables Kokkos and requires both NetCDF and MPI. GNU Make builds the ``Submodules/kokkos`` submodule under ``Submodules/kokkos/build/<config>``, or uses the install that ``ERF_KOKKOS_HOME`` points at (see ``Exec/Make.ERF``).
 
 .. dropdown:: Advanced: ZFP Compression
    :icon: tools
