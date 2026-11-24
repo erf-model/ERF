@@ -91,6 +91,14 @@ SLM::Init (const int& /*lev*/,
     z_phys_nd = z_phys_nd_in.get();
 
     ParmParse pp("slm");
+
+    // Checked first so this basic configuration error is reported before any soil-layer mismatch
+    pp.query("use_parameter_file", use_param_file);
+    if (use_wrfinput && !use_param_file) {
+        amrex::Abort("SLM: initializing from WRFInput or Metgrid requires slm.use_parameter_file = true "
+                     "so that land categories above 16 get their parameters from the Noah-MP table");
+    }
+
     const bool have_nsoil = pp.contains("nsoil");
     const bool have_dz    = pp.contains("soil_dz");
     pp.query("nsoil", m_nz_lsm);
@@ -594,11 +602,6 @@ void SLM::init_from_inputs ()
     pp.query("veg_dataset", veg_dataset);
     pp.query("soil_dataset", soil_dataset);
     pp.query("use_param_tbl", use_wrf_lai);
-
-    if (use_wrfinput && !use_param_file) {
-        amrex::Abort("SLM: initializing from WRFInput or Metgrid requires slm.use_parameter_file = true "
-                     "so that land categories above 16 get their parameters from the Noah-MP table");
-    }
 
     if (use_wrfinput && amrex::toLower(veg_dataset) == "usgs") {
         amrex::Abort("SLM: slm.veg_dataset = usgs is not supported when initializing from WRFInput or Metgrid; "
