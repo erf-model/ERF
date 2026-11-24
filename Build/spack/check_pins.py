@@ -165,7 +165,9 @@ def ekat_externs(ekat_commit, root):
     def read(path, kind):
         if local:
             if kind == "dir":
-                return gitlinks(ekat_commit, path, cwd=ekat_dir)
+                # Keyed by bare name, as the directory listing below is.
+                links = gitlinks(ekat_commit, path, cwd=ekat_dir)
+                return {os.path.basename(k): v for k, v in links.items()}
             return git("show", f"{ekat_commit}:{path}", cwd=ekat_dir, check=False)
         url = f"https://api.github.com/repos/E3SM-Project/EKAT/contents/{path}?ref={ekat_commit}"
         accept = "application/vnd.github+json" if kind == "dir" else "application/vnd.github.raw"
