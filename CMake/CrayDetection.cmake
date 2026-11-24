@@ -278,9 +278,9 @@ if(AMReX_GPU_BACKEND MATCHES "HIP" OR ERF_ENABLE_HIP)
     endif()
 endif()
 
-# Kokkos Architecture Detection (for EKAT physics)
+# Kokkos Architecture Detection (for RRTMGP)
 if(ERF_ENABLE_RRTMGP)
-    message(VERBOSE "EKAT-based physics enabled, checking Kokkos architecture")
+    message(VERBOSE "RRTMGP enabled, checking Kokkos architecture")
     
     set(KOKKOS_ARCH_SET FALSE)
     
@@ -465,11 +465,11 @@ message(DEBUG "  FFTW_DIR: $ENV{FFTW_DIR}")
 message(DEBUG "  MPICH_GPU_SUPPORT_ENABLED: $ENV{MPICH_GPU_SUPPORT_ENABLED}")
 
 # ==============================================================================
-# Fix 1: CUDA + EKAT -> nvcc_wrapper complications
+# Fix 1: CUDA + Kokkos -> nvcc_wrapper complications
 # ==============================================================================
 
 if(ERF_ENABLE_CUDA AND ERF_ENABLE_RRTMGP)
-    message(STATUS "Applying Fix 1: CUDA+EKAT nvcc_wrapper")
+    message(STATUS "Applying Fix 1: CUDA+Kokkos nvcc_wrapper")
 
     message(DEBUG "Problem: nvcc_wrapper doesn't inherit Cray include paths")
     message(DEBUG "Solution: Add flags from CC --cray-print-opts=cflags")
@@ -496,17 +496,17 @@ if(ERF_ENABLE_CUDA AND ERF_ENABLE_RRTMGP)
         message(STATUS "  Try: -DCMAKE_CUDA_FLAGS=\"\$(CC --cray-print-opts=cflags)\"")
     endif()
 else()
-    message(DEBUG "Fix 1 not needed (CUDA+EKAT not both enabled)")
+    message(DEBUG "Fix 1 not needed (CUDA+Kokkos not both enabled)")
 endif()
 
 # ==============================================================================
-# Fix 2: FCOMPARE + Cray + EKAT/Kokkos -> mpi_gnu_123 not found
+# Fix 2: FCOMPARE + Cray + Kokkos -> mpi_gnu_123 not found
 # ==============================================================================
 
 if(ERF_ENABLE_FCOMPARE AND ERF_ENABLE_RRTMGP)
-    message(STATUS "Applying Fix 2: fcompare linker with EKAT")
+    message(STATUS "Applying Fix 2: fcompare linker with Kokkos")
 
-    message(DEBUG "Problem: --as-needed drops required MPI libs when EKAT is enabled")
+    message(DEBUG "Problem: --as-needed drops required MPI libs when Kokkos is enabled")
     message(DEBUG "Solution: Clean Cray libs and add --no-as-needed")
 
     # Query CXX compiler for libs
@@ -568,7 +568,7 @@ if(ERF_ENABLE_FCOMPARE AND ERF_ENABLE_RRTMGP)
         message(STATUS "  Fcompare may fail to link")
     endif()
 else()
-    message(DEBUG "Fix 2 not needed (fcompare disabled or EKAT not enabled)")
+    message(DEBUG "Fix 2 not needed (fcompare disabled or Kokkos not enabled)")
 endif()
 
 # ==============================================================================
@@ -863,12 +863,12 @@ set(FIX4_ACTIVE OFF)
 set(FIX56_ACTIVE OFF)
 set(FIX7_ACTIVE OFF)
 
-# Fix 1: CUDA + EKAT
+# Fix 1: CUDA + Kokkos
 if(ERF_ENABLE_CUDA AND ERF_ENABLE_RRTMGP AND CRAY_CUDA_FLAGS)
     set(FIX1_ACTIVE ON)
 endif()
 
-# Fix 2: fcompare + EKAT
+# Fix 2: fcompare + Kokkos
 if(ERF_ENABLE_FCOMPARE AND ERF_ENABLE_RRTMGP AND CRAY_LIBS_CLEAN)
     set(FIX2_ACTIVE ON)
 endif()
@@ -899,10 +899,10 @@ endif()
 # Show summary at VERBOSE level
 message(VERBOSE "Applied fixes:")
 if(FIX1_ACTIVE)
-    message(VERBOSE "  Fix 1 (CUDA+EKAT): ACTIVE")
+    message(VERBOSE "  Fix 1 (CUDA+Kokkos): ACTIVE")
 endif()
 if(FIX2_ACTIVE)
-    message(VERBOSE "  Fix 2 (fcompare+EKAT): ACTIVE")
+    message(VERBOSE "  Fix 2 (fcompare+Kokkos): ACTIVE")
 endif()
 if(FIX3_ACTIVE)
     message(VERBOSE "  Fix 3 (CUDA math): ACTIVE")
@@ -922,13 +922,13 @@ message(DEBUG "Command-line equivalents for active fixes:")
 message(DEBUG "=====================================================================")
 
 if(FIX1_ACTIVE)
-    message(DEBUG "Fix 1 (CUDA+EKAT):")
+    message(DEBUG "Fix 1 (CUDA+Kokkos):")
     message(DEBUG "  -DCMAKE_CUDA_FLAGS=\"\$(CC --cray-print-opts=cflags)\"")
     message(DEBUG "")
 endif()
 
 if(FIX2_ACTIVE)
-    message(DEBUG "Fix 2 (fcompare+EKAT):")
+    message(DEBUG "Fix 2 (fcompare+Kokkos):")
     message(DEBUG "  CRAY_LIBS=\"\$(CC --cray-print-opts=libs | sed 's/-Wl,--as-needed,//g; s/,--no-as-needed//g; s/,-l/ -l/g')\"")
     message(DEBUG "  -DCMAKE_EXE_LINKER_FLAGS=\"-Wl,--no-as-needed \$CRAY_LIBS\"")
     message(DEBUG "")
@@ -1071,14 +1071,14 @@ file(APPEND ${CRAY_CONFIG_FILE} "
 
 if(FIX1_ACTIVE)
     file(APPEND ${CRAY_CONFIG_FILE} "
-# Fix 1: CUDA+EKAT nvcc_wrapper flags
+# Fix 1: CUDA+Kokkos nvcc_wrapper flags
 set(CMAKE_CUDA_FLAGS \"${CMAKE_CUDA_FLAGS}\" CACHE STRING \"\")
 ")
 endif()
 
 if(FIX2_ACTIVE)
     file(APPEND ${CRAY_CONFIG_FILE} "
-# Fix 2: fcompare+EKAT linker flags
+# Fix 2: fcompare+Kokkos linker flags
 set(CMAKE_EXE_LINKER_FLAGS \"${CMAKE_EXE_LINKER_FLAGS}\" CACHE STRING \"\")
 ")
 endif()
