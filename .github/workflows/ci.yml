@@ -45,7 +45,9 @@ jobs:
         # The particles-ON leg also builds the actuator core and the structure coupling
         # (ERF_ENABLE_MOVING_BODIES) with the example structure model directory
         # (Tests/StructureModelExample, from ERF_STRUCTURE_MODEL_DIRS) and runs its
-        # tests. ERF's CI builds neither the fire nor the dust coupling: their tests
+        # tests, and the flood coupling (ERF_ENABLE_FLOOD) with the example flood
+        # engine directory (Tests/FloodEngineExample, from ERF_FLOOD_ENGINE_DIRS).
+        # ERF's CI builds neither the fire nor the dust coupling: their tests
         # live with the engines and models that use them (erf-model/FLARE).
         particles: [OFF, ON]
         include:
@@ -116,6 +118,8 @@ jobs:
           -DERF_ENABLE_PARTICLES:BOOL=${{matrix.particles}} \
           -DERF_ENABLE_MOVING_BODIES:BOOL=${{matrix.particles}} \
           "-DERF_STRUCTURE_MODEL_DIRS:STRING=${{ matrix.particles == 'ON' && format('{0}/Tests/StructureModelExample', github.workspace) || '' }}" \
+          -DERF_ENABLE_FLOOD:BOOL=${{matrix.particles}} \
+          "-DERF_FLOOD_ENGINE_DIRS:STRING=${{ matrix.particles == 'ON' && format('{0}/Tests/FloodEngineExample', github.workspace) || '' }}" \
           -DERF_ENABLE_TESTS:BOOL=ON \
           -DERF_ENABLE_ALL_WARNINGS:BOOL=ON \
           -DERF_ENABLE_FCOMPARE:BOOL=ON \
@@ -173,6 +177,9 @@ jobs:
         # erf_structure_model_add_unit_tests hook adds its own GoogleTest file.
         if [ "${{ matrix.particles }}" = "ON" ]; then
           grep -q '^StructureModelExample\.$' ${{runner.workspace}}/unit-test-list.txt
+          # and the flood coupling with Tests/FloodEngineExample
+          grep -q '^FloodCoupler\.$' ${{runner.workspace}}/unit-test-list.txt
+          grep -q '^FloodEngineExample\.$' ${{runner.workspace}}/unit-test-list.txt
         fi
       working-directory: ${{runner.workspace}}/ERF/build-${{matrix.os}}
 
