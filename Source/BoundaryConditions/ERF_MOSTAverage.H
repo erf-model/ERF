@@ -7,6 +7,8 @@
 #include "AMReX_iMultiFab.H"
 #include "AMReX_ParmParse.H"
 
+#include <limits>
+
 #include "ERF_IndexDefines.H"
 #include "ERF_TerrainMetrics.H"
 #include "ERF_DataStruct.H"
@@ -469,9 +471,9 @@ public:
 
         for (int lk(0); lk<kmax; ++lk) {
             amrex::Real z_lo = fourth * ( z_arr(i_new,j_new  ,lk  ) + z_arr(i_new+1,j_new  ,lk  )
-                                      + z_arr(i_new,j_new+1,lk  ) + z_arr(i_new+1,j_new+1,lk  ) );
+                                        + z_arr(i_new,j_new+1,lk  ) + z_arr(i_new+1,j_new+1,lk  ) );
             amrex::Real z_hi = fourth * ( z_arr(i_new,j_new  ,lk+1) + z_arr(i_new+1,j_new  ,lk+1)
-                                      + z_arr(i_new,j_new+1,lk+1) + z_arr(i_new+1,j_new+1,lk+1) );
+                                        + z_arr(i_new,j_new+1,lk+1) + z_arr(i_new+1,j_new+1,lk+1) );
             if (in_cell_z(z_target, z_lo, z_hi)) {
                 found = true;
                 // Weight between the two cell centers that bracket z_target by
@@ -487,7 +489,7 @@ public:
                     amrex::Real zc_up = two * z_hi - zc;
                     if (lk + 2 <= kmax) {
                         amrex::Real z_up = fourth * ( z_arr(i_new,j_new  ,lk+2) + z_arr(i_new+1,j_new  ,lk+2)
-                                                  + z_arr(i_new,j_new+1,lk+2) + z_arr(i_new+1,j_new+1,lk+2) );
+                                                    + z_arr(i_new,j_new+1,lk+2) + z_arr(i_new+1,j_new+1,lk+2) );
                         zc_up = myhalf * (z_hi + z_up);
                     }
                     zval = (amrex::Real) (lk + 1) + (z_target - zc) / (zc_up - zc);
@@ -495,7 +497,7 @@ public:
                     amrex::Real zc_dn = two * z_lo - zc;
                     if (lk >= 1) {
                         amrex::Real z_dn = fourth * ( z_arr(i_new,j_new  ,lk-1) + z_arr(i_new+1,j_new  ,lk-1)
-                                                  + z_arr(i_new,j_new+1,lk-1) + z_arr(i_new+1,j_new+1,lk-1) );
+                                                    + z_arr(i_new,j_new+1,lk-1) + z_arr(i_new+1,j_new+1,lk-1) );
                         zc_dn = myhalf * (z_dn + z_lo);
                     }
                     zval = (amrex::Real) lk + (z_target - zc_dn) / (zc - zc_dn);
@@ -583,6 +585,73 @@ public:
      * @param[in] lev level index
      */
     [[nodiscard]] amrex::IntVect get_ng_fill (const int& lev) const;
+
+    /**
+     * Lateral bounds on the interpolation stencil of the MOST reference points in one box.
+     *
+     * The average of field n (U, V, W, T, Qv) reads the positions of the columns in
+     * reach[n], its own staggered box grown by the ghost cells the averages fill and
+     * the radius, and interpolates from the two cells in x and in y that bracket each
+     * point; those cells must lie in held[n], the cells its FAB holds.  The tangential
+     * speed and virtual temperature averages read U, V, T and Qv at cell-centered
+     * columns, which lie in the reaches of those fields.
+     *
+     * get_ng_fill leaves the stencil one cell of room at the outermost columns, so a
+     * point displaced along the terrain normal by more than a cell can leave the data
+     * there, whatever the number of ghost cells.
+     */
+    struct InterpStencilBounds
+    {
+        amrex::GpuArray<amrex::Box,5> reach;
+        amrex::GpuArray<amrex::Box,5> held;
+        int nfields = 0;
+
+        /**
+         * Move the point (xp,yp) read by column (i,j) the least distance, in x and in y,
+         * that puts its stencil in the data of every field whose average reads the
+         * column.  As set_norm_indices_T does without interpolation, a displacement past
+         * the ghost cells then uses the nearest point held; only ghost columns near the
+         * edge of the box are moved, whose averages FillBoundary overwrites where boxes
+         * abut.
+         */
+        AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+        void clamp_to_held (const int i, const int j,
+                            amrex::Real& xp, amrex::Real& yp,
+                            const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& plo,
+                            const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& dxi) const
+        {
+            // Lowest and highest lower cell of the two that bracket the point, as
+            // trilinear_interp_T reads them, for every field that reads this column
+            int ilo = std::numeric_limits<int>::lowest(), ihi = std::numeric_limits<int>::max();
+            int jlo = std::numeric_limits<int>::lowest(), jhi = std::numeric_limits<int>::max();
+            for (int n = 0; n < nfields; ++n) {
+                const amrex::Box& r = reach[n];
+                if (i < r.smallEnd(0) || i > r.bigEnd(0) ||
+                    j < r.smallEnd(1) || j > r.bigEnd(1)) { continue; }
+                const amrex::Box& h = held[n];
+                ilo = amrex::max(ilo, h.smallEnd(0)); ihi = amrex::min(ihi, h.bigEnd(0) - 1);
+                jlo = amrex::max(jlo, h.smallEnd(1)); jhi = amrex::min(jhi, h.bigEnd(1) - 1);
+            }
+
+            // Position in units of cells, measured from the center of cell 0; a point
+            // already held is left exactly as it is
+            const amrex::Real xi = (xp - plo[0]) * dxi[0] - myhalf;
+            const amrex::Real yj = (yp - plo[1]) * dxi[1] - myhalf;
+            if (xi < amrex::Real(ilo)) { xp = plo[0] + (amrex::Real(ilo) + myhalf) / dxi[0]; }
+            if (xi > amrex::Real(ihi)) { xp = plo[0] + (amrex::Real(ihi) + myhalf) / dxi[0]; }
+            if (yj < amrex::Real(jlo)) { yp = plo[1] + (amrex::Real(jlo) + myhalf) / dxi[1]; }
+            if (yj > amrex::Real(jhi)) { yp = plo[1] + (amrex::Real(jhi) + myhalf) / dxi[1]; }
+        }
+    };
+
+    /**
+     * Return the lateral bounds on the interpolation stencil in the box of mfi.
+     *
+     * @param[in] lev level index
+     * @param[in] mfi iterator over the cell-centered fields
+     */
+    [[nodiscard]] InterpStencilBounds interp_stencil_bounds (const int& lev,
+                                                             const amrex::MFIter& mfi) const;
 
     /**
      * Return the highest k at which the averages on the z-low face read the horizontal

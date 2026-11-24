@@ -537,6 +537,34 @@ MOSTAverage::get_ng_fill (const int& lev) const
 }
 
 /**
+ * Function to return the lateral bounds on the interpolation stencil in one box.
+ *
+ * @param[in] lev Current level
+ * @param[in] mfi Iterator over the cell-centered fields
+ */
+MOSTAverage::InterpStencilBounds
+MOSTAverage::interp_stencil_bounds (const int& lev, const MFIter& mfi) const
+{
+    InterpStencilBounds bounds;
+
+    // Columns each average reads: its pbx in compute_region_averages plus the radius
+    const IntVect ng_read = get_ng_fill(lev) + IntVect(m_radius,m_radius,0);
+    const Box& vbx = m_fields[lev][3]->boxArray()[mfi.index()];
+
+    for (int imf(0); imf < 5; ++imf) {
+        if (!m_fields[lev][imf]) { continue; }
+        // The averages read the rotated fields where they exist (not for W)
+        const MultiFab* mf = (m_rotate && imf != 2 && m_rot_fields[lev][imf])
+                           ? m_rot_fields[lev][imf].get() : m_fields[lev][imf];
+        const IndexType ixt = m_fields[lev][imf]->ixType();
+        bounds.reach[bounds.nfields] = amrex::grow(amrex::convert(vbx, ixt), ng_read);
+        bounds.held [bounds.nfields] = mf->fabbox(mfi.index());
+        ++bounds.nfields;
+    }
+    return bounds;
+}
+
+/**
  * Function to return the highest k at which the averages on the z-low face read the
  * horizontal velocities.
  *
@@ -1482,9 +1510,7 @@ MOSTAverage::set_z_positions_T (const int& lev)
     const bool d_user_zref = user_zref;
     const auto plo = m_geom[lev].ProbLoArray();
 
-    RealVect base;
     const auto dx = m_geom[lev].CellSizeArray();
-    IntVect ng = m_x_pos[lev]->nGrowVect(); ng[2]=0;
     const int position_ng = (m_radius > 1) ? m_radius : 1;
 
     // The positions are read over the averaging stencil at every cell where an
@@ -1494,15 +1520,12 @@ MOSTAverage::set_z_positions_T (const int& lev)
                                IntVect(position_ng,position_ng,0));
 
     for (MFIter mfi(*fields[imf_cc], TileNoZ()); mfi.isValid(); ++mfi) {
-        Box npbx  = mfi.tilebox(IntVect(1,1,0),ng_pos);
-        const Box vbx = mfi.validbox();
-        Box gtbx  = mfi.growntilebox(ng);
+        Box npbx = mfi.tilebox(IntVect(1,1,0),ng_pos);
+        Box vbx  = mfi.validbox();
 
         if (vbx.smallEnd(2) != klo) { continue; }
 
         npbx.makeSlab(2,klo);
-
-        RealBox grb{gtbx,dx.data(),base.dataPtr()};
 
         const auto z_phys_arr = m_z_phys_nd[lev]->const_array(mfi);
         auto x_pos_arr = m_x_pos[lev]->array(mfi);
@@ -1511,23 +1534,17 @@ MOSTAverage::set_z_positions_T (const int& lev)
         auto zref_arr  = m_zref[lev]->array(mfi);
         ParallelFor(npbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
-            // Final position at end of vector
+            // The column's center, whose interpolation stencil get_ng_fill keeps in the data
             x_pos_arr(i,j,k) = plo[0] + ((Real) i + myhalf) * dx[0];
             y_pos_arr(i,j,k) = plo[1] + ((Real) j + myhalf) * dx[1];
-            Real z_bot_face  = fourth * ( z_phys_arr(i  ,j  ,k) + z_phys_arr(i+1,j  ,k)
-                                        + z_phys_arr(i  ,j+1,k) + z_phys_arr(i+1,j+1,k) );
+            Real z_bot_face  = fourth * ( z_phys_arr(i  ,j  ,k  ) + z_phys_arr(i+1,j  ,k  )
+                                        + z_phys_arr(i  ,j+1,k  ) + z_phys_arr(i+1,j+1,k  ) );
             Real z_top_face  = fourth * ( z_phys_arr(i  ,j  ,k+1) + z_phys_arr(i+1,j  ,k+1)
                                         + z_phys_arr(i  ,j+1,k+1) + z_phys_arr(i+1,j+1,k+1) );
             // Query distance: the requested height, or half of this column's first cell
             const Real zq = d_user_zref ? d_zref : myhalf * (z_top_face - z_bot_face);
             zref_arr(i,j,k)  = zq;
             z_pos_arr(i,j,k) = z_bot_face + zq;
-
-            // Destination position must be contained on the current process!
-            Real pos[] = {x_pos_arr(i,j,k)-plo[0],y_pos_arr(i,j,k)-plo[1],myhalf*dx[2]};
-            amrex::ignore_unused(pos);
-            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(grb.contains(&pos[0]),
-                                             "Query point outside of proc domain!");
         });
     }
     fill_zref_planar(lev);
@@ -1572,10 +1589,8 @@ MOSTAverage::set_norm_positions_T (const int& lev)
     const bool d_user_zref = user_zref;
     const auto plo = m_geom[lev].ProbLoArray();
 
-    RealVect base;
     const auto dx = m_geom[lev].CellSizeArray();
     const auto dxInv  = m_geom[lev].InvCellSizeArray();
-    IntVect ng = m_x_pos[lev]->nGrowVect(); ng[2]=0;
     const int position_ng = (m_radius > 1) ? m_radius : 1;
 
     // The positions are read over the averaging stencil at every cell where an
@@ -1585,13 +1600,15 @@ MOSTAverage::set_norm_positions_T (const int& lev)
                                IntVect(position_ng,position_ng,0));
 
     for (MFIter mfi(*fields[imf_cc], TileNoZ()); mfi.isValid(); ++mfi) {
-        Box npbx  = mfi.tilebox(IntVect(1,1,0),ng_pos);
-        Box gtbx  = mfi.growntilebox(ng);
-        RealBox grb{gtbx,dx.data(),base.dataPtr()};
+        Box npbx = mfi.tilebox(IntVect(1,1,0),ng_pos);
+        Box vbx  = mfi.validbox();
 
-        if (mfi.validbox().smallEnd(2) != klo) { continue; }
+        if (vbx.smallEnd(2) != klo) { continue; }
 
         npbx.makeSlab(2,klo);
+
+        // The cells each average can interpolate from
+        const auto bounds = interp_stencil_bounds(lev, mfi);
 
         const auto z_phys_arr = m_z_phys_nd[lev]->const_array(mfi);
         auto x_pos_arr   = m_x_pos[lev]->array(mfi);
@@ -1649,6 +1666,9 @@ MOSTAverage::set_norm_positions_T (const int& lev)
             y_pos_arr(i,j,0) = y0 + mfy * delta_y;
             z_pos_arr(i,j,0) = z_bot_face + delta_z;
 
+            // Keep the interpolation stencil in the data of this box
+            bounds.clamp_to_held(i, j, x_pos_arr(i,j,0), y_pos_arr(i,j,0), plo, dxInv);
+
             // NOTE: Normal vector end point can be below the surface for concave regions.
             //       Here we protect against that by augmenting the normal if needed.
             int i_new = (int) ((x_pos_arr(i,j,0) - plo[0]) / dx[0] - myhalf);
@@ -1660,12 +1680,6 @@ MOSTAverage::set_norm_positions_T (const int& lev)
             }
 
             zref_arr(i,j,0) = delta_z;
-
-            // Destination position must be contained on the current process!
-            Real pos[] = {x_pos_arr(i,j,0)-plo[0],y_pos_arr(i,j,0)-plo[1],myhalf*dx[2]};
-            amrex::ignore_unused(pos);
-            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(grb.contains(&pos[0]),
-                                              "Query point outside of proc domain!");
         });
     }
     fill_zref_planar(lev);
