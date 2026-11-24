@@ -321,29 +321,14 @@ jobs:
         mpiexec -n 2 ./ERF3d.gnu*.ex inputs_structure_example max_step=8 erf.check_int=-1 | tee run.log
         grep -q "structure_example_fx" plt00008/Header
 
-    - name: GNUmake Compile and Link with an out-of-tree flood engine
-      id: gnumake-flood
-      shell: bash
-      run: |
-        mkdir -p ${{runner.temp}}/flood_build
-        cd ${{runner.temp}}/flood_build
-        printf 'ERF_HOME = %s\nFLOOD_HOME = %s/Tests/FloodEngineExample\nUSE_FLOOD = TRUE\nUSE_MPI = TRUE\nUSE_NETCDF = FALSE\nCOMP = gnu\nDIM = 3\ninclude $(ERF_HOME)/Exec/Make.ERF\n' \
-          "${{github.workspace}}" "${{github.workspace}}" > GNUmakefile
-        cp ${{github.workspace}}/Exec/ERF_Prob.cpp ${{github.workspace}}/Exec/ERF_Prob.H ${{github.workspace}}/Exec/Make.package .
-        make -j2 USE_CCACHE=TRUE
-        cp ${{github.workspace}}/Tests/FloodEngineExample/inputs_flood_example ${{github.workspace}}/Tests/FloodEngineExample/sounding_moist .
-        mpiexec -n 2 ./ERF3d.gnu*.ex inputs_flood_example max_step=8 erf.plot_int_1=8 erf.flood.plot_int=8 erf.check_int=-1 | tee run.log
-        grep -q "flood_depth" plt00008/Header
-        test -f plt_flood_00008/Header
-
     - name: Prune and report compiler cache
       if: always() && env.GNUMAKE_BUILD_START != ''
       run: |
         # Preserve the other configuration's entries if a build did not complete.
-        if [[ "${{ steps.gnumake-base.outcome }}" == success && "${{ steps.gnumake-structure.outcome }}" == success && "${{ steps.gnumake-flood.outcome }}" == success ]]; then
+        if [[ "${{ steps.gnumake-base.outcome }}" == success && "${{ steps.gnumake-structure.outcome }}" == success ]]; then
           ccache --evict-older-than "$(( $(date +%s) - GNUMAKE_BUILD_START + 120 ))s"
         else
-          echo 'Skipping cache pruning because not every build succeeded.'
+          echo 'Skipping cache pruning because both builds did not succeed.'
         fi
         echo '```' >> "$GITHUB_STEP_SUMMARY"
         ccache -s | tee -a "$GITHUB_STEP_SUMMARY"

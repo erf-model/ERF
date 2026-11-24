@@ -14,8 +14,9 @@
  * plotfile as flood_depth. A run checks the plumbing: the out-of-tree build,
  * the registry, the advance with the precipitation, the plotfiles and the
  * checkpoint. The CTest compares flood_depth with the microphysics' own
- * accumulation in the same plotfile. ERF's CI builds it through
- * ERF_FLOOD_ENGINE_DIRS (CMake) and FLOOD_HOME (GNU make).
+ * accumulation in the same plotfile. It builds through
+ * ERF_FLOOD_ENGINE_DIRS (CMake) and FLOOD_HOME (GNU make); ERF's CI does
+ * not build it.
  */
 #include <ERF_FloodEngineRegistry.H>
 #include <ERF_FloodGrid.H>

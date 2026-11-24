@@ -16,7 +16,9 @@ The layout copies the fire coupling (:ref:`sec:FireCoupling`) under its own
 names, so that a flood engine does not depend on the fire code. Each engine
 lives in its own repository, which holds ERF as a git submodule pinned to an
 ERF release or commit and builds against it; ERF needs no change to add an
-engine. ERF itself carries one small example engine, used by its CI.
+engine. ERF itself carries one small example engine and its tests; ERF's CI
+does not build the flood coupling, so build with ``ERF_ENABLE_FLOOD=ON`` to run
+them.
 
 Building with the flood coupling
 --------------------------------
