@@ -1,4 +1,16 @@
 #26.12
+    -- ERF no longer uses EKAT. RRTMGP's Kokkos now comes from the new Submodules/kokkos
+       submodule (Kokkos 5.1.0, the version EKAT bundled, so answers do not change), and
+       Submodules/ekat is gone; run git submodule update --init Submodules/kokkos after
+       pulling. GNU Make: EKAT_HOME, BUILD_EKAT and the other EKAT_* variables are now
+       ERF_KOKKOS_HOME, ERF_BUILD_KOKKOS and ERF_KOKKOS_* (a generic KOKKOS_HOME in the
+       environment is not read), the bundled install moves to
+       Submodules/kokkos/build/<config>, and a makefile or command line that still sets an
+       EKAT_* variable stops with an error. ERF_KOKKOS_HOME must point at a plain Kokkos
+       install. CMake: ERF_ENABLE_EKAT is gone (ERF_ENABLE_RRTMGP enables Kokkos), and
+       -DKokkos_ROOT selects an installed Kokkos instead of the submodule. RRTMGP no longer
+       links EKAT or spdlog. Build/GNU_Ekat is now Build/GNU_Kokkos
+
     -- The EAMxx SHOC is removed; native SHOC (erf.pbl_type = NATIVE_SHOC) is the only
        SHOC. erf.pbl_type = SHOC, which used to select the EAMxx SHOC, now selects native
        SHOC and warns that its meaning changed. erf.pbl_type = EAMXX_SHOC, the EAMxx-only

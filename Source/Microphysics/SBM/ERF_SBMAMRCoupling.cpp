@@ -8,6 +8,7 @@
 #include "ERF_SBMRestart.H"
 #include "ERF_SBMStateManager.H"
 #include "ERF_SBMTransport.H"
+#include "ERF_Utils.H"
 
 #include <AMReX_MultiFabUtil.H>
 #include <AMReX_ParmParse.H>
@@ -60,6 +61,8 @@ ERF::configure_sbm_physical_boundaries ()
         if (!erf_sbm::map_erf_boundary(phys_bc_type[ori], kind, reason)) {
             Abort("SBM physical boundary " + name + " is not supported: " + reason);
         }
+        config.diffusion[static_cast<std::size_t>(face)] =
+            erf_sbm::map_erf_diffusion(phys_bc_type[ori]);
         ParmParse pp_prefixed(pp_prefix + "." + name);
         ParmParse pp_plain(name);
         ParmParse* pp_face = pp_prefixed.contains("sbm_inflow_z") ? &pp_prefixed
@@ -147,6 +150,48 @@ ERF::configure_sbm_physical_boundaries ()
         Abort(mixing_reason);
     }
     sbm_transport->set_physical_boundaries(config);
+}
+
+// The density a stage's transmissibility reads, for the mixing timestep
+// estimate: Rho with one ghost cell, filled by the same steps as
+// FillPatchCrseLevel and FillPatchFineLevel fill the stage state at the start
+// of the step (the coarse level at a coarse/fine boundary, boundary planes,
+// and ERF's physical boundary conditions). RhoTheta's valid cells come along,
+// from which a pseudo-incompressible inflow face derives its ghost density.
+void
+ERF::fill_sbm_mixing_density (int lev, MultiFab& density)
+{
+    const MultiFab& S_new = vars_new[lev][Vars::cons];
+    const IntVect ng(1);
+    const double time = t_new[lev];
+    density.define(S_new.boxArray(), S_new.DistributionMap(), RhoTheta_comp + 1, ng);
+    density.setVal(Real(0.0));
+    MultiFab::Copy(density, S_new, Rho_comp, Rho_comp, RhoTheta_comp + 1, 0);
+    if (lev > 0) {
+        // As FillPatchFineLevel fills Rho, with times measured from the coarse new time
+        const TimeLevelSel fsel = select_time_level(time, t_old[lev  ], t_new[lev  ]);
+        const TimeLevelSel csel = select_time_level(time, t_old[lev-1], t_new[lev-1]);
+        const double tref = t_new[lev-1];
+        const Vector<Real> ftime = {static_cast<Real>(t_old[lev  ] - tref),
+                                    static_cast<Real>(t_new[lev  ] - tref)};
+        const Vector<Real> ctime = {static_cast<Real>(t_old[lev-1] - tref),
+                                    static_cast<Real>(t_new[lev-1] - tref)};
+        const Vector<MultiFab*> fmf = select_time_data(fsel, vars_old[lev  ][Vars::cons],
+                                                       vars_new[lev  ][Vars::cons]);
+        const Vector<MultiFab*> cmf = select_time_data(csel, vars_old[lev-1][Vars::cons],
+                                                       vars_new[lev-1][Vars::cons]);
+        MultiFab rho(S_new.boxArray(), S_new.DistributionMap(), 1, ng);
+        FillPatchTwoLevelsCons(lev, rho, ng, static_cast<Real>(time - tref), cmf, ctime,
+                               fmf, ftime, Rho_comp, 0, 1, BCVars::cons_bc);
+        MultiFab::Copy(density, rho, 0, Rho_comp, 1, ng);
+    }
+    MultiFab& xvel = vars_new[lev][Vars::xvel];
+    MultiFab& yvel = vars_new[lev][Vars::yvel];
+    MultiFab& zvel = vars_new[lev][Vars::zvel];
+    if (m_r2d && !solverChoice.use_real_bcs) {
+        fill_from_bndryregs(lev, {&density, &xvel, &yvel, &zvel}, time, true);
+    }
+    (*physbcs_cons[lev])(density, xvel, yvel, Rho_comp, 1, ng, time, BCVars::cons_bc, true);
 }
 
 // Leaf-domain inventory of every spectral component: coarse cells covered by

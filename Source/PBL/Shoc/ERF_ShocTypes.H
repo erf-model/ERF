@@ -92,6 +92,10 @@ struct ShocColumnData
     amrex::FArrayBox w;
     amrex::FArrayBox host_dse;
 
+    // Map-factor product m_x m_y of each column (1 without map factors): the physical cell
+    // area is dx dy / (m_x m_y).
+    amrex::FArrayBox mf_area;
+
     // Native SHOC PBL height in meters above local ground (AGL).
     amrex::FArrayBox pblh;
     amrex::FArrayBox obklen;

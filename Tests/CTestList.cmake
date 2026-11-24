@@ -4298,6 +4298,17 @@ add_test_conservation(Conservation_ScalarDiffusion_Stretched ScalarDiffusion_Ref
     OPTIONS "erf.initial_dz=0.025")
 add_test_conservation(Conservation_ScalarDiffusion_MapFactor ScalarDiffusion_Reflux "RHO SCALAR"
     OPTIONS "erf.test_mapfactor=true")
+# Compressible levels coupled two-way with map factors that vary in x and y average the face
+# momenta down as mass fluxes, (rho u) ax/m_y, (rho v) ay/m_x and (rho w)/(m_x m_y) (#5359): a
+# flow advecting the scalar through the faces of the fine patch, on a flat mesh and over a hill
+set(_adv_mapfac_options "erf.test_mapfactor_amp=0.1 erf.molec_diff_type=None prob.U_0=10 prob.V_0=5")
+foreach(_q MASS "RHO SCALAR")
+  string(REPLACE " " "" _qn "${_q}")
+  add_test_conservation(Conservation_${_qn}_Advection_VaryingMapFactor ScalarDiffusion_Reflux "${_q}"
+      OPTIONS "${_adv_mapfac_options}")
+  add_test_conservation(Conservation_${_qn}_Advection_Hill_VaryingMapFactor ScalarDiffusion_Reflux "${_q}"
+      OPTIONS "${_adv_mapfac_options} erf.terrain_type=StaticFittedMesh prob.custom_terrain_type=WoA prob.dir=2 prob.hmax=0.25 prob.L=0.15")
+endforeach()
 add_test_conservation(Conservation_ScalarDiffusion_Ratio221  ScalarDiffusion_Reflux "RHO SCALAR"
     OPTIONS "'amr.ref_ratio_vect=2 2 1'")
 add_test_conservation(Conservation_ScalarDiffusion_Anelastic ScalarDiffusion_Reflux "RHO SCALAR"
@@ -5766,6 +5777,46 @@ if(ERF_ENABLE_NETCDF AND ERF_TEST_PYTHON)
           "@PY@ same plt2dA00002 plt2dB00002 --log @LOG@ && @PY@ log @LOG@ 'NOTE: erf.radiation.seb_init_skin_from_file is not used on a restart'" 3)
     endif()
 
+    # The wrfbdy conversion against the initial state (issue #5149). make_wrf_hybrid.py
+    # writes a wrfinput/wrfbdy pair on the hybrid coordinate (hybrid_opt = 2) over a hill,
+    # with map factors up to 1.05, coupled the way real.exe couples it: PH with
+    # c1f mu + c2f, U and V with (c1h mu + c2h)/msfuy and /msfvx. With
+    # erf.check_wrfbdy_invariant ERF prints, for each side and field, the largest difference
+    # between the decoupled and interpolated boundary data at the first time and the initial
+    # state; check_invariant.py compares it with the tolerances. The legs: the pair as made;
+    # without C1F/C2F in wrfinput, when the fallback c1f = 1, c2f = 0 must make u, v and the
+    # density fail; the same on the sigma coordinate, where the fallback is exact; winds
+    # coupled without the map factors, when u and v must fail; and, with MPI, four ranks.
+    function(add_test_wrfbdy_hybrid TEST_NAME MAKE_OPTIONS CHECK_OPTIONS)
+      set(_launch "")
+      set(_np 1)
+      if(ARGC GREATER 3)
+        set(_np ${ARGV3})
+        set(_launch "${MPIEXEC_EXECUTABLE} ${MPIEXEC_NUMPROC_FLAG} ${ARGV3} ${MPIEXEC_PREFLAGS} ")
+      endif()
+      set(TEST_FILES_DIR WRFBdy_HybridInvariant)
+      setup_test()
+      resolve_test_exe("" "erf_exec" TEST_EXE)
+      set(_log ${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.log)
+      set(_make "${ERF_TEST_PYTHON} make_wrf_hybrid.py ${MAKE_OPTIONS} > generate.log")
+      set(_exe "${_launch}${TEST_EXE} WRFBdy_HybridInvariant.i amrex.call_addr2line=0")
+      set(_run "( ${_exe} > ${_log} 2>&1 || ( tail -n 40 ${_log} && false ) )")
+      set(_check "${ERF_TEST_PYTHON} check_invariant.py ${_log} ${CHECK_OPTIONS}")
+      add_test(${TEST_NAME} sh -c "${_make} && ${_run} && ${_check}")
+      set_tests_properties(${TEST_NAME} PROPERTIES TIMEOUT 300 PROCESSORS ${_np}
+          WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
+          LABELS "regression;wrfinput;wrfbdy" ATTACHED_FILES_ON_FAIL "${_log}")
+    endfunction(add_test_wrfbdy_hybrid)
+    add_test_wrfbdy_hybrid(WRFBdy_HybridInvariant "" "")
+    add_test_wrfbdy_hybrid(WRFBdy_HybridInvariant_NoCF "--no-cf"
+        "--fail u --fail v --fail rho --log 'wrfinput has no C1F/C2F'")
+    add_test_wrfbdy_hybrid(WRFBdy_HybridInvariant_Sigma_NoCF "--hybrid0 --no-cf"
+        "--log 'wrfinput has no C1F/C2F'")
+    add_test_wrfbdy_hybrid(WRFBdy_HybridInvariant_NoMapFac "--bdy-without-msf" "--fail u --fail v")
+    if(ERF_ENABLE_MPI)
+      add_test_wrfbdy_hybrid(WRFBdy_HybridInvariant_MPI "" "" 4)
+    endif()
+
     # The deep (restoring) temperature of the same balance from the TMN of the wrfinput file
     # (erf.radiation.seb_init_t_deep_from_file), on the same deck. make_wrfinput.py writes
     # TMN = 275 + 0.25 i + 0.5 j; erf.radiation.seb_t_deep_default is 290 K. check_skin.py
@@ -6146,6 +6197,32 @@ add_test_restart_parity(TerrainHill_Restart_IntervalMeans TerrainHill 7 20
     COMMON_OPTIONS "amr.max_level=0 erf.terrain_type=None erf.compute_mean_vars=true erf.plot_vars_1=density x_velocity theta u_mean v_mean w_mean theta_mean"
     FCOMPARE_RTOL "0.0" FCOMPARE_ATOL "0.0")
 endif()
+
+# erf.init_vels_from_checkpoint on grids other than the checkpoint's (issue 5376): write
+# chk00005 on 16^3 boxes, start again on 8^3 boxes (and one rank fewer) reading the
+# velocities from it, and require them to equal the checkpoint run's exactly.
+set(TEST_NAME InitVelsFromCheckpoint)
+setup_test()
+resolve_test_exe("" "erf_exec" TEST_EXE)
+add_test(NAME ${TEST_NAME} COMMAND ${CMAKE_COMMAND}
+    "-DMPIEXEC=${MPIEXEC_EXECUTABLE}"
+    "-DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}"
+    "-DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}"
+    "-DNRANKS=${NP}"
+    "-DTEST_EXE=${TEST_EXE}"
+    "-DCONFIG=$<CONFIG>"
+    "-DINPUT=${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.i"
+    "-DWORKING_DIRECTORY=${CURRENT_TEST_BINARY_DIR}"
+    "-DFCOMPARE=${FCOMPARE_EXE}"
+    -P ${PROJECT_SOURCE_DIR}/Tests/RunInitVelsFromCheckpoint.cmake)
+set_tests_properties(${TEST_NAME}
+    PROPERTIES
+    TIMEOUT 600
+    PROCESSORS ${NP}
+    WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
+    LABELS "regression;restart"
+    ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/chk_run.log;${CURRENT_TEST_BINARY_DIR}/init_run.log")
+unset(TEST_NAME)
 
 # SLM across a restart. Nothing covered this: the two SLM decks in the tree are gated behind
 # ERF_TEST_ENABLE_EXTRA_LSM_TESTS and need input files this repository does not carry, so an
@@ -6647,6 +6724,134 @@ add_test_abort(Dust_Abort_BuiltWithoutDust ${_coupling_abort_dir} Terrain_Stress
                "erf.dust.enable = true but this executable was built without the dust coupling"
                "erf.dust.enable=true")
 endif()
+if(NOT ERF_ENABLE_FLOOD)
+add_test_abort(Flood_Abort_BuiltWithoutFlood ${_coupling_abort_dir} Terrain_Stress_Ridge.i
+               "erf.flood.enable = true but this executable was built without the flood coupling"
+               "erf.flood.enable=true")
+endif()
+endif()
+
+# The flood coupling (erf.flood.*, Source/FloodCoupling) with the example flood engine
+# directory (Tests/FloodEngineExample) compiled in: Kessler rain for 60 s (120 steps of
+# 0.5 s) in a laterally periodic layer, made to vary about threefold over the columns by
+# a cool bubble off the centre, on 2 ranks with erf.flood.grid_ratio = 2. The example
+# engine keeps all the water that falls, so on every flood cell its depth times 1000 kg/m3
+# must equal the surface rain accumulated in the column above it (check_depth.py, 1e-9
+# relative); a flood cell that read another column would fail. The ERF plotfile carries
+# flood_depth; a restart from the mid-run checkpoint reproduces both plotfiles exactly; a
+# restart onto another grid ratio stops. _SpinUp restarts a flood run from an
+# atmosphere-only checkpoint: the engine starts empty at t = 30 s and must hold the rain of
+# the second half only. _FinerLevel puts the flood grid on a static level-1 box over 400 to
+# 1200 m (an offset region, columns from (8, 8) of level 1).
+set(_fex_src ${CMAKE_CURRENT_SOURCE_DIR}/FloodEngineExample)
+get_filename_component(_fex_src_abs "${_fex_src}" ABSOLUTE)
+set(_fex_in_build FALSE)
+foreach(_d IN LISTS ERF_FLOOD_ENGINE_DIRS)
+  get_filename_component(_d_abs "${_d}" ABSOLUTE)
+  if(_d_abs STREQUAL _fex_src_abs)
+    set(_fex_in_build TRUE)
+  endif()
+endforeach()
+if(ERF_ENABLE_MPI AND NOT WIN32 AND ERF_ENABLE_FLOOD AND _fex_in_build)
+  set(_fex_mpi "${ERF_SH_MPI_LAUNCHER}${MPIEXEC_NUMPROC_FLAG} 2 ${MPIEXEC_PREFLAGS}")
+  resolve_test_exe("" "erf_exec" _fex_exe)
+  if(FCOMPARE_EXE AND Python3_EXECUTABLE AND ERF_PRECISION STREQUAL "DOUBLE")
+    set(_fex_check "${Python3_EXECUTABLE} check_depth.py --ratio 2")
+
+    set(_fex_dir ${CMAKE_CURRENT_BINARY_DIR}/test_files/Flood_ExampleEngine)
+    file(MAKE_DIRECTORY ${_fex_dir})
+    file(COPY ${_fex_src}/inputs_flood_example ${_fex_src}/sounding_moist ${_fex_src}/check_depth.py ${PROJECT_SOURCE_DIR}/Exec/Tools/erf_plotfile.py DESTINATION ${_fex_dir})
+    set(_fex_cmd
+        "rm -rf plt* chk0* rst bad"
+        "${_fex_mpi} ${_fex_exe} inputs_flood_example amrex.call_addr2line=0 > straight.log 2>&1"
+        "grep -q flood_depth plt00120/Header"
+        "grep -q '\\[FLOOD\\] Flood grid on level 0 of 0-0: x 0 to 1600 m, y 0 to 1600 m, 32 x 32 flood cells of 50 x 50 m' straight.log"
+        "${_fex_check} --flood plt_flood_00120 --rain plt2d00120 > check.txt"
+        "mkdir rst && cd rst"
+        "${_fex_mpi} ${_fex_exe} ../inputs_flood_example erf.input_sounding_file=../sounding_moist erf.restart=../chk00060 erf.check_int=-1 amrex.call_addr2line=0 > ../restart.log 2>&1"
+        "cd .."
+        "${FCOMPARE_EXE} -r 0 --abs_tol 0 plt00120 rst/plt00120"
+        "${FCOMPARE_EXE} -r 0 --abs_tol 0 plt_flood_00120 rst/plt_flood_00120"
+        "mkdir bad && cd bad"
+        "! ${_fex_mpi} ${_fex_exe} ../inputs_flood_example erf.input_sounding_file=../sounding_moist erf.restart=../chk00060 erf.check_int=-1 erf.flood.grid_ratio=1 amrex.call_addr2line=0 > ../mismatch.log 2>&1"
+        "cd .."
+        "grep -q 'with erf.flood.grid_ratio = 2 over the columns' mismatch.log")
+    list(JOIN _fex_cmd " && " _fex_cmd)
+    add_test(NAME Flood_ExampleEngine COMMAND sh -c "${_fex_cmd}" WORKING_DIRECTORY ${_fex_dir})
+    set_tests_properties(Flood_ExampleEngine PROPERTIES
+        LABELS "regression;flood" TIMEOUT 600 PROCESSORS 2
+        ATTACHED_FILES_ON_FAIL "${_fex_dir}/straight.log;${_fex_dir}/check.txt;${_fex_dir}/restart.log;${_fex_dir}/mismatch.log")
+
+    set(_fex_su_dir ${CMAKE_CURRENT_BINARY_DIR}/test_files/Flood_ExampleEngine_SpinUp)
+    file(MAKE_DIRECTORY ${_fex_su_dir})
+    file(COPY ${_fex_src}/inputs_flood_example ${_fex_src}/sounding_moist ${_fex_src}/check_depth.py ${PROJECT_SOURCE_DIR}/Exec/Tools/erf_plotfile.py DESTINATION ${_fex_su_dir})
+    set(_fex_su_cmd
+        "rm -rf plt* chk0*"
+        "${_fex_mpi} ${_fex_exe} inputs_flood_example max_step=60 erf.flood.enable=false erf.plot_vars_1=density erf.plot2d_int_1=60 amrex.call_addr2line=0 > spinup.log 2>&1"
+        "${_fex_mpi} ${_fex_exe} inputs_flood_example erf.restart=chk00060 erf.check_int=-1 amrex.call_addr2line=0 > flood.log 2>&1"
+        "grep -q 'The checkpoint holds no flood state' flood.log"
+        "${_fex_check} --flood plt_flood_00120 --rain plt2d00120 --rain0 plt2d00060 > check.txt")
+    list(JOIN _fex_su_cmd " && " _fex_su_cmd)
+    add_test(NAME Flood_ExampleEngine_SpinUp COMMAND sh -c "${_fex_su_cmd}" WORKING_DIRECTORY ${_fex_su_dir})
+    set_tests_properties(Flood_ExampleEngine_SpinUp PROPERTIES
+        LABELS "regression;flood" TIMEOUT 600 PROCESSORS 2
+        ATTACHED_FILES_ON_FAIL "${_fex_su_dir}/spinup.log;${_fex_su_dir}/flood.log;${_fex_su_dir}/check.txt")
+
+    set(_fex_fl_dir ${CMAKE_CURRENT_BINARY_DIR}/test_files/Flood_ExampleEngine_FinerLevel)
+    file(MAKE_DIRECTORY ${_fex_fl_dir})
+    file(COPY ${_fex_src}/inputs_flood_example ${_fex_src}/sounding_moist ${_fex_src}/check_depth.py ${PROJECT_SOURCE_DIR}/Exec/Tools/erf_plotfile.py DESTINATION ${_fex_fl_dir})
+    set(_fex_fl_cmd
+        "rm -rf plt* chk0*"
+        "${_fex_mpi} ${_fex_exe} inputs_flood_example amr.max_level=1 erf.refinement_indicators=box1 erf.box1.max_level=1 erf.box1.in_box_lo=400 400 0 erf.box1.in_box_hi=1200 1200 1024 erf.check_int=-1 amrex.call_addr2line=0 > run.log 2>&1"
+        "grep -q '\\[FLOOD\\] Flood grid on level 1 of 0-1: x 400 to 1200 m, y 400 to 1200 m, 32 x 32 flood cells of 25 x 25 m' run.log"
+        "${_fex_check} --flood plt_flood_00120 --rain plt2d00120 --level 1 > check.txt")
+    list(JOIN _fex_fl_cmd " && " _fex_fl_cmd)
+    add_test(NAME Flood_ExampleEngine_FinerLevel COMMAND sh -c "${_fex_fl_cmd}" WORKING_DIRECTORY ${_fex_fl_dir})
+    set_tests_properties(Flood_ExampleEngine_FinerLevel PROPERTIES
+        LABELS "regression;flood" TIMEOUT 600 PROCESSORS 2
+        ATTACHED_FILES_ON_FAIL "${_fex_fl_dir}/run.log;${_fex_fl_dir}/check.txt")
+
+    # _UnderFinerLevel: the flood on level 0 under the same level-1 box. ERF averages the
+    # level-1 accumulators down after the flood's step, and the flood takes that correction
+    # in its next step; the checkpoint keeps the flood's precipitation reference, so a
+    # restart from the mid-run checkpoint reproduces both plotfiles exactly. Without the
+    # saved reference the restarted depth differs by about 1e-3 relative under the box.
+    set(_fex_uf_dir ${CMAKE_CURRENT_BINARY_DIR}/test_files/Flood_ExampleEngine_UnderFinerLevel)
+    file(MAKE_DIRECTORY ${_fex_uf_dir})
+    file(COPY ${_fex_src}/inputs_flood_example ${_fex_src}/sounding_moist DESTINATION ${_fex_uf_dir})
+    set(_fex_uf_opts "amr.max_level=1 erf.refinement_indicators=box1 erf.box1.max_level=1 erf.box1.in_box_lo=400 400 0 erf.box1.in_box_hi=1200 1200 1024 erf.flood.anchor_level=0")
+    set(_fex_uf_cmd
+        "rm -rf plt* chk0* rst"
+        "${_fex_mpi} ${_fex_exe} inputs_flood_example ${_fex_uf_opts} amrex.call_addr2line=0 > straight.log 2>&1"
+        "grep -q '\\[FLOOD\\] Flood grid on level 0 of 0-1: x 0 to 1600 m, y 0 to 1600 m, 32 x 32 flood cells of 50 x 50 m' straight.log"
+        "mkdir rst && cd rst"
+        "${_fex_mpi} ${_fex_exe} ../inputs_flood_example erf.input_sounding_file=../sounding_moist ${_fex_uf_opts} erf.restart=../chk00060 erf.check_int=-1 amrex.call_addr2line=0 > ../restart.log 2>&1"
+        "cd .."
+        "${FCOMPARE_EXE} -r 0 --abs_tol 0 plt00120 rst/plt00120"
+        "${FCOMPARE_EXE} -r 0 --abs_tol 0 plt_flood_00120 rst/plt_flood_00120")
+    list(JOIN _fex_uf_cmd " && " _fex_uf_cmd)
+    add_test(NAME Flood_ExampleEngine_UnderFinerLevel COMMAND sh -c "${_fex_uf_cmd}" WORKING_DIRECTORY ${_fex_uf_dir})
+    set_tests_properties(Flood_ExampleEngine_UnderFinerLevel PROPERTIES
+        LABELS "regression;flood" TIMEOUT 600 PROCESSORS 2
+        ATTACHED_FILES_ON_FAIL "${_fex_uf_dir}/straight.log;${_fex_uf_dir}/restart.log")
+  endif()
+
+  # Start-up refusals, each naming the input to change
+  add_test_abort(Flood_Abort_NoPrecipitationSource ${_fex_src} inputs_flood_example
+                 "erf.moisture_model = .SatAdj. provides none"
+                 "erf.moisture_model=SatAdj")
+  add_test_abort(Flood_Abort_SplitInZ ${_fex_src} inputs_flood_example
+                 "must span the level's full height"
+                 "amr.no_box_split_dir=-1 amr.max_grid_size=8 16 16 erf.timestepping_type=RK3_NoSubstepping erf.vert_implicit_fac=0 0 0")
+  add_test_abort(Flood_Abort_AnchorAboveFinest ${_fex_src} inputs_flood_example
+                 "erf.flood.anchor_level = 1 is above the finest level of this run"
+                 "erf.flood.anchor_level=1")
+  add_test_abort(Flood_Abort_Regridding ${_fex_src} inputs_flood_example
+                 "erf.regrid_int = 2 regrids it"
+                 "amr.max_level=1 erf.regrid_int=2 erf.refinement_indicators=box1 erf.box1.max_level=1 erf.box1.in_box_lo=400 400 0 erf.box1.in_box_hi=1200 1200 1024")
+  add_test_abort(Flood_Abort_GridRatio ${_fex_src} inputs_flood_example
+                 "erf.flood.grid_ratio must be >= 1, got 0"
+                 "erf.flood.grid_ratio=0")
 endif()
 
 # The structure coupling (erf.structures.model, Source/MovingBodies/Coupling) with the

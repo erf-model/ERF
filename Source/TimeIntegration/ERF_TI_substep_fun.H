@@ -233,7 +233,7 @@ auto acoustic_substepping_fun = [&,one_d=one,zero_d=zero](int fast_step, int n_s
                           S_data, lagged_delta_rt[level], avg_xmom[level], avg_ymom[level], avg_zmom[level],
                           cc_src, xmom_src, ymom_src, zmom_src,
                           fine_geom, solverChoice.gravity,
-                          z_phys_nd[level], detJ_cc[level], dtau, inv_fac,
+                          z_phys_nd[level], detJ_cc[level], *ax[level], *ay[level], dtau, inv_fac,
                           mapfac[level],
                           fr_as_crse, fr_as_fine, l_use_moisture, l_reflux, solverChoice.use_real_bcs,
                           (l_rayleigh_implicit) ? d_sinesq_stag_ptrs[level].data() : nullptr, l_damp_coef,
