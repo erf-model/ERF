@@ -541,6 +541,26 @@ if(ERF_ENABLE_FIRE)
     ${CMAKE_CURRENT_SOURCE_DIR}/FireCoupling/ERF_GTestFireWindColumnZ0.cpp
   )
 endif()
+if(ERF_ENABLE_FLOOD)
+  # Motivation: the flood coupling must hand its engine each step's precipitation (the change
+  # of the microphysics accumulation, liquid and frozen, per column, measured from a reference
+  # that a restart takes from the checkpoint), map the flood grid of an offset region to its
+  # columns both ways, write the column mean of an engine field at k = 0 only, refuse plot
+  # names without the flood_ prefix, a checkpoint of another flood grid and out-of-range inputs.
+  target_sources(${erf_exe_name} PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/FloodCoupling/ERF_GTestFloodCoupling.cpp
+  )
+  # Each flood engine directory may add its own GoogleTest files, as the structure model
+  # directories do below: the file is included again with an empty fallback definition.
+  foreach(_flood_dir IN LISTS ERF_FLOOD_ENGINE_DIRS)
+    get_filename_component(_flood_dir "${_flood_dir}" ABSOLUTE BASE_DIR "${ERF_SOURCE_DIR}/Exec")
+    function(erf_flood_engine_add_unit_tests target)
+    endfunction()
+    set(ERF_FLOOD_ENGINE_DIR "${_flood_dir}")
+    include("${_flood_dir}/ERFFloodEngine.cmake")
+    erf_flood_engine_add_unit_tests(${erf_exe_name})
+  endforeach()
+endif()
 if(ERF_ENABLE_MOVING_BODIES)
   # Motivation: the actuator velocity sampler must reproduce a field linear in x, y and the
   # physical height exactly, from each component's own staggered grid, on uniform, stretched

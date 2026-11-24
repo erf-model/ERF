@@ -6703,6 +6703,134 @@ add_test_abort(Dust_Abort_BuiltWithoutDust ${_coupling_abort_dir} Terrain_Stress
                "erf.dust.enable = true but this executable was built without the dust coupling"
                "erf.dust.enable=true")
 endif()
+if(NOT ERF_ENABLE_FLOOD)
+add_test_abort(Flood_Abort_BuiltWithoutFlood ${_coupling_abort_dir} Terrain_Stress_Ridge.i
+               "erf.flood.enable = true but this executable was built without the flood coupling"
+               "erf.flood.enable=true")
+endif()
+endif()
+
+# The flood coupling (erf.flood.*, Source/FloodCoupling) with the example flood engine
+# directory (Tests/FloodEngineExample) compiled in: Kessler rain for 60 s (120 steps of
+# 0.5 s) in a laterally periodic layer, made to vary about threefold over the columns by
+# a cool bubble off the centre, on 2 ranks with erf.flood.grid_ratio = 2. The example
+# engine keeps all the water that falls, so on every flood cell its depth times 1000 kg/m3
+# must equal the surface rain accumulated in the column above it (check_depth.py, 1e-9
+# relative); a flood cell that read another column would fail. The ERF plotfile carries
+# flood_depth; a restart from the mid-run checkpoint reproduces both plotfiles exactly; a
+# restart onto another grid ratio stops. _SpinUp restarts a flood run from an
+# atmosphere-only checkpoint: the engine starts empty at t = 30 s and must hold the rain of
+# the second half only. _FinerLevel puts the flood grid on a static level-1 box over 400 to
+# 1200 m (an offset region, columns from (8, 8) of level 1).
+set(_fex_src ${CMAKE_CURRENT_SOURCE_DIR}/FloodEngineExample)
+get_filename_component(_fex_src_abs "${_fex_src}" ABSOLUTE)
+set(_fex_in_build FALSE)
+foreach(_d IN LISTS ERF_FLOOD_ENGINE_DIRS)
+  get_filename_component(_d_abs "${_d}" ABSOLUTE)
+  if(_d_abs STREQUAL _fex_src_abs)
+    set(_fex_in_build TRUE)
+  endif()
+endforeach()
+if(ERF_ENABLE_MPI AND NOT WIN32 AND ERF_ENABLE_FLOOD AND _fex_in_build)
+  set(_fex_mpi "${ERF_SH_MPI_LAUNCHER}${MPIEXEC_NUMPROC_FLAG} 2 ${MPIEXEC_PREFLAGS}")
+  resolve_test_exe("" "erf_exec" _fex_exe)
+  if(FCOMPARE_EXE AND Python3_EXECUTABLE AND ERF_PRECISION STREQUAL "DOUBLE")
+    set(_fex_check "${Python3_EXECUTABLE} check_depth.py --ratio 2")
+
+    set(_fex_dir ${CMAKE_CURRENT_BINARY_DIR}/test_files/Flood_ExampleEngine)
+    file(MAKE_DIRECTORY ${_fex_dir})
+    file(COPY ${_fex_src}/inputs_flood_example ${_fex_src}/sounding_moist ${_fex_src}/check_depth.py ${PROJECT_SOURCE_DIR}/Exec/Tools/erf_plotfile.py DESTINATION ${_fex_dir})
+    set(_fex_cmd
+        "rm -rf plt* chk0* rst bad"
+        "${_fex_mpi} ${_fex_exe} inputs_flood_example amrex.call_addr2line=0 > straight.log 2>&1"
+        "grep -q flood_depth plt00120/Header"
+        "grep -q '\\[FLOOD\\] Flood grid on level 0 of 0-0: x 0 to 1600 m, y 0 to 1600 m, 32 x 32 flood cells of 50 x 50 m' straight.log"
+        "${_fex_check} --flood plt_flood_00120 --rain plt2d00120 > check.txt"
+        "mkdir rst && cd rst"
+        "${_fex_mpi} ${_fex_exe} ../inputs_flood_example erf.input_sounding_file=../sounding_moist erf.restart=../chk00060 erf.check_int=-1 amrex.call_addr2line=0 > ../restart.log 2>&1"
+        "cd .."
+        "${FCOMPARE_EXE} -r 0 --abs_tol 0 plt00120 rst/plt00120"
+        "${FCOMPARE_EXE} -r 0 --abs_tol 0 plt_flood_00120 rst/plt_flood_00120"
+        "mkdir bad && cd bad"
+        "! ${_fex_mpi} ${_fex_exe} ../inputs_flood_example erf.input_sounding_file=../sounding_moist erf.restart=../chk00060 erf.check_int=-1 erf.flood.grid_ratio=1 amrex.call_addr2line=0 > ../mismatch.log 2>&1"
+        "cd .."
+        "grep -q 'with erf.flood.grid_ratio = 2 over the columns' mismatch.log")
+    list(JOIN _fex_cmd " && " _fex_cmd)
+    add_test(NAME Flood_ExampleEngine COMMAND sh -c "${_fex_cmd}" WORKING_DIRECTORY ${_fex_dir})
+    set_tests_properties(Flood_ExampleEngine PROPERTIES
+        LABELS "regression;flood" TIMEOUT 600 PROCESSORS 2
+        ATTACHED_FILES_ON_FAIL "${_fex_dir}/straight.log;${_fex_dir}/check.txt;${_fex_dir}/restart.log;${_fex_dir}/mismatch.log")
+
+    set(_fex_su_dir ${CMAKE_CURRENT_BINARY_DIR}/test_files/Flood_ExampleEngine_SpinUp)
+    file(MAKE_DIRECTORY ${_fex_su_dir})
+    file(COPY ${_fex_src}/inputs_flood_example ${_fex_src}/sounding_moist ${_fex_src}/check_depth.py ${PROJECT_SOURCE_DIR}/Exec/Tools/erf_plotfile.py DESTINATION ${_fex_su_dir})
+    set(_fex_su_cmd
+        "rm -rf plt* chk0*"
+        "${_fex_mpi} ${_fex_exe} inputs_flood_example max_step=60 erf.flood.enable=false erf.plot_vars_1=density erf.plot2d_int_1=60 amrex.call_addr2line=0 > spinup.log 2>&1"
+        "${_fex_mpi} ${_fex_exe} inputs_flood_example erf.restart=chk00060 erf.check_int=-1 amrex.call_addr2line=0 > flood.log 2>&1"
+        "grep -q 'The checkpoint holds no flood state' flood.log"
+        "${_fex_check} --flood plt_flood_00120 --rain plt2d00120 --rain0 plt2d00060 > check.txt")
+    list(JOIN _fex_su_cmd " && " _fex_su_cmd)
+    add_test(NAME Flood_ExampleEngine_SpinUp COMMAND sh -c "${_fex_su_cmd}" WORKING_DIRECTORY ${_fex_su_dir})
+    set_tests_properties(Flood_ExampleEngine_SpinUp PROPERTIES
+        LABELS "regression;flood" TIMEOUT 600 PROCESSORS 2
+        ATTACHED_FILES_ON_FAIL "${_fex_su_dir}/spinup.log;${_fex_su_dir}/flood.log;${_fex_su_dir}/check.txt")
+
+    set(_fex_fl_dir ${CMAKE_CURRENT_BINARY_DIR}/test_files/Flood_ExampleEngine_FinerLevel)
+    file(MAKE_DIRECTORY ${_fex_fl_dir})
+    file(COPY ${_fex_src}/inputs_flood_example ${_fex_src}/sounding_moist ${_fex_src}/check_depth.py ${PROJECT_SOURCE_DIR}/Exec/Tools/erf_plotfile.py DESTINATION ${_fex_fl_dir})
+    set(_fex_fl_cmd
+        "rm -rf plt* chk0*"
+        "${_fex_mpi} ${_fex_exe} inputs_flood_example amr.max_level=1 erf.refinement_indicators=box1 erf.box1.max_level=1 erf.box1.in_box_lo=400 400 0 erf.box1.in_box_hi=1200 1200 1024 erf.check_int=-1 amrex.call_addr2line=0 > run.log 2>&1"
+        "grep -q '\\[FLOOD\\] Flood grid on level 1 of 0-1: x 400 to 1200 m, y 400 to 1200 m, 32 x 32 flood cells of 25 x 25 m' run.log"
+        "${_fex_check} --flood plt_flood_00120 --rain plt2d00120 --level 1 > check.txt")
+    list(JOIN _fex_fl_cmd " && " _fex_fl_cmd)
+    add_test(NAME Flood_ExampleEngine_FinerLevel COMMAND sh -c "${_fex_fl_cmd}" WORKING_DIRECTORY ${_fex_fl_dir})
+    set_tests_properties(Flood_ExampleEngine_FinerLevel PROPERTIES
+        LABELS "regression;flood" TIMEOUT 600 PROCESSORS 2
+        ATTACHED_FILES_ON_FAIL "${_fex_fl_dir}/run.log;${_fex_fl_dir}/check.txt")
+
+    # _UnderFinerLevel: the flood on level 0 under the same level-1 box. ERF averages the
+    # level-1 accumulators down after the flood's step, and the flood takes that correction
+    # in its next step; the checkpoint keeps the flood's precipitation reference, so a
+    # restart from the mid-run checkpoint reproduces both plotfiles exactly. Without the
+    # saved reference the restarted depth differs by about 1e-3 relative under the box.
+    set(_fex_uf_dir ${CMAKE_CURRENT_BINARY_DIR}/test_files/Flood_ExampleEngine_UnderFinerLevel)
+    file(MAKE_DIRECTORY ${_fex_uf_dir})
+    file(COPY ${_fex_src}/inputs_flood_example ${_fex_src}/sounding_moist DESTINATION ${_fex_uf_dir})
+    set(_fex_uf_opts "amr.max_level=1 erf.refinement_indicators=box1 erf.box1.max_level=1 erf.box1.in_box_lo=400 400 0 erf.box1.in_box_hi=1200 1200 1024 erf.flood.anchor_level=0")
+    set(_fex_uf_cmd
+        "rm -rf plt* chk0* rst"
+        "${_fex_mpi} ${_fex_exe} inputs_flood_example ${_fex_uf_opts} amrex.call_addr2line=0 > straight.log 2>&1"
+        "grep -q '\\[FLOOD\\] Flood grid on level 0 of 0-1: x 0 to 1600 m, y 0 to 1600 m, 32 x 32 flood cells of 50 x 50 m' straight.log"
+        "mkdir rst && cd rst"
+        "${_fex_mpi} ${_fex_exe} ../inputs_flood_example erf.input_sounding_file=../sounding_moist ${_fex_uf_opts} erf.restart=../chk00060 erf.check_int=-1 amrex.call_addr2line=0 > ../restart.log 2>&1"
+        "cd .."
+        "${FCOMPARE_EXE} -r 0 --abs_tol 0 plt00120 rst/plt00120"
+        "${FCOMPARE_EXE} -r 0 --abs_tol 0 plt_flood_00120 rst/plt_flood_00120")
+    list(JOIN _fex_uf_cmd " && " _fex_uf_cmd)
+    add_test(NAME Flood_ExampleEngine_UnderFinerLevel COMMAND sh -c "${_fex_uf_cmd}" WORKING_DIRECTORY ${_fex_uf_dir})
+    set_tests_properties(Flood_ExampleEngine_UnderFinerLevel PROPERTIES
+        LABELS "regression;flood" TIMEOUT 600 PROCESSORS 2
+        ATTACHED_FILES_ON_FAIL "${_fex_uf_dir}/straight.log;${_fex_uf_dir}/restart.log")
+  endif()
+
+  # Start-up refusals, each naming the input to change
+  add_test_abort(Flood_Abort_NoPrecipitationSource ${_fex_src} inputs_flood_example
+                 "erf.moisture_model = .SatAdj. provides none"
+                 "erf.moisture_model=SatAdj")
+  add_test_abort(Flood_Abort_SplitInZ ${_fex_src} inputs_flood_example
+                 "must span the level's full height"
+                 "amr.no_box_split_dir=-1 amr.max_grid_size=8 16 16 erf.timestepping_type=RK3_NoSubstepping erf.vert_implicit_fac=0 0 0")
+  add_test_abort(Flood_Abort_AnchorAboveFinest ${_fex_src} inputs_flood_example
+                 "erf.flood.anchor_level = 1 is above the finest level of this run"
+                 "erf.flood.anchor_level=1")
+  add_test_abort(Flood_Abort_Regridding ${_fex_src} inputs_flood_example
+                 "erf.regrid_int = 2 regrids it"
+                 "amr.max_level=1 erf.regrid_int=2 erf.refinement_indicators=box1 erf.box1.max_level=1 erf.box1.in_box_lo=400 400 0 erf.box1.in_box_hi=1200 1200 1024")
+  add_test_abort(Flood_Abort_GridRatio ${_fex_src} inputs_flood_example
+                 "erf.flood.grid_ratio must be >= 1, got 0"
+                 "erf.flood.grid_ratio=0")
 endif()
 
 # The structure coupling (erf.structures.model, Source/MovingBodies/Coupling) with the

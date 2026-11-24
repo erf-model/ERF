@@ -559,6 +559,20 @@ ERF::Advance (int lev, double time, double dt_lev, int iteration, int /*ncycle*/
     }
 #endif
 
+#ifdef ERF_USE_FLOOD
+    // Advance the flood on the level its grid refines (erf.flood.anchor_level),
+    // with the wind after the dycore and, when the engine asks for it, the
+    // surface precipitation of this step's microphysics. Nothing returns.
+    if (m_flood_coupler && lev == m_flood_coupler->level()) {
+        const SurfacePrecipAccumulationSources precip_sources =
+            micro ? micro->Get_Surface_Precip_Accumulation_Ptrs(lev)
+                  : SurfacePrecipAccumulationSources{};
+        m_flood_coupler->advance(time, dt_lev,
+                                 vars_new[lev][Vars::xvel], vars_new[lev][Vars::yvel],
+                                 *z_phys_cc[lev], precip_sources);
+    }
+#endif
+
     // ***********************************************************************************************
     // Two-stream radiation, post-dycore call: reports the cached flux
     // diagnostics and advances the force-restore surface state by dt_lev.
