@@ -21,12 +21,15 @@ using namespace amrex;
  * @param[in]     allow_perturbational false to fill the conserved state from coarse in full
  *                               whatever erf.perturbational_interpolation, as for a destination
  *                               that is not on the layout of base_state[lev]
+ * @param[in]     volume_weighted refill the valid cells of the conserved state weighted by detJ
+ *                               (with volume_weighted_interp), as for a regrid
  */
 void
 ERF::FillPatchFineLevel (int lev, double time_d,
                          const Vector<MultiFab*>& mfs_vel,     // This includes cc quantities and VELOCITIES
                          const Vector<MultiFab*>& mfs_mom,     // This includes cc quantities and MOMENTA
-                         bool fillset, bool cons_only, bool allow_perturbational)
+                         bool fillset, bool cons_only, bool allow_perturbational,
+                         bool volume_weighted)
 {
     BL_PROFILE_VAR("ERF::FillPatchFineLevel()",ERF_FillPatchFineLevel);
 
@@ -162,6 +165,15 @@ ERF::FillPatchFineLevel (int lev, double time_d,
     // uninitialized memory -- they will be filled in the physbcs call
     mf_c.setDomainBndry(bogus_large_value,geom[lev]);
 
+    // The valid cells filled from the coarse level take the coarse mass when weighted by
+    //    detJ, which is not available in all the ghost cells, so refill just the valid cells
+    if (volume_weighted && volume_weighted_interp()) {
+        MultiFab mf_v(mf_c.boxArray(), mf_c.DistributionMap(), mf_c.nComp(), 0);
+        FillPatchTwoLevelsCons(lev, mf_v, IntVect(0), time_rel, cmf, ctime, fmf, ftime,
+                               0, 0, mf_v.nComp(), BCVars::cons_bc, allow_perturbational, true);
+        MultiFab::Copy(mf_c, mf_v, 0, 0, mf_v.nComp(), 0);
+    }
+
     MultiFab::Copy(*mfs_vel[Vars::cons],mf_c,0,0,mf_c.nComp(),mf_c.nGrowVect());
 
     // ***************************************************************************************
@@ -241,6 +253,13 @@ ERF::FillPatchFineLevel (int lev, double time_d,
         (*physbcs_w[lev])(*mfs_vel[Vars::zvel],*mfs_vel[Vars::xvel],*mfs_vel[Vars::yvel],
                           ngvect_vels,time,BCVars::zvel_bc, do_fb);
     }
+}
+
+bool
+ERF::volume_weighted_interp () const
+{
+    return (SolverChoice::mesh_type == MeshType::VariableDz) &&
+           (solverChoice.terrain_type != TerrainType::EB);
 }
 
 /**
@@ -368,6 +387,36 @@ add_base_cons (MultiFab& mf, const IntVect& ng, const Box& region, const MultiFa
         });
     }
 }
+
+// Multiply (or with divide, divide) every component of mf, in its valid and ng ghost cells,
+//    by detJ copied onto mf's layout.  Cells below or above the domain take the detJ of the
+//    nearest cell inside it in the same column: make_J does not fill detJ below the domain
+void
+scale_by_detJ (MultiFab& mf, const IntVect& ng, const MultiFab& detJ, const Geometry& geom,
+               bool divide)
+{
+    MultiFab d(mf.boxArray(), mf.DistributionMap(), 1, ng);
+    d.setVal(bogus_large_value);
+    d.ParallelCopy(detJ, 0, 0, 1, detJ.nGrowVect(), ng, geom.periodicity());
+
+    const int klo   = geom.Domain().smallEnd(2);
+    const int khi   = geom.Domain().bigEnd(2);
+    const int ncomp = mf.nComp();
+    for (MFIter mfi(mf); mfi.isValid(); ++mfi) {
+        const Box bx = amrex::grow(mfi.validbox(), ng);
+        const auto& m_arr = mf.array(mfi);
+        const auto& d_arr = d.const_array(mfi);
+        ParallelFor(bx, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+        {
+            const int kk = amrex::min(amrex::max(k, klo), khi);
+            if (divide) {
+                m_arr(i,j,k,n) /= d_arr(i,j,kk);
+            } else {
+                m_arr(i,j,k,n) *= d_arr(i,j,kk);
+            }
+        });
+    }
+}
 } // namespace
 
 /**
@@ -392,14 +441,20 @@ add_base_cons (MultiFab& mf, const IntVect& ng, const Box& region, const MultiFa
  * @param[in]     ncomp  number of components
  * @param[in]     bccomp first component of domain_bcs_type to use
  * @param[in]     perturbational false for a full-state fill whatever erf.perturbational_interpolation
+ * @param[in]     volume_weighted interpolate detJ times the state (or its perturbation) and
+ *                       divide by the fine detJ, so that the fine cells filled from a coarse
+ *                       cell hold its mass (detJ_c U_c times the ratio); for valid cells only
+ *                       (nghost 0), since detJ has a single ghost cell
  */
 void
 ERF::FillPatchTwoLevelsCons (int lev, MultiFab& mf, const IntVect& nghost, Real time,
                              const Vector<MultiFab*>& cmf, const Vector<Real>& ctime,
                              const Vector<MultiFab*>& fmf, const Vector<Real>& ftime,
                              int scomp, int dcomp, int ncomp, int bccomp,
-                             bool perturbational)
+                             bool perturbational, bool volume_weighted)
 {
+    AMREX_ALWAYS_ASSERT(!volume_weighted || nghost == IntVect(0));
+
     Interpolater* mapper = &cell_cons_interp;
 
     // Where Rho_comp and RhoTheta_comp sit in the patches the hooks see, which hold
@@ -412,7 +467,9 @@ ERF::FillPatchTwoLevelsCons (int lev, MultiFab& mf, const IntVect& nghost, Real 
     const bool has_rt = (irt >= 0 && irt < ncomp);
     const bool has_qv = l_moist && (iqv >= 0 && iqv < ncomp);
 
-    if (!perturbational_interp || !perturbational || !(has_r || has_rt || has_qv)) {
+    const bool l_pert = perturbational_interp && perturbational && (has_r || has_rt || has_qv);
+
+    if (!l_pert && !volume_weighted) {
         FillPatchTwoLevels(mf, nghost, IntVect(0,0,0), time, cmf, ctime, fmf, ftime,
                            scomp, dcomp, ncomp, geom[lev-1], geom[lev],
                            refRatio(lev-1), mapper, domain_bcs_type, bccomp);
@@ -433,10 +490,20 @@ ERF::FillPatchTwoLevelsCons (int lev, MultiFab& mf, const IntVect& nghost, Real 
     const Box everywhere(IntVect(std::numeric_limits<int>::lowest()/2),
                          IntVect(std::numeric_limits<int>::max()/2));
     auto pre_interp  = [&] (MultiFab& crse_patch, int, int) {
-        add_base_cons(crse_patch, IntVect(0), everywhere, bs_crse, cgeom.periodicity(), -one, ir_p, irt_p, iqv_p);
+        if (l_pert) {
+            add_base_cons(crse_patch, IntVect(0), everywhere, bs_crse, cgeom.periodicity(), -one, ir_p, irt_p, iqv_p);
+        }
+        if (volume_weighted) {
+            scale_by_detJ(crse_patch, IntVect(0), *detJ_cc[lev-1], cgeom, false);
+        }
     };
     auto post_interp = [&] (MultiFab& fine_patch, int, int) {
-        add_base_cons(fine_patch, IntVect(0), everywhere, bs_fine, fgeom.periodicity(),  one, ir_p, irt_p, iqv_p);
+        if (volume_weighted) {
+            scale_by_detJ(fine_patch, IntVect(0), *detJ_cc[lev], fgeom, true);
+        }
+        if (l_pert) {
+            add_base_cons(fine_patch, IntVect(0), everywhere, bs_fine, fgeom.periodicity(),  one, ir_p, irt_p, iqv_p);
+        }
     };
 
     PhysBCFunctUseCoarseGhost erfbc(*cmf[0], nghost, IntVect(0,0,0), refRatio(lev-1), mapper);
@@ -456,23 +523,28 @@ ERF::FillPatchTwoLevelsCons (int lev, MultiFab& mf, const IntVect& nghost, Real 
  * @param[in,out] mf     destination, on level lev
  * @param[in]     nghost number of ghost cells of mf to fill
  * @param[in]     cmf    coarse source data
+ * @param[in]     volume_weighted as in FillPatchTwoLevelsCons; valid cells only (nghost 0)
  */
 void
-ERF::InterpFromCoarseLevelCons (int lev, MultiFab& mf, const IntVect& nghost, const MultiFab& cmf)
+ERF::InterpFromCoarseLevelCons (int lev, MultiFab& mf, const IntVect& nghost, const MultiFab& cmf,
+                                bool volume_weighted)
 {
+    AMREX_ALWAYS_ASSERT(!volume_weighted || nghost == IntVect(0));
+
     Interpolater* mapper = &cell_cons_interp;
     const int ncomp = mf.nComp();
     const int iqv = (solverChoice.moisture_type != MoistureType::None) ? RhoQ1_comp : -1;
 
-    if (!perturbational_interp) {
+    if (!perturbational_interp && !volume_weighted) {
         InterpFromCoarseLevel(mf, nghost, IntVect(0,0,0), cmf, 0, 0, ncomp,
                               geom[lev-1], geom[lev], refRatio(lev-1), mapper,
                               domain_bcs_type, BCVars::cons_bc);
         return;
     }
 
-    AMREX_ALWAYS_ASSERT(mf.boxArray() == base_state[lev].boxArray() &&
-                        mf.DistributionMap() == base_state[lev].DistributionMap());
+    AMREX_ALWAYS_ASSERT(!perturbational_interp ||
+                        (mf.boxArray() == base_state[lev].boxArray() &&
+                         mf.DistributionMap() == base_state[lev].DistributionMap()));
 
     const Geometry& cgeom = geom[lev-1];
     const Geometry& fgeom = geom[lev  ];
@@ -486,8 +558,13 @@ ERF::InterpFromCoarseLevelCons (int lev, MultiFab& mf, const IntVect& nghost, co
     //    perturbation, and the fine cells near every box edge -- including the edges between
     //    a level's boxes -- then depend on how the level is chopped
     auto pre_interp = [&] (MultiFab& crse_patch, int, int) {
-        add_base_cons(crse_patch, crse_patch.nGrowVect(), everywhere, bs_crse, cgeom.periodicity(),
-                      -one, Rho_comp, RhoTheta_comp, iqv);
+        if (perturbational_interp) {
+            add_base_cons(crse_patch, crse_patch.nGrowVect(), everywhere, bs_crse, cgeom.periodicity(),
+                          -one, Rho_comp, RhoTheta_comp, iqv);
+        }
+        if (volume_weighted) {
+            scale_by_detJ(crse_patch, crse_patch.nGrowVect(), *detJ_cc[lev-1], cgeom, false);
+        }
     };
     // InterpFromCoarseLevel's post hook sees one fab at a time, without its index, so the
     //    fine base state is added below instead
@@ -498,12 +575,18 @@ ERF::InterpFromCoarseLevelCons (int lev, MultiFab& mf, const IntVect& nghost, co
                           erfbc, 0, erfbc, 0, refRatio(lev-1), mapper,
                           domain_bcs_type, BCVars::cons_bc, pre_interp, post_interp);
 
-    // The cells the interpolation filled: inside the domain, which extends across a
-    //    periodic boundary
-    Box fdomain_g(fgeom.Domain());
-    for (int d = 0; d < AMREX_SPACEDIM; ++d) {
-        if (fgeom.isPeriodic(d)) { fdomain_g.grow(d, nghost[d]); }
+    if (volume_weighted) {
+        scale_by_detJ(mf, IntVect(0), *detJ_cc[lev], fgeom, true);
     }
-    add_base_cons(mf, nghost, fdomain_g, base_state[lev], fgeom.periodicity(),
-                  one, Rho_comp, RhoTheta_comp, iqv);
+
+    if (perturbational_interp) {
+        // The cells the interpolation filled: inside the domain, which extends across a
+        //    periodic boundary
+        Box fdomain_g(fgeom.Domain());
+        for (int d = 0; d < AMREX_SPACEDIM; ++d) {
+            if (fgeom.isPeriodic(d)) { fdomain_g.grow(d, nghost[d]); }
+        }
+        add_base_cons(mf, nghost, fdomain_g, base_state[lev], fgeom.periodicity(),
+                      one, Rho_comp, RhoTheta_comp, iqv);
+    }
 }
