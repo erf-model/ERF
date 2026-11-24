@@ -86,7 +86,7 @@ simple average:
 
 Both halves need an ERF built with `-DERF_ENABLE_TINY_PROFILE=ON`, which
 provides the profiler regions. The RRTMGP half also needs
-`-DERF_ENABLE_RRTMGP=ON` (with EKAT, MPI and NetCDF), and RRTMGP's four netCDF
+`-DERF_ENABLE_RRTMGP=ON` (with Kokkos, MPI and NetCDF), and RRTMGP's four netCDF
 lookup tables, which ship with `Submodules/RRTMGP`, staged into one directory:
 
 ```

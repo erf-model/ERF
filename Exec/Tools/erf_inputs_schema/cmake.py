@@ -1,5 +1,5 @@
 """Which ERF_USE_* macros a build defines: ERF's CMake option defaults, the build's own -D options over them, a set()
-of an ERF option in a taken if() branch (such as ERF_ENABLE_EKAT), applied in file order with
+of an ERF option in a taken if() branch (such as ERF_ENABLE_KOKKOS), applied in file order with
 CMakeLists.txt first, and the if() around each target_compile_definitions in ERF's CMake.
 
 Mirrored from other testing infrastructure. The build options are an argument (a -D list or a CMakeCache.txt),

@@ -697,18 +697,18 @@ BuildScalarDiffusionFluxes_N_Impl (
       MultiplyMolecularByDensity, AddTurbulence>(
       density, rho_comp, mu_turb, coefficients, i, j, k, 1, 0, 0,
       coefficients.eddy_h_comp);
-    const bool ext_lo =
+    // The face index comes first: a box away from a domain face holds no
+    // velocity there.
+    const bool ext_lo = i == dom_lo.x &&
       ((bc_ptr[bc_comp].lo(0) == ERFBCType::ext_dir) ||
        (bc_ptr[bc_comp].lo(0) == ERFBCType::ext_dir_prim) ||
        (bc_ptr[bc_comp].lo(0) == ERFBCType::ext_dir_upwind &&
-        u(dom_lo.x, j, k) >= Real(0.0))) &&
-      i == dom_lo.x;
-    const bool ext_hi =
+        u(dom_lo.x, j, k) >= Real(0.0)));
+    const bool ext_hi = i == dom_hi.x + 1 &&
       ((bc_ptr[bc_comp].hi(0) == ERFBCType::ext_dir) ||
        (bc_ptr[bc_comp].hi(0) == ERFBCType::ext_dir_prim) ||
        (bc_ptr[bc_comp].hi(0) == ERFBCType::ext_dir_upwind &&
-        u(dom_hi.x + 1, j, k) <= Real(0.0))) &&
-      i == dom_hi.x + 1;
+        u(dom_hi.x + 1, j, k) <= Real(0.0)));
     const bool on_surface =
       (surface.xlo && i == dom_lo.x) ||
       (surface.xhi && i == dom_hi.x + 1);
@@ -735,18 +735,16 @@ BuildScalarDiffusionFluxes_N_Impl (
       MultiplyMolecularByDensity, AddTurbulence>(
       density, rho_comp, mu_turb, coefficients, i, j, k, 0, 1, 0,
       coefficients.eddy_h_comp);
-    const bool ext_lo =
+    const bool ext_lo = j == dom_lo.y &&
       ((bc_ptr[bc_comp].lo(1) == ERFBCType::ext_dir) ||
        (bc_ptr[bc_comp].lo(1) == ERFBCType::ext_dir_prim) ||
        (bc_ptr[bc_comp].lo(1) == ERFBCType::ext_dir_upwind &&
-        v(i, dom_lo.y, k) >= Real(0.0))) &&
-      j == dom_lo.y;
-    const bool ext_hi =
+        v(i, dom_lo.y, k) >= Real(0.0)));
+    const bool ext_hi = j == dom_hi.y + 1 &&
       ((bc_ptr[bc_comp].hi(1) == ERFBCType::ext_dir) ||
        (bc_ptr[bc_comp].hi(1) == ERFBCType::ext_dir_prim) ||
        (bc_ptr[bc_comp].hi(1) == ERFBCType::ext_dir_upwind &&
-        v(i, dom_hi.y + 1, k) <= Real(0.0))) &&
-      j == dom_hi.y + 1;
+        v(i, dom_hi.y + 1, k) <= Real(0.0)));
     const bool on_surface =
       (surface.ylo && j == dom_lo.y) ||
       (surface.yhi && j == dom_hi.y + 1);

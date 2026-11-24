@@ -52,6 +52,8 @@ cf_omega_stage (int i, int j, int k, int klo, int khi,
  * @param[in   ] gravity magnitude of gravity
  * @param[in   ] z_phys_nd height coordinate at nodes
  * @param[in   ] detJ_cc Jacobian of the metric transformation
+ * @param[in   ] ax area fraction of x-faces
+ * @param[in   ] ay area fraction of y-faces
  * @param[in   ] dtau fast time step
  * @param[in   ] facinv inverse factor for time-averaging the momenta
  * @param[in   ] mapfac vector of map factors
@@ -88,6 +90,8 @@ void erf_substep_T (int step, int /*nrk*/,
                     const Real gravity,
                     std::unique_ptr<MultiFab>& z_phys_nd,
                     std::unique_ptr<MultiFab>& detJ_cc,
+                    const MultiFab& ax,
+                    const MultiFab& ay,
                     const double dtau_d,
                     const Real facinv,
                     Vector<std::unique_ptr<MultiFab>>& mapfac,
@@ -308,6 +312,8 @@ void erf_substep_T (int step, int /*nrk*/,
         const Array4<Real>& avg_ymom_arr = avg_ymom.array(mfi);
 
         const Array4<const Real>& z_nd   = z_phys_nd->const_array(mfi);
+        const Array4<const Real>& ax_arr = ax.const_array(mfi);
+        const Array4<const Real>& ay_arr = ay.const_array(mfi);
 
         const Array4<const Real>& pi_stage_ca = pi_stage.const_array(mfi);
 
@@ -369,11 +375,12 @@ void erf_substep_T (int step, int /*nrk*/,
                     new_drho_u(i,j,k+1) = new_drho_u(i,j,k);
                 }
 
-                // NOTE: met_h_zeta here is identically the x-face area ax computed by
-                //       make_areas, so this matches the base value of avg_xmom defined in
-                //       AdvectionSrcForRho (ax*rho_u/mf_uy) as well as the density flux
-                //       (new_drho_u*h_zeta_cc_xface/mf_uy) formed below.
-                avg_xmom_arr(i,j,k) += facinv * new_drho_u(i,j,k) * met_h_zeta / mf_uy(i,j,0);
+                // The x-face area ax, as in the base value of avg_xmom defined in
+                // AdvectionSrcForRho (ax*rho_u/mf_uy) and in the density flux formed below.
+                // It is not recomputed from z_nd: below the finest level ax is the average of
+                // the finest mesh's areas (make_metrics_from_finest), not the area of this
+                // level's own nodes.
+                avg_xmom_arr(i,j,k) += facinv * new_drho_u(i,j,k) * ax_arr(i,j,k) / mf_uy(i,j,0);
 
                 cur_xmom(i,j,k) = stage_xmom(i,j,k) + new_drho_u(i,j,k);
             },
@@ -412,19 +419,16 @@ void erf_substep_T (int step, int /*nrk*/,
                     new_drho_v(i,j,k+1) = new_drho_v(i,j,k);
                 }
 
-                // NOTE: met_h_zeta here is identically the y-face area ay computed by
-                //       make_areas, so this matches the base value of avg_ymom defined in
-                //       AdvectionSrcForRho (ay*rho_v/mf_vx) as well as the density flux
-                //       (new_drho_v*h_zeta_cc_yface/mf_vx) formed below.
-                avg_ymom_arr(i,j,k) += facinv * new_drho_v(i,j,k) * met_h_zeta / mf_vx(i,j,0);
+                // The y-face area ay, as for avg_xmom
+                avg_ymom_arr(i,j,k) += facinv * new_drho_v(i,j,k) * ay_arr(i,j,k) / mf_vx(i,j,0);
 
                 cur_ymom(i,j,k) = stage_ymom(i,j,k) + new_drho_v(i,j,k);
             });
 
             // On the coarse/fine faces of a fine level, the coarse level's flux over this
             // substep (CFFaceFluxes) in place of the level's own; on a coarse level, record
-            // the flux each face applied.  In both, the flux is h_zeta (rho u)/m_uy, the
-            // density flux formed below with h_zeta the x-face area.
+            // the flux each face applied.  In both, the flux is ax (rho u)/m_uy (ay (rho v)/m_vx),
+            // the density flux formed below.
             for (int dir = 0; dir < 2; ++dir) {
                 if (!cf_fluxes.tgt[dir] && !cf_fluxes.rec[dir]) { continue; }
                 const bool has_tgt = (cf_fluxes.tgt[dir] != nullptr);
@@ -437,10 +441,10 @@ void erf_substep_T (int step, int /*nrk*/,
                 const Array4<Real>& avg   = (dir == 0) ? avg_xmom_arr : avg_ymom_arr;
                 const Array4<const Real>& stage = (dir == 0) ? stage_xmom : stage_ymom;
                 const Array4<const Real>& mf    = (dir == 0) ? mf_uy : mf_vx;
+                const Array4<const Real>& area  = (dir == 0) ? ax_arr : ay_arr;
                 ParallelFor(fbx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
                 {
-                    Real h_zeta = (dir == 0) ? Compute_h_zeta_AtIface(i, j, k, dxInv, z_nd)
-                                             : Compute_h_zeta_AtJface(i, j, k, dxInv, z_nd);
+                    Real h_zeta = area(i,j,k);
                     if (has_tgt && tgt(i,j,k,1) > myhalf) {
                         Real new_pert = tgt(i,j,k,0) * mf(i,j,0) / h_zeta - stage(i,j,k);
                         avg(i,j,k) += facinv * (new_pert - pert(i,j,k)) * h_zeta / mf(i,j,0);
@@ -501,6 +505,8 @@ void erf_substep_T (int step, int /*nrk*/,
 
         const Array4<const Real>& z_nd   = z_phys_nd->const_array(mfi);
         const Array4<const Real>& detJ   = detJ_cc->const_array(mfi);
+        const Array4<const Real>& ax_arr = ax.const_array(mfi);
+        const Array4<const Real>& ay_arr = ay.const_array(mfi);
 
         const Array4<      Real>& omega_arr = Omega.array(mfi);
 
@@ -553,26 +559,12 @@ void erf_substep_T (int step, int /*nrk*/,
         {
         BL_PROFILE("fast_T_making_rho_rhs");
         ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-            Real h_zeta_cc_xface_hi = myhalf * dzi *
-              (  z_nd(i+1,j  ,k+1) + z_nd(i+1,j+1,k+1)
-                -z_nd(i+1,j  ,k  ) - z_nd(i+1,j+1,k  ) );
-
-            Real h_zeta_cc_xface_lo = myhalf * dzi *
-              (  z_nd(i  ,j  ,k+1) + z_nd(i  ,j+1,k+1)
-                -z_nd(i  ,j  ,k  ) - z_nd(i  ,j+1,k  ) );
-
-            Real h_zeta_cc_yface_hi = myhalf * dzi *
-              (  z_nd(i  ,j+1,k+1) + z_nd(i+1,j+1,k+1)
-                -z_nd(i  ,j+1,k  ) - z_nd(i+1,j+1,k  ) );
-
-            Real h_zeta_cc_yface_lo = myhalf * dzi *
-              (  z_nd(i  ,j  ,k+1) + z_nd(i+1,j  ,k+1)
-                -z_nd(i  ,j  ,k  ) - z_nd(i+1,j  ,k  ) );
-
-            Real xflux_lo = new_drho_u(i  ,j,k)*h_zeta_cc_xface_lo / mf_uy(i  ,j,0);
-            Real xflux_hi = new_drho_u(i+1,j,k)*h_zeta_cc_xface_hi / mf_uy(i+1,j,0);
-            Real yflux_lo = new_drho_v(i,j  ,k)*h_zeta_cc_yface_lo / mf_vx(i,j  ,0);
-            Real yflux_hi = new_drho_v(i,j+1,k)*h_zeta_cc_yface_hi / mf_vx(i,j+1,0);
+            // The lateral face areas ax and ay, the ones the slow advection and avg_xmom and
+            // avg_ymom use, so that every flux through a face sees the same area
+            Real xflux_lo = new_drho_u(i  ,j,k)*ax_arr(i  ,j,k) / mf_uy(i  ,j,0);
+            Real xflux_hi = new_drho_u(i+1,j,k)*ax_arr(i+1,j,k) / mf_uy(i+1,j,0);
+            Real yflux_lo = new_drho_v(i,j  ,k)*ay_arr(i,j  ,k) / mf_vx(i,j  ,0);
+            Real yflux_hi = new_drho_v(i,j+1,k)*ay_arr(i,j+1,k) / mf_vx(i,j+1,0);
 
             Real mfsq = mf_mx(i,j,0) * mf_my(i,j,0);
 

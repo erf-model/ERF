@@ -9,3 +9,4 @@ CEXE_headers += ERF_AuxiliaryMappedTransport.H
 CEXE_headers += ERF_AuxiliaryStage.H
 CEXE_headers += ERF_AuxiliaryInertTracer.H
 CEXE_headers += ERF_AuxiliaryDiffusion.H
+CEXE_headers += ERF_AuxiliaryDiffusionFace.H

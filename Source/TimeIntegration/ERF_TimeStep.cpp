@@ -355,6 +355,12 @@ ERF::timeStep (int lev, double time, int /*iteration*/)
             m_fire_coupler->set_fields_time(t_new[lev]);
         }
 #endif
+#ifdef ERF_USE_FLOOD
+        // A flood on a finer level has reached this time too
+        if (m_flood_coupler && m_flood_coupler->level() > lev) {
+            m_flood_coupler->set_fields_time(t_new[lev]);
+        }
+#endif
     }
 
     if ( verbose && lev == 0 && solverChoice.moisture_type != MoistureType::None) {

@@ -760,10 +760,10 @@ void make_mom_sources (int level,
         // *****************************************************************************
 #if 0
         if (l_use_ndiff) {
-            const Array4<const Real>& mf_ux   = mapfac[MapFac::ux]->const_array(mfi);
-            const Array4<const Real>& mf_uy   = mapfac[MapFac::uy]->const_array(mfi);
-            const Array4<const Real>& mf_vx   = mapfac[MapFac::vx]->const_array(mfi);
-            const Array4<const Real>& mf_vy   = mapfac[MapFac::vy]->const_array(mfi);
+            const Array4<const Real>& mf_ux   = mapfac[MapFacType::u_x]->const_array(mfi);
+            const Array4<const Real>& mf_uy   = mapfac[MapFacType::u_y]->const_array(mfi);
+            const Array4<const Real>& mf_vx   = mapfac[MapFacType::v_x]->const_array(mfi);
+            const Array4<const Real>& mf_vy   = mapfac[MapFacType::v_y]->const_array(mfi);
             NumericalDiffusion_Xmom(tbx, dt, solverChoice.num_diff_coeff,
                                     u, cell_data, xmom_src_arr, mf_ux, mf_uy);
             NumericalDiffusion_Ymom(tby, dt, solverChoice.num_diff_coeff,

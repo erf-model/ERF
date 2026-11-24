@@ -80,6 +80,9 @@
 #ifdef ERF_USE_FIRE
 #include "ERF_FireCoupler.H"
 #endif
+#ifdef ERF_USE_FLOOD
+#include "ERF_FloodCoupler.H"
+#endif
 #ifdef ERF_USE_DUST
 #include "ERF_DustModel.H"
 #endif
@@ -834,8 +837,11 @@ public:
         amrex::Real wall_rate  = amrex::Real(0.0);
     };
 
-    // compute dt from CFL considerations; with cfl_rate_only, return after info.cfl_rate is set
+    // compute dt from CFL considerations; with cfl_rate_only, return after info.cfl_rate is set;
+    //    sbm_mixing_density is required when SBM mixes particles (fill_sbm_mixing_density)
+    //    unless cfl_rate_only
     double estTimeStep (int lev, long& dt_fast_ratio, DtEstimateInfo& info,
+                        const amrex::MultiFab* sbm_mixing_density,
                         bool cfl_rate_only = false) const;
 
     // CFL limit of a fixed dt on the levels lev_min to finest_level that have a new set of grids,
@@ -1358,6 +1364,8 @@ public:
     void init_zphys            (int lev, double elapsed_time);
     void remake_zphys          (int lev, amrex::Real time, std::unique_ptr<amrex::MultiFab>& temp_zphys_nd);
     void update_terrain_arrays (int lev);
+    bool metrics_from_finest   (int lev);
+    void make_metrics_from_finest (int lev);
     void update_zsfc_nd        (int lev);
     void make_terrain_blanking (int lev);
 
@@ -1464,6 +1472,9 @@ private:
                            const amrex::DistributionMapping& dm);
     void sbm_synchronize_levels (int nstep);
     void configure_sbm_physical_boundaries ();
+    // Rho and RhoTheta of a level for the SBM particle-mixing timestep
+    //    estimate, Rho's ghost cell filled as ERF fills a stage's state
+    void fill_sbm_mixing_density (int lev, amrex::MultiFab& density);
 
     void Construct_ERFFillPatchers (int lev);
 
@@ -1505,6 +1516,9 @@ private:
     // Initialize the fire coupling and its engine (erf.fire.enable)
     void initializeFire (const int&);
 
+    // Initialize the flood coupling and its engine (erf.flood.enable)
+    void initializeFlood (const int&);
+
 #ifdef ERF_USE_WINDFARM
     // Initialize the windfarm object
     void initializeWindFarm (const int&);
@@ -1531,7 +1545,11 @@ private:
                              const amrex::Vector<amrex::MultiFab*>& mfs_vel,
                              const amrex::Vector<amrex::MultiFab*>& mfs_mom,
                              bool fillset=true, bool cons_only=false,
-                             bool allow_perturbational=true);
+                             bool allow_perturbational=true, bool volume_weighted=false);
+
+    // Whether the fills that make a level's grids (regrid, new level) interpolate the
+    //    conserved state weighted by detJ: on a terrain-fitted VariableDz mesh
+    bool volume_weighted_interp () const;
 
     // FillPatchTwoLevels for the cell-centered conserved state, perturbational in
     //    Rho_comp, RhoTheta_comp and RhoQ1_comp when perturbational_interp and perturbational
@@ -1542,12 +1560,12 @@ private:
                                  const amrex::Vector<amrex::MultiFab*>& fmf,
                                  const amrex::Vector<amrex::Real>& ftime,
                                  int scomp, int dcomp, int ncomp, int bccomp,
-                                 bool perturbational = true);
+                                 bool perturbational = true, bool volume_weighted = false);
 
     // InterpFromCoarseLevel for the whole cell-centered conserved state of a level made from
     //    the coarser one, perturbational in Rho_comp, RhoTheta_comp and RhoQ1_comp when perturbational_interp
     void InterpFromCoarseLevelCons (int lev, amrex::MultiFab& mf, const amrex::IntVect& nghost,
-                                    const amrex::MultiFab& cmf);
+                                    const amrex::MultiFab& cmf, bool volume_weighted = false);
 
 
     // Compute new multifabs by copying data from valid region and filling ghost cells.
@@ -2186,6 +2204,9 @@ private:
 #ifdef ERF_USE_FIRE
     static double last_fire_plot_time;   // double: writeNow() takes double&, as for the other plot times
 #endif
+#ifdef ERF_USE_FLOOD
+    static double last_flood_plot_time;  // double: writeNow() takes double&, as for the other plot times
+#endif
 
     amrex::Vector<int> last_subvol_step;
     amrex::Vector<double> last_subvol_time;
@@ -2649,6 +2670,15 @@ private:
     std::string m_fire_plot_file {"plt_fire_"};
     int         m_fire_plot_int  = -1;
     amrex::Real m_fire_plot_per  = -1.0;
+#endif
+
+#ifdef ERF_USE_FLOOD
+    /// The flood coupling (atmosphere side) and the engine it owns (erf.flood.engine)
+    std::unique_ptr<FloodCoupler> m_flood_coupler = nullptr;
+    FloodCouplingParams           m_flood_params;
+    std::string m_flood_plot_file {"plt_flood_"};
+    int         m_flood_plot_int  = -1;
+    amrex::Real m_flood_plot_per  = -1.0;
 #endif
 
 #ifdef ERF_USE_DUST

@@ -73,7 +73,14 @@ ERF::ComputeDt (int step, double cur_time_d)
             openface_grids[lev] = grids[lev];
         }
 
-        dt_tmp[lev] = estTimeStep(lev, dt_mri_ratio[lev], dt_info[lev]);
+        // SBM particle mixing estimates with the density ghost cells a stage reads
+        MultiFab sbm_mixing_density;
+        if (sbm_transport && sbm_transport->mixes_particles()) {
+            fill_sbm_mixing_density(lev, sbm_mixing_density);
+        }
+
+        dt_tmp[lev] = estTimeStep(lev, dt_mri_ratio[lev], dt_info[lev],
+                                  sbm_mixing_density.ok() ? &sbm_mixing_density : nullptr);
 
         if (do_diffusive_check) {
             ComputeDiffusiveRates(lev, rate_mom[lev], rate_scal[lev]);
@@ -430,10 +437,16 @@ ERF::ComputeMaxTerrainSlope (int lev)
  * @param[out] info what the estimate finds besides dt (DtEstimateInfo): the rate behind the
  *                  adaptive dt, the compressible estimate, and the limits of a fixed dt that
  *                  hold whatever erf.cfl (checked by ComputeDt, CheckFixedDtHardLimits)
+ * @param[in] sbm_mixing_density Rho with its ghost cell filled as a stage's
+ *            (fill_sbm_mixing_density); required when SBM mixes particles
  * @param[in] cfl_rate_only return once info.cfl_rate is set (CheckFixedDtCFLLimitAfterRegrid)
  */
 double
-ERF::estTimeStep (int level, long& dt_fast_ratio, DtEstimateInfo& info, bool cfl_rate_only) const
+ERF::estTimeStep (int level,
+                  long& dt_fast_ratio,
+                  DtEstimateInfo& info,
+                  const MultiFab* sbm_mixing_density,
+                  bool cfl_rate_only) const
 {
     BL_PROFILE("ERF::estTimeStep()");
 
@@ -841,14 +854,21 @@ ERF::estTimeStep (int level, long& dt_fast_ratio, DtEstimateInfo& info, bool cfl
             const auto inputs = erf_sbm::make_stage_mixing_inputs(
                 *sbm_transport, eddyDiffs_lev[level].get(), mapfac[level],
                 ax[level].get(), ay[level].get(), stretched_dz_d[level].data());
-            MultiFab density(cell_ba, cell_dm, 1, 1);
-            MultiFab::Copy(density, S_new, Rho_comp, 0, 1, 0);
-            density.FillBoundary(geom[level].periodicity());
+            // The ghost cells the transmissibility reads hold what a stage
+            // reads there: ERF's fill of the step's state, made here before
+            // the step regrids.
+            AMREX_ALWAYS_ASSERT(sbm_mixing_density != nullptr &&
+                                sbm_mixing_density->boxArray() == cell_ba &&
+                                sbm_mixing_density->nGrowVect().allGE(IntVect(1)));
             erf_auxiliary::MappedFaceTransmissibility transmissibility;
             transmissibility.define(cell_ba, cell_dm, 1, 0);
+            const auto mixing_boundary = erf_sbm::particle_mixing_boundary(
+                sbm_transport->physical_boundaries(),
+                {&mapped_carrier.dir(0), &mapped_carrier.dir(1), &mapped_carrier.dir(2)});
             if (!erf_sbm::build_particle_mixing_transmissibility(
                     sbm_transport->particle_mixing(), geom[level], inputs.metrics,
-                    density, 0, inputs.eddy_diffusivity, transmissibility, sbm_diagnostic)) {
+                    *sbm_mixing_density, Rho_comp, inputs.eddy_diffusivity, mixing_boundary,
+                    transmissibility, sbm_diagnostic)) {
                 Abort("SBM particle mixing timestep estimate: " + sbm_diagnostic);
             }
             rate_ok = erf_auxiliary::ComputeMaxMappedCombinedOutgoingRate(
@@ -864,19 +884,23 @@ ERF::estTimeStep (int level, long& dt_fast_ratio, DtEstimateInfo& info, bool cfl
                                          : "SBM M3 current donor-rate estimate: ") +
                   sbm_diagnostic);
         }
+        double adaptive_sbm_dt = std::numeric_limits<double>::infinity();
         if (max_sbm_outgoing_rate > Real(0.0)) {
-            double adaptive_sbm_dt =
-                static_cast<double>(amrex::min(cfl, Real(1.0)) /
-                                    max_sbm_outgoing_rate);
-            // The eddy diffusivity is not checkpointed: on the first step after a
-            // restart do not let dt grow past the checkpointed step.
-            const bool lagged_coefficients =
-                sbm_mixing && sbm_transport->particle_mixing().policy ==
-                                  erf_sbm::ParticleMixingPolicy::HostPassiveScalar;
-            if (lagged_coefficients && diffusive_first_call && !restart_chkfile.empty() &&
-                istep[level] > 0) {
-                adaptive_sbm_dt = std::min(adaptive_sbm_dt, dt[level]);
-            }
+            adaptive_sbm_dt = static_cast<double>(amrex::min(cfl, Real(1.0)) /
+                                                  max_sbm_outgoing_rate);
+        }
+        // The eddy diffusivity is not checkpointed: on the first step after a
+        // restart do not let dt grow past the checkpointed step. This holds with
+        // no rate too: a flow at rest has none until the step computes its
+        // coefficients.
+        const bool lagged_coefficients =
+            sbm_mixing && sbm_transport->particle_mixing().policy ==
+                              erf_sbm::ParticleMixingPolicy::HostPassiveScalar;
+        if (lagged_coefficients && diffusive_first_call && !restart_chkfile.empty() &&
+            istep[level] > 0) {
+            adaptive_sbm_dt = std::min(adaptive_sbm_dt, dt[level]);
+        }
+        if (adaptive_sbm_dt < std::numeric_limits<double>::infinity()) {
             estdt_comp_T = std::min(estdt_comp_T, adaptive_sbm_dt);
             estdt_comp_N = std::min(estdt_comp_N, adaptive_sbm_dt);
             estdt_lowM_T = std::min(estdt_lowM_T, adaptive_sbm_dt);
@@ -886,6 +910,7 @@ ERF::estTimeStep (int level, long& dt_fast_ratio, DtEstimateInfo& info, bool cfl
             // limit of the fixed dt (CheckFixedDtHardLimits)
             info.sbm_rate   = max_sbm_outgoing_rate;
             info.sbm_mixing = sbm_mixing;
+
             if (verbose) {
                 double hard_sbm_dt = std::numeric_limits<double>::infinity();
                 erf_auxiliary::FixedDtExceedsMappedDonorLimit(
@@ -1244,7 +1269,8 @@ ERF::CheckFixedDtCFLLimitAfterRegrid (int lev)
         if (FixedDtSameCells(fixed_dt_check_grids[k], grids[k])) { continue; }
         long dt_fast_ratio = 0;
         DtEstimateInfo info;
-        estTimeStep(k, dt_fast_ratio, info, true);
+        // cfl_rate_only returns before the SBM estimate reads the mixing density
+        estTimeStep(k, dt_fast_ratio, info, nullptr, true);
         cfl_rate[k] = info.cfl_rate;
     }
     CheckFixedDtCFLLimit(cfl_rate, lev+1, true);

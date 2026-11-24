@@ -421,6 +421,9 @@ target_sources(${erf_exe_name}
     # Motivation: the average down over immersed-forcing levels must weight the fine cells by
     # their fluid mass and leave coarse cells that are solid on their own level alone.
     ${CMAKE_CURRENT_SOURCE_DIR}/Utils/ERF_GTestImmersedAverageDown.cpp
+    # Motivation: with map factors other than one, the face momenta must be averaged down as
+    # mass fluxes, so that each covered coarse face carries the mean of the fine fluxes over it.
+    ${CMAKE_CURRENT_SOURCE_DIR}/Utils/ERF_GTestAverageDownMapFac.cpp
     # Motivation: over immersed-forcing terrain with the fraction-stress wall law the RANS wall
     # distance must be measured from the surface the wall law uses, column by column.
     ${CMAKE_CURRENT_SOURCE_DIR}/Utils/ERF_GTestImmersedWallDist.cpp
@@ -543,6 +546,26 @@ if(ERF_ENABLE_FIRE)
   target_sources(${erf_exe_name} PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/FireCoupling/ERF_GTestFireWindColumnZ0.cpp
   )
+endif()
+if(ERF_ENABLE_FLOOD)
+  # Motivation: the flood coupling must hand its engine each step's precipitation (the change
+  # of the microphysics accumulation, liquid and frozen, per column, measured from a reference
+  # that a restart takes from the checkpoint), map the flood grid of an offset region to its
+  # columns both ways, write the column mean of an engine field at k = 0 only, refuse plot
+  # names without the flood_ prefix, a checkpoint of another flood grid and out-of-range inputs.
+  target_sources(${erf_exe_name} PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/FloodCoupling/ERF_GTestFloodCoupling.cpp
+  )
+  # Each flood engine directory may add its own GoogleTest files, as the structure model
+  # directories do below: the file is included again with an empty fallback definition.
+  foreach(_flood_dir IN LISTS ERF_FLOOD_ENGINE_DIRS)
+    get_filename_component(_flood_dir "${_flood_dir}" ABSOLUTE BASE_DIR "${ERF_SOURCE_DIR}/Exec")
+    function(erf_flood_engine_add_unit_tests target)
+    endfunction()
+    set(ERF_FLOOD_ENGINE_DIR "${_flood_dir}")
+    include("${_flood_dir}/ERFFloodEngine.cmake")
+    erf_flood_engine_add_unit_tests(${erf_exe_name})
+  endforeach()
 endif()
 if(ERF_ENABLE_MOVING_BODIES)
   # Motivation: the actuator velocity sampler must reproduce a field linear in x, y and the
@@ -976,9 +999,10 @@ if(TARGET erf_exec AND ERF_DIM STREQUAL "3" AND
     "-DOVERRIDE=erf.moisture_model=None")
 
   # Particle mixing: ERF's LES eddy diffusivity, or a constant reference one,
-  # mixes the spectrum through the combined advection-diffusion FCT on a single
-  # level with periodic, wall and surface-layer faces. Walls carry nothing and
-  # every coarse step closes the inventory budget.
+  # mixes the spectrum through the combined advection-diffusion FCT on one or
+  # two levels. Walls, surface layers and outflow faces carry no mixing; an
+  # inflow face exchanges with its spectrum. Every coarse step closes the
+  # inventory budget against the boundary ledger.
   set(_sbm_mixing_host "-DEXPECTED_STDOUT=SBM particle mixing: particle-mixing=host-passive-scalar-v1")
   set(_sbm_mixing_constant
     "erf.les_type=None|erf.sbm_particle_mixing=ConstantReference|erf.sbm_particle_mixing_kh=2.e-2|erf.sbm_particle_mixing_kv=1.e-2")
@@ -1009,6 +1033,82 @@ if(TARGET erf_exec AND ERF_DIM STREQUAL "3" AND
   add_sbm_boundary_budget_test(SBM_Mixing_Adaptive_ConstantReference_DiffusionBound
     inputs_mixing_walls zero "-DRUN_ARGS=${_sbm_mixing_constant_adaptive}|max_step=6")
 
+  # Through an inflow face: ERF's inflow exchanges with the inflow spectrum on
+  # every face cell and inflow_outflow where the carrier enters; outflow and
+  # ho_outflow faces carry no mixing.
+  set(_sbm_mixing_open_constant
+    "erf.sbm_particle_mixing=ConstantReference|erf.sbm_particle_mixing_kh=2.e-2|erf.sbm_particle_mixing_kv=1.e-2")
+  set(_sbm_mixing_open_deardorff
+    "erf.les_type=Deardorff|erf.tke_min=1.e-2|erf.sbm_particle_mixing=HostPassiveScalar")
+  add_sbm_boundary_budget_test(SBM_Mixing_InflowOutflow_ConstantReference
+    inputs_boundary_inflow_outflow nonzero "-DRUN_ARGS=xlo.density=1.0|${_sbm_mixing_open_constant}")
+  add_sbm_boundary_budget_test(SBM_Mixing_InflowOutflow_Deardorff
+    inputs_boundary_inflow_outflow nonzero ${_sbm_mixing_host}
+    "-DRUN_ARGS=xlo.density=1.0|${_sbm_mixing_open_deardorff}")
+  add_sbm_boundary_budget_test(SBM_Mixing_InflowOutflow_Smagorinsky_Shear
+    inputs_boundary_inflow_outflow nonzero ${_sbm_mixing_host}
+    "-DRUN_ARGS=xlo.density=1.0|erf.les_type=Smagorinsky|erf.Cs=0.2|erf.sbm_particle_mixing=HostPassiveScalar|prob.test_flow_amp=0.5")
+  add_sbm_boundary_budget_test(SBM_Mixing_InflowOutflow_2M
+    inputs_boundary_inflow_outflow nonzero
+    "-DRUN_ARGS=xlo.density=1.0|${_sbm_mixing_open_constant}|${_sbm_boundary_2m}|xlo.sbm_inflow_z=1.2e-6 3.0e-6 3.6e-5 2.4e-5 0.8e12 1.0e12 6.0e12 2.0e12")
+  add_sbm_boundary_budget_test(SBM_Mixing_InflowOutflow_AnelasticMidPoint
+    inputs_boundary_inflow_outflow nonzero
+    "-DRUN_ARGS=${_sbm_mixing_open_constant}|erf.compressibility_type=Anelastic|erf.timestepping_type=MidPoint")
+  add_sbm_boundary_budget_test(SBM_Mixing_InflowOutflow_HostTypes
+    inputs_boundary_inflow_outflow nonzero
+    "-DRUN_ARGS=xlo.density=1.0|${_sbm_mixing_open_constant}|xlo.type=inflow_outflow|xhi.type=ho_outflow")
+  # With an LES closure ERF diffuses its own scalars through the inflow_outflow
+  # face as well, on each of the deck's two boxes in x.
+  add_sbm_boundary_budget_test(SBM_Mixing_InflowOutflow_HostPassiveScalar
+    inputs_boundary_inflow_outflow nonzero ${_sbm_mixing_host}
+    "-DRUN_ARGS=xlo.density=1.0|${_sbm_mixing_open_deardorff}|xlo.type=inflow_outflow")
+  add_sbm_boundary_budget_test(SBM_Mixing_InflowOutflow_Stretched
+    inputs_boundary_inflow_outflow nonzero
+    "-DRUN_ARGS=xlo.density=1.0|${_sbm_mixing_open_constant}|erf.grid_stretching_ratio=1.1|erf.initial_dz=0.25")
+  # At rest only mixing crosses the inflow face, and the ledger records it.
+  add_sbm_boundary_budget_test(SBM_Mixing_Inflow_AtRest_DiffusionOnly
+    inputs_boundary_inflow_outflow nonzero
+    "-DRUN_ARGS=xlo.density=1.0|${_sbm_mixing_open_constant}|prob.U_0=0|prob.V_0=0|xlo.velocity=0 0 0")
+  # A front entering an empty domain binds the limiter with mixing active.
+  add_sbm_boundary_budget_test(SBM_Mixing_InflowFront_LimiterBinds
+    inputs_boundary_inflow_outflow nonzero ${_sbm_mixing_host}
+    "-DRUN_ARGS=xlo.density=1.0|${_sbm_mixing_open_deardorff}|erf.sbm_fixture_initial_state=0 0 0 0|max_step=8")
+  # The inflow edge cell sets the combined limit: with K = 40 m^2/s its
+  # half-cell exchange gives 256 K + 8.8 /s, a limit of 9.76e-5 s, where a
+  # closed face or a full-cell exchange would allow 1.30e-4 s.
+  add_sbm_boundary_budget_test(SBM_Mixing_Inflow_Fixed_Safe_DT
+    inputs_boundary_inflow_outflow nonzero
+    "-DRUN_ARGS=xlo.density=1.0|erf.sbm_particle_mixing=ConstantReference|erf.sbm_particle_mixing_kh=40|erf.sbm_particle_mixing_kv=40|erf.fixed_dt=9.6e-5")
+  add_sbm_expected_failure_test(SBM_Mixing_Inflow_Fixed_Unsafe_DT inputs_boundary_inflow_outflow
+    "SBM fixed timestep exceeds the combined advection-diffusion positivity limit"
+    "-DOVERRIDE=erf.sbm_particle_mixing=ConstantReference erf.sbm_particle_mixing_kh=40 erf.sbm_particle_mixing_kv=40 erf.fixed_dt=9.9e-5 xlo.density=1.0")
+
+  # Two levels: the interface registers take the accepted rate, mixing
+  # included, so the leaf inventory still closes every coarse step. The
+  # qualification build's executable accepts only its own two-level decks.
+  if(NOT ERF_ENABLE_SBM_AMR_QUALIFICATION)
+    set(_sbm_mixing_amr_step
+      "erf.sbm_budget_check=true|erf.sbm_fixture_initial_state_xhi=4.e-6 3.e-6 2.e-6 1.e-6")
+    add_sbm_boundary_budget_test(SBM_Mixing_AMR_Periodic_Smagorinsky inputs_amr_production_2level
+      zero -DEXPECTED_LEVELS=2 ${_sbm_mixing_host}
+      "-DRUN_ARGS=erf.les_type=Smagorinsky|erf.Cs=0.2|erf.sbm_particle_mixing=HostPassiveScalar|${_sbm_mixing_amr_step}")
+    add_sbm_boundary_budget_test(SBM_Mixing_AMR_EmptyHalf_LimiterBinds inputs_amr_production_2level
+      zero -DEXPECTED_LEVELS=2 ${_sbm_mixing_host}
+      "-DRUN_ARGS=erf.les_type=Smagorinsky|erf.Cs=0.2|erf.sbm_particle_mixing=HostPassiveScalar|erf.sbm_budget_check=true|erf.sbm_fixture_initial_state_xhi=0 0 0 0|max_step=8|stop_time=1")
+    # K = 10 m^2/s sets dt on both levels, below the acoustic limit.
+    add_sbm_boundary_budget_test(SBM_Mixing_AMR_Adaptive_ConstantReference_DiffusionBound
+      inputs_amr_production_2level zero -DEXPECTED_LEVELS=2
+      "-DRUN_ARGS=erf.sbm_particle_mixing=ConstantReference|erf.sbm_particle_mixing_kh=10|erf.sbm_particle_mixing_kv=10|${_sbm_mixing_amr_step}|erf.fixed_dt=-1|erf.cfl=0.8|stop_time=1")
+    add_sbm_boundary_budget_test(SBM_Mixing_AMR_Outflow_ConstantReference inputs_boundary_amr_2level
+      nonzero -DEXPECTED_LEVELS=2 "-DRUN_ARGS=xlo.density=1.0|${_sbm_mixing_open_constant}")
+    add_sbm_boundary_budget_test(SBM_Mixing_AMR_Outflow_AnelasticMidPoint inputs_boundary_amr_2level
+      nonzero -DEXPECTED_LEVELS=2
+      "-DRUN_ARGS=${_sbm_mixing_open_constant}|erf.compressibility_type=Anelastic|erf.timestepping_type=MidPoint")
+    add_sbm_boundary_budget_test(SBM_Mixing_AMR_Inflow_Deardorff inputs_boundary_amr_2level
+      nonzero -DEXPECTED_LEVELS=2 ${_sbm_mixing_host}
+      "-DRUN_ARGS=xlo.density=1.0|${_sbm_mixing_open_deardorff}|erf.box1.in_box_lo=0.0 0.25 0.0|erf.box1.in_box_hi=0.375 0.75 0.375|erf.box1.move_speed_x=0")
+  endif()
+
   add_sbm_expected_failure_test(SBM_Mixing_Reject_PBL inputs_mixing_walls
     "SBM does not support a PBL closure .erf.pbl_type = MYNN25 .level 0.."
     "-DOVERRIDE=erf.les_type=None erf.sbm_particle_mixing=None erf.pbl_type=MYNN25 zlo.type=surface_layer")
@@ -1033,15 +1133,6 @@ if(TARGET erf_exec AND ERF_DIM STREQUAL "3" AND
   add_sbm_expected_failure_test(SBM_Mixing_Reject_StaticTerrain inputs_periodic_static_terrain
     "SBM particle mixing has no qualified monotone low-order operator on a terrain-fitted"
     "-DOVERRIDE=erf.les_type=Smagorinsky erf.Cs=0.2 erf.sbm_particle_mixing=HostPassiveScalar")
-  # The qualification build's executable accepts only its own two-level decks.
-  if(NOT ERF_ENABLE_SBM_AMR_QUALIFICATION)
-    add_sbm_expected_failure_test(SBM_Mixing_Reject_AMR inputs_amr_production_2level
-      "SBM particle mixing HostPassiveScalar is not yet qualified with AMR"
-      "-DOVERRIDE=erf.les_type=Smagorinsky erf.Cs=0.2 erf.sbm_particle_mixing=HostPassiveScalar")
-  endif()
-  add_sbm_expected_failure_test(SBM_Mixing_Reject_InflowOutflow inputs_boundary_inflow_outflow
-    "SBM particle mixing HostPassiveScalar is qualified with periodic and wall faces only, not the"
-    "-DOVERRIDE=erf.les_type=Smagorinsky erf.Cs=0.2 erf.sbm_particle_mixing=HostPassiveScalar xlo.density=1.0")
   add_sbm_expected_failure_test(SBM_Mixing_Stage_Combined_CFL inputs_mixing_walls
     "SBM combined advection-diffusion outgoing-demand condition failed"
     "-DOVERRIDE=erf.sbm_test_donor_cfl_fault=true")
@@ -1186,6 +1277,26 @@ if(TARGET erf_exec AND ERF_DIM STREQUAL "3" AND
         inputs_boundary_amr_2level equivalence -DEXPECTED_FINAL_LEVELS=2 -DANELASTIC=MidPoint)
     endif()
 
+    # Mixing through an inflow face restarts bitwise, its ledger included. The
+    # schema names the face's mixing, which ERF's inflow and inflow_outflow
+    # share no other line to tell apart.
+    add_sbm_boundary_restart_test(SBM_Mixing_Boundary_Restart_Equivalence
+      inputs_boundary_inflow_outflow equivalence -DEXPECTED_FINAL_LEVELS=1
+      "-DRUN_ARGS=xlo.density=1.0|${_sbm_mixing_open_deardorff}")
+    add_sbm_boundary_restart_test(SBM_Mixing_Boundary_Restart_ChangedInflowType
+      inputs_boundary_inflow_outflow changed_restart_inputs
+      "-DRUN_ARGS=xlo.density=1.0|${_sbm_mixing_open_constant}"
+      "-DRESTART_ARGS=xlo.type=inflow_outflow"
+      "-DEXPECTED_DIAGNOSTIC=SBM restart schema does not exactly match")
+    if(NOT ERF_ENABLE_SBM_AMR_QUALIFICATION)
+      add_sbm_boundary_restart_test(SBM_Mixing_AMR_Restart_Equivalence_Compressible
+        inputs_boundary_amr_2level equivalence -DEXPECTED_FINAL_LEVELS=2
+        "-DRUN_ARGS=xlo.density=1.0|${_sbm_mixing_open_deardorff}")
+      add_sbm_boundary_restart_test(SBM_Mixing_AMR_Restart_Equivalence_AnelasticMidPoint
+        inputs_boundary_amr_2level equivalence -DEXPECTED_FINAL_LEVELS=2 -DANELASTIC=MidPoint
+        "-DRUN_ARGS=${_sbm_mixing_open_constant}")
+    endif()
+
     # A restart reproduces the uninterrupted run bitwise, and a restart under
     # another mixing policy is a different schema. Only ConstantReference has a
     # clean reference without mixing (the same flow), so only it checks that
@@ -1222,6 +1333,14 @@ if(TARGET erf_exec AND ERF_DIM STREQUAL "3" AND
     # Reference coefficients need no restart cap, so an adaptive restart is bitwise.
     add_sbm_particle_mixing_test(SBM_Mixing_ConstantReference_Adaptive_Restart
       "-DRUN_ARGS=${_sbm_mixing_constant_adaptive}"
+      -DRESTART_STEP=2)
+    # The eddy diffusivity is not checkpointed. At rest under a TKE floor it is
+    # constant, so its combined limit, 0.2205 s, sets every step after the first
+    # (dt_max_initial = 0.2 s). The first step after a restart has no
+    # coefficients and no rate yet: keeping the checkpointed step makes the
+    # restart bitwise, where 1.1 times that step would fail the stage check.
+    add_sbm_particle_mixing_test(SBM_Mixing_HostPassiveScalar_Adaptive_Restart
+      "-DRUN_ARGS=erf.les_type=Deardorff|erf.tke_min=1|erf.tke_floor=1|prob.test_flow_amp=0|erf.compressibility_type=Anelastic|erf.timestepping_type=MidPoint|erf.fixed_dt=-1|erf.cfl=0.95|erf.dt_max_initial=0.2"
       -DRESTART_STEP=2)
   endif()
 
