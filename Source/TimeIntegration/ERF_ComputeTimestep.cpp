@@ -841,7 +841,8 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
                 *sbm_transport, eddyDiffs_lev[level].get(), mapfac[level],
                 ax[level].get(), ay[level].get(), stretched_dz_d[level].data());
             // The ghost cells the transmissibility reads, as a stage sees them:
-            // the inflow density beyond an open face, and (approximately) the
+            // beyond an open face the face's prescribed density, or the interior
+            // one where ERF stores none (anelastic), and (approximately) the
             // nearest valid cell at a coarse/fine boundary.
             const auto& boundaries = sbm_transport->physical_boundaries();
             std::array<Real, erf_sbm::physical_face_count> face_density{};

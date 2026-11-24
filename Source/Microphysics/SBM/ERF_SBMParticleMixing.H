@@ -71,7 +71,7 @@ struct ParticleMixingConfig
 /**
  * Mixing accepts periodic, wall, outflow and inflow faces. An inflow_outflow
  * z face is rejected: ERF's own vertical scalar diffusion has no inward-only
- * rule there to follow.
+ * rule there to follow, and ERF accepts inflow_outflow on x and y faces only.
  */
 [[nodiscard]] bool validate_particle_mixing_boundaries (
     const ParticleMixingConfig& config,
@@ -134,9 +134,11 @@ struct ParticleMixingConfig
 /**
  * Fill the one-cell ghost layer of a density copy the way a stage sees it,
  * for a timestep estimate made before ERF fills the step's ghost cells:
- * same-level and periodic neighbours by FillBoundary; beyond an open
- * diffusive face, that face's inflow density; and every other ghost cell,
- * including those at a coarse/fine boundary, from the nearest valid cell of
+ * same-level and periodic neighbors by FillBoundary; beyond an open
+ * diffusive face, that face's density where ERF prescribes one (a positive
+ * `face_density`, as in a compressible run); and every other ghost cell,
+ * including those of an anelastic inflow face, which ERF fills from the
+ * interior, and those at a coarse/fine boundary, from the nearest valid cell of
  * its box. A stage reads interpolated coarse values there, so the estimate is
  * approximate at a coarse/fine boundary; the stage check guards it.
  */

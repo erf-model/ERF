@@ -38,7 +38,7 @@ See :ref:`AuxiliaryState` for the reusable mapped-transport interface.
    cloud- and rain-water fields.
 
    The runtime does not yet provide particle mixing on terrain-following
-   meshes, through ``ho_outflow`` faces or through ``inflow_outflow`` z faces,
+   meshes or through ``ho_outflow`` faces,
    condensation/evaporation, aerosol activation or evolution,
    collision-coalescence, sedimentation, precipitation, spectral transport on
    more than two levels or on refined stretched or terrain-following meshes,
@@ -890,11 +890,11 @@ Each domain face mixes the spectrum as ERF diffuses its scalars there:
 * an ``Inflow`` face exchanges with its ``sbm_inflow_z`` spectrum on every
   cell of the face, as ERF's ``ext_dir`` scalars do;
 * an ``inflow_outflow`` face does so only where the dry-air carrier enters,
-  as ERF's ``ext_dir_upwind`` scalars do. ERF's vertical scalar diffusion has
-  no such rule, so mixing rejects an ``inflow_outflow`` z face.
+  as ERF's ``ext_dir_upwind`` scalars do. ERF accepts ``inflow_outflow`` on
+  x and y faces only.
 
 Where an inflow face mixes, its low-order exchange spans half the edge cell,
-from the cell's centre to the face that holds the inflow value, with the host
+from the cell's center to the face that holds the inflow value, with the host
 face coefficient of the ghost and edge cells, and it joins the combined bound
 below. The high-order candidate is ERF's own boundary stencil: one-sided on a
 constant-z mesh, and two-point against the face value on the side faces of a
@@ -936,10 +936,11 @@ than shrinking the step. Where the eddy diffusivity can
 approach the advective limit, for example an LES started from a strong
 perturbation, leave margin with a smaller ``erf.cfl`` or shrink the first step
 with ``erf.init_shrink``. The estimate reads the ghost cells a stage reads:
-beyond an inflow face that mixes, the face's inflow density. At a coarse/fine
-boundary it takes the nearest fine cell in place of the stage's interpolated
-coarse value, and it is made before the step regrids, on the previous step's
-grids; the stage check guards both.
+beyond an inflow face that mixes, the density ERF gives that ghost, the face's
+``<face>.density`` in a compressible run and the interior density in an
+anelastic one. At a coarse/fine boundary it takes the nearest fine cell in
+place of the stage's interpolated coarse value, and it is made before the step
+regrids, on the previous step's grids; the stage check guards both.
 
 The limiter keeps a roundoff margin of :math:`128\,\epsilon` times each
 cell's gross budget, so a cell it drains exactly to a bound cannot round
@@ -1228,8 +1229,7 @@ The current configuration requires:
 * a three-dimensional ERF build;
 * at most two AMR levels, ``amr.max_level <= 1``;
 * periodic, wall, outflow or prescribed-inflow faces, as in
-  :ref:`sec:SBMBoundaries`, and with particle mixing no ``inflow_outflow``
-  z face;
+  :ref:`sec:SBMBoundaries`;
 * static non-EB geometry; end-to-end evidence covers ``ConstantDz``,
   ``StretchedDz``, and the static ``Cos4Hill`` fitted-mesh profile;
 * no moving terrain, embedded boundaries, or immersed buildings;

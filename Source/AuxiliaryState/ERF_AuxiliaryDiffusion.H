@@ -89,7 +89,7 @@ struct MappedDiffusionBoundary
 /**
  * As above, with open domain faces. Where a face is open, T_f is the host
  * face coefficient, read from the ghost and the edge cell, over half the edge
- * cell: the distance from its centre to the face, which holds the ghost
+ * cell: the distance from its center to the face, which holds the ghost
  * value. Where it is closed, T_f is zero. The validation also reads the ghost
  * cells beyond open faces.
  */

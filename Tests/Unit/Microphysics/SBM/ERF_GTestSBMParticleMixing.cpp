@@ -672,8 +672,10 @@ void run_open_face_validation ()
 // A level covering part of an x-bounded domain: box A spans the inflow face,
 // box B only part of y, and the rest of the domain lies beyond a coarse/fine
 // boundary. Ghosts take the inflow density beyond the open face, their
-// periodic or same-level images, and otherwise the nearest valid cell.
-void run_estimate_density_ghosts ()
+// periodic or same-level images, and otherwise the nearest valid cell. An
+// inflow face without a density of its own (anelastic, where ERF stores zero
+// and fills the ghost from the interior) leaves its ghosts to the nearest cell.
+void run_estimate_density_ghosts (const Real inflow_density)
 {
     const Box domain(IntVect(0), IntVect(7, 5, 4));
     const amrex::RealBox real_box({0.0, 0.0, 0.0}, {1.0, 1.0, 1.0});
@@ -700,7 +702,7 @@ void run_estimate_density_ghosts ()
     faces.kind[3] = erf_sbm::AdvectionFaceKind::AdvectiveOutflow;
     faces.diffusion[0] = DiffusionFaceKind::Dirichlet;
     std::array<Real, erf_sbm::physical_face_count> face_density{};
-    face_density[0] = Real(7.0);
+    face_density[0] = inflow_density;
     face_density[3] = Real(9.0);
     erf_sbm::fill_particle_mixing_density_ghosts(rho, 0, geom, faces, face_density);
 
@@ -719,8 +721,8 @@ void run_estimate_density_ghosts ()
                 const int kw = (k + 5) % 5;
                 const bool in_a = i >= 0 && i <= 3;
                 const bool in_b = i >= 4 && i <= 5 && jw <= 2;
-                if (i < 0) {
-                    expected = Real(7.0);
+                if (i < 0 && inflow_density > Real(0.0)) {
+                    expected = inflow_density;
                 } else if (in_a || in_b) {
                     expected = value(i, jw, kw);
                 } else {
@@ -1798,7 +1800,11 @@ TEST(AuxiliaryDiffusion, StretchedGridTransmissibilityMatchesHostDiffusion) { ru
 TEST(AuxiliaryDiffusion, PhysicalFacesCarryNoDiffusiveTransfer) { run_physical_faces(); }
 TEST(AuxiliaryDiffusion, OpenFacesExchangeOverHalfTheEdgeCell) { run_open_faces(); }
 TEST(AuxiliaryDiffusion, OpenFacesValidateTheirGhostsAndCarrier) { run_open_face_validation(); }
-TEST(SBMParticleMixing, EstimateDensityGhostsFollowTheStage) { run_estimate_density_ghosts(); }
+TEST(SBMParticleMixing, EstimateDensityGhostsFollowTheStage)
+{
+    run_estimate_density_ghosts(Real(7.0));
+    run_estimate_density_ghosts(Real(0.0));
+}
 TEST(AuxiliaryDiffusion, ZeroCoefficientIsTheIdentity) { run_zero_coefficient_identity(); }
 TEST(AuxiliaryDiffusion, ExchangeConservesInventory)
 {

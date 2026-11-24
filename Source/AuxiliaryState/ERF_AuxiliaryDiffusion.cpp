@@ -348,16 +348,16 @@ bool BuildMappedDiffusionTransmissibility (
         } else {
             fill_transmissibility<true, false>(transmissibility, geom, metrics, coefficients,
                                                density, density_component, eddy_diffusivity,
-                                              boundary);
+                                               boundary);
         }
     } else if (mode.add_turbulence) {
         fill_transmissibility<false, true>(transmissibility, geom, metrics, coefficients,
                                            density, density_component, eddy_diffusivity,
-                                              boundary);
+                                           boundary);
     } else {
         fill_transmissibility<false, false>(transmissibility, geom, metrics, coefficients,
                                             density, density_component, eddy_diffusivity,
-                                              boundary);
+                                            boundary);
     }
 
     for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {

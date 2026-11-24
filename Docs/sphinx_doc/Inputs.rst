@@ -5420,8 +5420,7 @@ execution restrictions.
        ``ConstantReference`` with constant kinematic diffusivities. One or two
        levels, constant- or stretched-z mesh. An ``Inflow`` face mixes with its
        ``sbm_inflow_z`` spectrum, an ``inflow_outflow`` face only where the
-       carrier enters (rejected on z faces), and outflow and wall faces carry
-       no mixing.
+       carrier enters, and outflow and wall faces carry no mixing.
      - ``None``, ``ConstantReference``, ``HostPassiveScalar``
      - ``None``
    * - ``erf.sbm_particle_mixing_kh``, ``erf.sbm_particle_mixing_kv``

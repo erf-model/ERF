@@ -335,12 +335,17 @@ fill_particle_mixing_density_ghosts (
     mask.BuildMask(geom.Domain(), geom.periodicity(), is_covered, is_notcovered,
                    is_physbnd, is_interior);
     const amrex::Box& domain = geom.Domain();
-    amrex::GpuArray<int, physical_face_count> open{};
+    // ERF gives the ghost beyond a face the face's density only where one is
+    // prescribed, a positive stored value (face_rho_is_extdir); an anelastic
+    // inflow face stores zero and takes the interior density, as the nearest
+    // valid cell below does.
+    amrex::GpuArray<int, physical_face_count> prescribed{};
     amrex::GpuArray<amrex::Real, physical_face_count> values{};
     for (int face = 0; face < physical_face_count; ++face) {
-        open[face] = boundaries.diffusion[static_cast<std::size_t>(face)] !=
-                     erf_auxiliary::DiffusionFaceKind::Closed ? 1 : 0;
-        values[face] = face_density[static_cast<std::size_t>(face)];
+        const auto f = static_cast<std::size_t>(face);
+        prescribed[face] = (boundaries.diffusion[f] != erf_auxiliary::DiffusionFaceKind::Closed &&
+                            face_density[f] > amrex::Real(0.0)) ? 1 : 0;
+        values[face] = face_density[f];
     }
     for (amrex::MFIter mfi(density, false); mfi.isValid(); ++mfi) {
         const amrex::Box valid = mfi.validbox();
@@ -350,20 +355,20 @@ fill_particle_mixing_density_ghosts (
         const auto vhi = amrex::ubound(valid);
         const auto dlo = amrex::lbound(domain);
         const auto dhi = amrex::ubound(domain);
-        const auto open_faces = open;
+        const auto prescribed_faces = prescribed;
         const auto face_values = values;
         amrex::ParallelFor(amrex::grow(valid, 1), [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
             const int kind = m(i, j, k);
             if (kind == is_interior || kind == is_covered) { return; }
             if (kind == is_physbnd) {
-                // The inflow density of the first open face the ghost lies beyond.
+                // The prescribed density of the first open face the ghost lies beyond.
                 const int index[3] = {i, j, k};
                 const int lo[3] = {dlo.x, dlo.y, dlo.z};
                 const int hi[3] = {dhi.x, dhi.y, dhi.z};
                 for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
                     const int face = index[dir] < lo[dir] ? dir
                                    : (index[dir] > hi[dir] ? dir + AMREX_SPACEDIM : -1);
-                    if (face >= 0 && open_faces[face] != 0) {
+                    if (face >= 0 && prescribed_faces[face] != 0) {
                         rho(i, j, k, component) = face_values[face];
                         return;
                     }
