@@ -986,6 +986,74 @@ ERF::fill_terrain_surface (int lev, MultiFab& z_phys, double elapsed_time)
     }
 }
 
+/**
+ * Build the nodal heights of level lev in dst from the terrain description: interpolate from
+ * the coarser level's heights crse_znd (lev > 0 only; pass nullptr at level 0), put the terrain
+ * surface at this level's resolution in the k=0 slab (unless the fine terrain is interpolated),
+ * and fit the mesh to it.  dst may live on any BoxArray at level lev; only its own boxes and ghost
+ * nodes are filled, so a level and a temporary MultiFab on the same boxes get identical heights.
+ * This is the path for terrain given by the problem (not WRFInput or Metgrid).
+ *
+ * @param[in]  lev       level of refinement whose resolution dst has
+ * @param[in]  crse_znd  heights of level lev-1, with all their ghost nodes filled (lev > 0)
+ * @param[out] dst       nodal heights at level lev
+ * @param[in]  time      time at which the terrain surface is evaluated
+ */
+void
+ERF::build_zphys_nd (int lev, const MultiFab* crse_znd, MultiFab& dst, double time)
+{
+    if (lev > 0) {
+        AMREX_ALWAYS_ASSERT(crse_znd != nullptr);
+        //
+        // First interpolate from coarser level
+        // NOTE: this interpolater assumes that ALL ghost cells of the coarse MultiFab
+        //       have been pre-filled - this includes ghost cells both inside and outside
+        //       the domain
+        //
+        InterpFromCoarseLevel(dst, dst.nGrowVect(),
+                              IntVect(0,0,0), // do NOT fill ghost cells outside the domain
+                              *crse_znd, 0, 0, 1,
+                              geom[lev-1], geom[lev],
+                              refRatio(lev-1), &node_bilinear_interp,
+                              domain_bcs_type, BCVars::cons_bc);
+    }
+
+    //
+    // The STF and Sullivan TF transformations are only defined on a level that
+    // spans the full column, so on a fine level we build the mesh from the one
+    // just interpolated from the coarse level instead.  "interpolate" uses that
+    // mesh as-is; "transform" additionally reads the terrain at the fine
+    // resolution and blends it in with a correction that decays with height.
+    //
+    ParmParse pp("erf");
+    int terrain_smoothing = 0;
+    pp.query("terrain_smoothing", terrain_smoothing);
+
+    FineTerrain fine_terrain = (lev > 0 && terrain_smoothing != 0) ? which_fine_terrain()
+                                                                  : FineTerrain::None;
+
+    //
+    // Save the interpolated mesh before the fine terrain overwrites the k=0 slab,
+    // since the transform is expressed relative to it.  The ghost nodes are
+    // included because the transform corrects the ghost columns as well.
+    //
+    MultiFab z_phys_interp;
+    if (fine_terrain == FineTerrain::Transform) {
+        z_phys_interp.define(dst.boxArray(), dst.DistributionMap(), 1, dst.nGrowVect());
+        MultiFab::Copy(z_phys_interp, dst, 0, 0, 1, dst.nGrowVect());
+    }
+
+    if (fine_terrain != FineTerrain::Interpolate) {
+        fill_terrain_surface(lev, dst, time);
+    }
+
+    // This also fills the values of dst outside the domain
+    make_terrain_fitted_coords(lev,geom[lev],dst,zlevels_stag[lev],phys_bc_type,
+                               fine_terrain,
+                               (fine_terrain == FineTerrain::Transform) ? &z_phys_interp : nullptr,
+                               (solverChoice.terrain_type == TerrainType::MovingFittedMesh));
+}
+
 void
 ERF::init_zphys (int lev, double elapsed_time)
 {
@@ -1000,55 +1068,7 @@ ERF::init_zphys (int lev, double elapsed_time)
 
     if (solverChoice.init_type != InitType::WRFInput && solverChoice.init_type != InitType::Metgrid)
     {
-        if (lev > 0) {
-            //
-            // First interpolate from coarser level if there is one
-            // NOTE: this interpolater assumes that ALL ghost cells of the coarse MultiFab
-            //       have been pre-filled - this includes ghost cells both inside and outside
-            //       the domain
-            //
-            InterpFromCoarseLevel(*z_phys_nd[lev], z_phys_nd[lev]->nGrowVect(),
-                                  IntVect(0,0,0), // do NOT fill ghost cells outside the domain
-                                  *z_phys_nd[lev-1], 0, 0, 1,
-                                  geom[lev-1], geom[lev],
-                                  refRatio(lev-1), &node_bilinear_interp,
-                                  domain_bcs_type, BCVars::cons_bc);
-        }
-
-        //
-        // The STF and Sullivan TF transformations are only defined on a level that
-        // spans the full column, so on a fine level we build the mesh from the one
-        // just interpolated from the coarse level instead.  "interpolate" uses that
-        // mesh as-is; "transform" additionally reads the terrain at the fine
-        // resolution and blends it in with a correction that decays with height.
-        //
-        ParmParse pp("erf");
-        int terrain_smoothing = 0;
-        pp.query("terrain_smoothing", terrain_smoothing);
-
-        FineTerrain fine_terrain = (lev > 0 && terrain_smoothing != 0) ? which_fine_terrain()
-                                                                      : FineTerrain::None;
-
-        //
-        // Save the interpolated mesh before the fine terrain overwrites the k=0 slab,
-        // since the transform is expressed relative to it.  The ghost nodes are
-        // included because the transform corrects the ghost columns as well.
-        //
-        MultiFab z_phys_interp;
-        if (fine_terrain == FineTerrain::Transform) {
-            z_phys_interp.define(z_phys_nd[lev]->boxArray(), z_phys_nd[lev]->DistributionMap(),
-                                 1, z_phys_nd[lev]->nGrowVect());
-            MultiFab::Copy(z_phys_interp, *z_phys_nd[lev], 0, 0, 1, z_phys_nd[lev]->nGrowVect());
-        }
-
-        if (fine_terrain != FineTerrain::Interpolate) {
-            fill_terrain_surface(lev, *z_phys_nd[lev], elapsed_time);
-        }
-
-        make_terrain_fitted_coords(lev,geom[lev],*z_phys_nd[lev],zlevels_stag[lev],phys_bc_type,
-                                   fine_terrain,
-                                   (fine_terrain == FineTerrain::Transform) ? &z_phys_interp : nullptr,
-                                   (solverChoice.terrain_type == TerrainType::MovingFittedMesh));
+        build_zphys_nd(lev, (lev > 0) ? z_phys_nd[lev-1].get() : nullptr, *z_phys_nd[lev], elapsed_time);
 
         z_phys_nd[lev]->FillBoundary(geom[lev].periodicity());
 
@@ -1151,52 +1171,7 @@ ERF::remake_zphys (int lev, Real time, std::unique_ptr<MultiFab>& temp_zphys_nd)
         if (lev == 0) {
             temp_zphys_nd->ParallelCopy(*z_phys_nd[lev], 0, 0, 1, z_phys_nd[lev]->nGrowVect(), z_phys_nd[lev]->nGrowVect());
         } else {
-            //
-            // First interpolate from coarser level
-            // NOTE: this interpolater assumes that ALL ghost cells of the coarse MultiFab
-            //       have been pre-filled - this includes ghost cells both inside and outside
-            //       the domain
-            //
-            InterpFromCoarseLevel(*temp_zphys_nd, z_phys_nd[lev]->nGrowVect(),
-                                  IntVect(0,0,0), // do NOT fill ghost cells outside the domain
-                                  *z_phys_nd[lev-1], 0, 0, 1,
-                                  geom[lev-1], geom[lev],
-                                  refRatio(lev-1), &node_bilinear_interp,
-                                  domain_bcs_type, BCVars::cons_bc);
-
-            //
-            // On a fine level with STF or Sullivan TF we have to rebuild the mesh the
-            // same way init_zphys() did, since make_terrain_fitted_coords() cannot
-            // apply the transformation to a level that does not span the full column
-            //
-            ParmParse pp("erf");
-            int terrain_smoothing = 0;
-            pp.query("terrain_smoothing", terrain_smoothing);
-
-            FineTerrain fine_terrain = (terrain_smoothing != 0) ? which_fine_terrain()
-                                                                : FineTerrain::None;
-
-            MultiFab z_phys_interp;
-            if (fine_terrain == FineTerrain::Transform) {
-                z_phys_interp.define(temp_zphys_nd->boxArray(), temp_zphys_nd->DistributionMap(),
-                                     1, temp_zphys_nd->nGrowVect());
-                // Ghost nodes included: the transform corrects the ghost columns too
-                MultiFab::Copy(z_phys_interp, *temp_zphys_nd, 0, 0, 1, temp_zphys_nd->nGrowVect());
-            }
-
-            // As in init_zphys, every mode except Interpolate builds on the terrain at the
-            //    fine resolution rather than the surface interpolated from the coarse level
-            if (fine_terrain != FineTerrain::Interpolate) {
-                fill_terrain_surface(lev, *temp_zphys_nd, time);
-            }
-
-            // This recomputes the fine values using the bottom terrain at the fine resolution,
-            //    and also fills values of z_phys_nd outside the domain
-            make_terrain_fitted_coords(lev,geom[lev],*temp_zphys_nd,zlevels_stag[lev],phys_bc_type,
-                                       fine_terrain,
-                                       (fine_terrain == FineTerrain::Transform) ? &z_phys_interp : nullptr,
-                                       (solverChoice.terrain_type == TerrainType::MovingFittedMesh));
-
+            build_zphys_nd(lev, z_phys_nd[lev-1].get(), *temp_zphys_nd, time);
         } // lev > 0
 
         std::swap(temp_zphys_nd, z_phys_nd[lev]);
