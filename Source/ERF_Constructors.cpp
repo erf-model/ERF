@@ -226,7 +226,7 @@ void validate_sbm_m3_advection (const SolverChoice& choice,
         std::string reason;
         if (!erf_sbm::validate_particle_mixing_host(mixing, choice.turbChoice,
                                                     choice.diffChoice.molec_diff_type,
-                                                    choice.mesh_type, max_level, reason)) {
+                                                    choice.mesh_type, reason)) {
             amrex::Abort(reason);
         }
     }

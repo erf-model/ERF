@@ -255,13 +255,14 @@ add_low_order_mixing (erf_auxiliary::MappedFaceFluxRate& low,
 }
 
 // ERF's own N/S scalar diffusion of one chunk's stage-input intensive state,
-// added to the high-order rates; physical faces stay without transfer.
+// added to the high-order rates; a domain face adds it only where it is open.
 void
 add_high_order_mixing (erf_auxiliary::MappedFaceFluxRate& high,
                        erf_auxiliary::MappedFaceFluxRate& scratch,
                        const ParticleMixingConfig& config,
                        const SBMStageMixingInputs& inputs,
                        const amrex::BCRec* bc,
+                       const erf_auxiliary::MappedDiffusionBoundary& boundary,
                        const amrex::Geometry& geometry,
                        const MultiFab& input_intensive,
                        const MultiFab& input_conserved,
@@ -350,14 +351,23 @@ add_high_order_mixing (erf_auxiliary::MappedFaceFluxRate& high,
             const int lo = domain.smallEnd(dir);
             const int hi = domain.bigEnd(dir);
             const bool periodic = geometry.isPeriodic(dir);
+            const auto kind_lo = boundary.kind[static_cast<std::size_t>(dir)];
+            const auto kind_hi = boundary.kind[static_cast<std::size_t>(dir + AMREX_SPACEDIM)];
+            const MultiFab* carrier_field = boundary.carrier[static_cast<std::size_t>(dir)];
             for (amrex::MFIter mfi(high.dir(dir), amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
                 const amrex::Box bx = mfi.tilebox();
                 const auto out = high.dir(dir).array(mfi);
                 const auto add = scratch.dir(dir).const_array(mfi);
+                const auto carrier = carrier_field != nullptr ? carrier_field->const_array(mfi)
+                                                              : amrex::Array4<const Real>{};
                 amrex::ParallelFor(bx, ncomp,
                     [=] AMREX_GPU_DEVICE(int i, int j, int k, int n) noexcept {
                         const int index = dir == 0 ? i : (dir == 1 ? j : k);
-                        if (periodic || (index != lo && index != hi + 1)) {
+                        const bool open =
+                            periodic || (index != lo && index != hi + 1) ||
+                            erf_auxiliary::DiffusionDomainFaceIsOpen(index == lo, kind_lo,
+                                                                     kind_hi, carrier, i, j, k);
+                        if (open) {
                             out(i, j, k, n) += add(i, j, k, n);
                         }
                     });
@@ -365,6 +375,42 @@ add_high_order_mixing (erf_auxiliary::MappedFaceFluxRate& high,
             if (!high.dir(dir).is_finite(0, ncomp, 0)) {
                 amrex::Abort("SBM high-order particle mixing produced a nonfinite "
                              "rate; check the stage-input density and eddy diffusivity");
+            }
+        }
+    }
+}
+
+// The ghost cells beyond an open diffusive face are no cells of the domain and
+// carry no budget: a ratio of one there leaves the face limiter to the edge
+// cell's own budgets, which include that face's correction.
+void
+open_face_ratio_ghosts (MultiFab& ratios, const amrex::Geometry& geometry,
+                        const SBMPhysicalBoundaryConfig& boundaries)
+{
+    const amrex::Box& domain = geometry.Domain();
+    const int ncomp = ratios.nComp();
+    for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
+        if (geometry.isPeriodic(dir)) continue;
+        for (const auto side : {amrex::Orientation::low, amrex::Orientation::high}) {
+            const int face = amrex::Orientation(dir, side);
+            if (boundaries.diffusion[static_cast<std::size_t>(face)] ==
+                erf_auxiliary::DiffusionFaceKind::Closed) {
+                continue;
+            }
+            const bool low = side == amrex::Orientation::low;
+            for (amrex::MFIter mfi(ratios, false); mfi.isValid(); ++mfi) {
+                amrex::Box ghost = mfi.fabbox();
+                if (low) {
+                    ghost.setBig(dir, domain.smallEnd(dir) - 1);
+                } else {
+                    ghost.setSmall(dir, domain.bigEnd(dir) + 1);
+                }
+                if (!ghost.ok()) continue;
+                const auto values = ratios.array(mfi);
+                amrex::ParallelFor(ghost, ncomp,
+                    [=] AMREX_GPU_DEVICE(int i, int j, int k, int n) noexcept {
+                        values(i, j, k, n) = Real(1.0);
+                    });
             }
         }
     }
@@ -1869,10 +1915,15 @@ SBMTransport::set_physical_boundaries (const SBMPhysicalBoundaryConfig& config)
         std::copy(z.begin(), z.end(),
                   host_inflow.begin() + static_cast<std::ptrdiff_t>(face * ncomp));
     }
+    std::string reason;
+    if (!validate_particle_mixing_boundaries(m_mixing, config, reason)) {
+        throw std::invalid_argument(reason);
+    }
     m_boundaries = config;
     m_inflow_device.resize(host_inflow.size());
     amrex::Gpu::copy(amrex::Gpu::hostToDevice, host_inflow.begin(),
                      host_inflow.end(), m_inflow_device.begin());
+    install_mixing_bc();
 }
 
 void
@@ -1895,14 +1946,30 @@ SBMTransport::set_particle_mixing (const ParticleMixingConfig& config,
     if (!validate_particle_mixing_config(config, reason)) {
         throw std::invalid_argument("SBM particle mixing: " + reason);
     }
+    if (!validate_particle_mixing_boundaries(config, m_boundaries, reason)) {
+        throw std::invalid_argument(reason);
+    }
     m_mixing = config;
     m_mixing_mesh = mesh;
-    // Every physical face carries zero diffusive transfer, so the high-order
-    // builder needs no Dirichlet stencil there.
+    install_mixing_bc();
+}
+
+void
+SBMTransport::install_mixing_bc ()
+{
+    // A closed face's high-order transfer is discarded, so it needs no
+    // Dirichlet stencil; an open face takes ERF's ext_dir stencil against the
+    // inflow spectrum in its ghost cells. An inward-only face is masked by the
+    // carrier sign afterwards, since the builder has no velocity to judge it.
     amrex::BCRec bc;
     for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
-        bc.setLo(dir, ERFBCType::foextrap);
-        bc.setHi(dir, ERFBCType::foextrap);
+        const auto type = [&] (const int face) {
+            return m_boundaries.diffusion[static_cast<std::size_t>(face)] ==
+                           erf_auxiliary::DiffusionFaceKind::Closed
+                       ? ERFBCType::foextrap : ERFBCType::ext_dir;
+        };
+        bc.setLo(dir, type(dir));
+        bc.setHi(dir, type(dir + AMREX_SPACEDIM));
     }
     m_mixing_bc.resize(1);
     amrex::Gpu::copy(amrex::Gpu::hostToDevice, &bc, &bc + 1, m_mixing_bc.begin());
@@ -2111,10 +2178,6 @@ SBMTransport::advance_stage (const int level,
                           "particle mixing policy"));
     }
     if (mixing_active) {
-        if (level > 0 || data.interface_as_coarse != nullptr ||
-            data.interface_as_fine != nullptr) {
-            amrex::Abort("SBM particle mixing is not yet qualified with AMR");
-        }
         if (mixing->metrics.mesh != m_mixing_mesh) {
             amrex::Abort("SBM particle mixing received metrics for another mesh than "
                          "the one installed with its policy");
@@ -2352,6 +2415,8 @@ SBMTransport::advance_stage (const int level,
     // its low-order exchange from the same base to the outgoing demand.
     const auto inv_dx = geometry.InvCellSizeArray();
     const Real tau = static_cast<Real>(recipe.limiter_trial_interval);
+    const auto mixing_boundary =
+        particle_mixing_boundary(m_boundaries, {&avg_xmom, &avg_ymom, &avg_zmom});
     if (mixing_active) {
         if (!data.transmissibility.is_defined()) {
             data.transmissibility.define(data.measure.boxArray(),
@@ -2362,7 +2427,8 @@ SBMTransport::advance_stage (const int level,
         }
         if (!build_particle_mixing_transmissibility(
                 m_mixing, geometry, mixing->metrics, trial_conserved, Rho_comp,
-                mixing->eddy_diffusivity, data.transmissibility, diagnostic)) {
+                mixing->eddy_diffusivity, mixing_boundary, data.transmissibility,
+                diagnostic)) {
             amrex::Abort("SBM stage particle mixing at level " + std::to_string(level) +
                          " stage " + std::to_string(stage) + ": " + diagnostic);
         }
@@ -2562,13 +2628,14 @@ SBMTransport::advance_stage (const int level,
         if (physical_faces) {
             apply_physical_donor_band(data.high_rate, data.low_rate, geometry);
         }
-        // The donor band above covers advection only; the diffusive exchange
-        // is a two-point stencil that reads no physical ghost.
+        // The donor band above covers advection only. The diffusive exchange
+        // is a two-point stencil, which reads a physical ghost only beyond an
+        // open face, where it holds the inflow spectrum.
         if (mixing_active) {
             add_low_order_mixing(data.low_rate, data.mixing_rate, data.transmissibility,
                                  geometry, data.base_intensive, chunk.components);
             add_high_order_mixing(data.high_rate, data.mixing_rate, m_mixing, *mixing,
-                                  m_mixing_bc.data(), geometry,
+                                  m_mixing_bc.data(), mixing_boundary, geometry,
                                   data.physical_input_intensive, conserved_input,
                                   chunk.components);
         }
@@ -2842,6 +2909,9 @@ SBMTransport::advance_stage (const int level,
         // Every complete group has now written its own ratio components.
         // Exchange the chunk's ratio halo once before any group reads it.
         data.cell_ratios.FillBoundary(geometry.periodicity());
+        if (mixing_active) {
+            open_face_ratio_ghosts(data.cell_ratios, geometry, m_boundaries);
+        }
         if (data.invalid.max(0) != Real(0.0)) {
             std::ostringstream message;
             message.precision(17);
