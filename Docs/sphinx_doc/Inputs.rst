@@ -6877,6 +6877,49 @@ besides.
 | **erf.fire.plot_per**                          | Seconds between fire plotfiles; <= 0 disables              | Real                           | erf.plot_per_1         |
 +------------------------------------------------+------------------------------------------------------------+--------------------------------+------------------------+
 
+.. _sec:InputsFlood:
+
+Flood Coupling
+==============
+
+These inputs configure the atmosphere side of the flood coupling described in
+:ref:`sec:FloodCoupling`; they need a build with ``ERF_ENABLE_FLOOD=ON``
+(``USE_FLOOD = TRUE`` with GNU make). The ``erf.flood`` keys other than the
+three plotfile keys are read once at start-up by ``FloodCouplingParams::read()``,
+which stops the run on a value outside the range given here, naming the key;
+``erf.flood.anchor_level`` is checked against the finest level when the flood
+grid is built.
+A flood engine reads its own inputs besides.
+
++------------------------------------------------+------------------------------------------------------------+--------------------------------+------------------------+
+| Parameter                                      | Definition                                                 | Acceptable Values              | Default                |
++================================================+============================================================+================================+========================+
+| **erf.flood.enable**                           | Run a flood (needs a flood engine compiled in, see         | Boolean                        | false                  |
+|                                                | :ref:`sec:FloodCoupling`)                                  |                                |                        |
++------------------------------------------------+------------------------------------------------------------+--------------------------------+------------------------+
+| **erf.flood.engine**                           | The flood engine behind the coupling, one of the engines   | String                         | the only one built     |
+|                                                | compiled in (ERF_REGISTER_FLOOD_ENGINE); required when     |                                |                        |
+|                                                | several are; with none, setting it stops the run           |                                |                        |
++------------------------------------------------+------------------------------------------------------------+--------------------------------+------------------------+
+| **erf.flood.grid_ratio**                       | Flood cells per atmospheric cell in x and y                | Integer >= 1                   | 1                      |
++------------------------------------------------+------------------------------------------------------------+--------------------------------+------------------------+
+| **erf.flood.anchor_level**                     | AMR level whose grid the flood grid refines; -1 is the     | -1, or 0 to the finest level   | -1                     |
+|                                                | finest level at start-up. Above level 0 the level must     |                                |                        |
+|                                                | keep its boxes (erf.regrid_int = -1); on every level the   |                                |                        |
+|                                                | boxes must span the full height and cover one rectangle;   |                                |                        |
+|                                                | a level below the finest prints a note                     |                                |                        |
++------------------------------------------------+------------------------------------------------------------+--------------------------------+------------------------+
+| **erf.flood.plot_file**                        | Prefix of the engine's flood plotfile                      | String                         | ``plt_flood_``         |
++------------------------------------------------+------------------------------------------------------------+--------------------------------+------------------------+
+| **erf.flood.plot_int**                         | Steps between flood plotfiles; <= 0 disables. With neither | Integer                        | erf.plot_int_1         |
+|                                                | this nor plot_per given, both take erf.plot_int_1 and      |                                |                        |
+|                                                | erf.plot_per_1, so the engine writes a plotfile at every   |                                |                        |
+|                                                | 3D plotfile                                                |                                |                        |
++------------------------------------------------+------------------------------------------------------------+--------------------------------+------------------------+
+| **erf.flood.plot_per**                         | Seconds between flood plotfiles; <= 0 disables; see        | Real                           | erf.plot_per_1         |
+|                                                | erf.flood.plot_int for the fallback                        |                                |                        |
++------------------------------------------------+------------------------------------------------------------+--------------------------------+------------------------+
+
 .. _inputs-particles:
 
 Particles

@@ -1,0 +1,6 @@
+# GNU make: the flood engine directory's sources. Exec/Make.ERF includes this
+# file for each directory listed in FLOOD_HOME, with FLOOD_ENGINE_DIR set to it
+# and the directory already on VPATH and the include path. An engine that links
+# a prebuilt library adds it here, for example
+#   LIBRARIES += -L$(MY_FLOOD_DIR)/lib -lmyflood
+CEXE_sources += ERF_FloodEngineExample.cpp
