@@ -182,6 +182,14 @@ Set build variables in the ``GNUmakefile``:
         - Fire engine directories to compile in, space separated, each with a ``Make.package`` (needs ``USE_FIRE=TRUE``; for an engine repository that holds ERF as a submodule, see :ref:`sec:FireCoupling`)
         - (none)
         - paths
+      * - ``USE_FLOOD``
+        - Enables the flood coupling (atmosphere side; flood engines plug into it, see :ref:`sec:FloodCoupling`)
+        - FALSE
+        - TRUE/FALSE
+      * - ``FLOOD_HOME``
+        - Flood engine directories to compile in, space separated, each with a ``Make.package`` (needs ``USE_FLOOD=TRUE``; see :ref:`sec:FloodCoupling`)
+        - (none)
+        - paths
       * - ``USE_MOVING_BODIES``
         - Enables the actuator core for bodies in the flow (velocity sampling at points, force spreading onto the momentum sources; see :ref:`sec:ActuatorCore`) and the structure coupling (see :ref:`sec:StructureCoupling`)
         - FALSE
@@ -565,6 +573,14 @@ CMake can also generate makefiles for the Ninja build system for faster compilat
      - ON/OFF
    * - ``ERF_FIRE_ENGINE_DIRS``
      - Fire engine directories to compile in, a CMake list, each with an ``ERFFireEngine.cmake`` (needs ``ERF_ENABLE_FIRE=ON``; set by an engine repository that holds ERF as a submodule, and left unset when that repository uses ERF as a library; see :ref:`sec:FireCoupling`)
+     - (none)
+     - paths
+   * - ``ERF_ENABLE_FLOOD``
+     - Enables the flood coupling (atmosphere side; flood engines plug into it, see :ref:`sec:FloodCoupling`)
+     - OFF
+     - ON/OFF
+   * - ``ERF_FLOOD_ENGINE_DIRS``
+     - Flood engine directories to compile in, a CMake list, each with an ``ERFFloodEngine.cmake`` (needs ``ERF_ENABLE_FLOOD=ON``; see :ref:`sec:FloodCoupling`)
      - (none)
      - paths
    * - ``ERF_ENABLE_MOVING_BODIES``

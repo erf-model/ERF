@@ -327,6 +327,41 @@ function(build_erf_lib erf_lib_name)
     message(FATAL_ERROR "ERF_FIRE_ENGINE_DIRS is set but ERF_ENABLE_FIRE is OFF")
   endif()
 
+  if(ERF_ENABLE_FLOOD)
+    # The flood coupling, atmosphere side, shared by every flood engine
+    target_sources(${erf_lib_name} PRIVATE
+      ${SRC_DIR}/FloodCoupling/ERF_FloodCoupler.cpp
+      ${SRC_DIR}/FloodCoupling/ERF_FloodCouplingParams.cpp
+      ${SRC_DIR}/FloodCoupling/ERF_FloodEngineRegistry.cpp
+      ${SRC_DIR}/FloodCoupling/ERF_FloodGrid.cpp
+      ${SRC_DIR}/FloodCoupling/ERF_FloodPrerequisites.cpp
+    )
+    target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Source/FloodCoupling>)
+    target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_FLOOD)
+
+    # Flood engines live outside ERF, each in a directory that provides
+    # ERFFloodEngine.cmake defining erf_flood_engine_add(target), called right
+    # after its file is included; ERF_FLOOD_ENGINE_DIR holds the engine's
+    # directory during the call.
+    foreach(_flood_dir IN LISTS ERF_FLOOD_ENGINE_DIRS)
+      get_filename_component(_flood_dir "${_flood_dir}" ABSOLUTE)
+      if(NOT EXISTS "${_flood_dir}/ERFFloodEngine.cmake")
+        message(FATAL_ERROR "ERF_FLOOD_ENGINE_DIRS: ${_flood_dir} has no ERFFloodEngine.cmake")
+      endif()
+      set(ERF_FLOOD_ENGINE_DIR "${_flood_dir}")
+      # A file that does not define erf_flood_engine_add would otherwise call
+      # the one of the directory before it; this definition stops the configure.
+      function(erf_flood_engine_add target)
+        message(FATAL_ERROR "${ERF_FLOOD_ENGINE_DIR}/ERFFloodEngine.cmake does not define erf_flood_engine_add(target)")
+      endfunction()
+      include("${_flood_dir}/ERFFloodEngine.cmake")
+      erf_flood_engine_add(${erf_lib_name})
+      message(STATUS "ERF flood engine directory: ${_flood_dir}")
+    endforeach()
+  elseif(ERF_FLOOD_ENGINE_DIRS)
+    message(FATAL_ERROR "ERF_FLOOD_ENGINE_DIRS is set but ERF_ENABLE_FLOOD is OFF")
+  endif()
+
   if(ERF_ENABLE_DUST)
     # The dust scalars sit in the conserved state after the base scalar
     # (ERF_IndexDefines.H), so their number is fixed when ERF is compiled
