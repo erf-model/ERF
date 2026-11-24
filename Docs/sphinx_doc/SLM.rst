@@ -165,8 +165,9 @@ Parameter tables and external forcing
 +----------------------------------+----------------------------------------------------------+----------------------+------------------+
 
 When ``use_parameter_file`` is false, SLM uses built-in typical MODIS/STAS
-values for vegetation optical properties, canopy parameters, and soil albedos.
+values for canopy parameters and soil properties.
 When it is true, values from the parameter file are used directly.
+Initializing from WRFInput or Metgrid requires ``use_parameter_file = true``.
 
 ``use_parameter_file`` and ``use_param_tbl`` are mutually exclusive.  When
 ``use_param_tbl`` is true, SLM reads the ``slm.vegparam`` table for
@@ -226,7 +227,7 @@ For each horizontal cell, SLM performs the following operations:
   value is a normalized wetness fraction, with saturation represented relative to
   ``poro_soil``.
 
-For WRF ``ISLTYP`` values 1--16, SLM assigns the following sand and clay
+For WRF ``ISLTYP`` values 1--19, SLM assigns the following sand and clay
 contents to every soil layer in the cell.
 
 +----------+-----------------------+----------+----------+
@@ -246,9 +247,9 @@ contents to every soil layer in the cell.
 +----------+-----------------------+----------+----------+
 | 7        | Sandy clay loam       | 60.0     | 30.0     |
 +----------+-----------------------+----------+----------+
-| 8        | Clay loam             | 32.0     | 34.0     |
+| 8        | Silty clay loam       | 20.0     | 40.0     |
 +----------+-----------------------+----------+----------+
-| 9        | Silty clay loam       | 20.0     | 40.0     |
+| 9        | Clay loam             | 32.0     | 34.0     |
 +----------+-----------------------+----------+----------+
 | 10       | Sandy clay            | 52.0     | 42.0     |
 +----------+-----------------------+----------+----------+
@@ -264,20 +265,22 @@ contents to every soil layer in the cell.
 +----------+-----------------------+----------+----------+
 | 16       | Other/urban           | 0.1      | 0.1      |
 +----------+-----------------------+----------+----------+
+| 17       | Playa                 | 20.0     | 60.0     |
++----------+-----------------------+----------+----------+
+| 18       | Lava                  | 0.1      | 0.1      |
++----------+-----------------------+----------+----------+
+| 19       | White sand            | 92.0     | 3.0      |
++----------+-----------------------+----------+----------+
 
-The category constants and their WRFInput treatment are:
+Categories 8 and 9 follow the STAS table in ``NoahmpTable.TBL`` (8 is silty clay
+loam, 9 is clay loam). Categories 17--19 take the sand and clay of the STAS
+class whose hydraulic parameters they match (playa = clay, white sand = sand,
+lava = bedrock-like). SLM aborts if a land cell has a soil category outside
+[1, 19]. Water cells are not checked, since they often carry ISLTYP 14 or 0.
 
-+----------------------+----------------------+----------------------------------------------------------+
-| Constant             | Value                | Treatment                                                |
-+======================+======================+==========================================================+
-| ``isnature``         | 14                   | Urban-category cells are remapped to this nature         |
-|                      |                      | category for the non-building SLM treatment.             |
-+----------------------+----------------------+----------------------------------------------------------+
-| ``isurban``          | 13                   | The urban constant is retained; its assignment is        |
-|                      |                      | currently commented out.                                 |
-+----------------------+----------------------+----------------------------------------------------------+
-| ``islake``           | 21                   | Water category with WRF land type 17.                    |
-+----------------------+----------------------+----------------------------------------------------------+
+WRF land categories are read as MODIS categories and must be in [0, 21].
+Categories 0, 17 (water) and 21 (``islake``, lake) are water cells. Every other
+category is kept as is; in particular urban (13) stays urban and is not remapped.
 
 The category-specific defaults applied by this branch are:
 
@@ -289,13 +292,10 @@ The category-specific defaults applied by this branch are:
 |                      | ``= 273.16 K``; surface emissivity ``= 0.98``; and all   |
 |                      | visible/NIR direct and diffuse albedos ``= 0.06``.       |
 +----------------------+----------------------------------------------------------+
-| Urban (land type     | ``landtype`` is changed to ``isnature`` (14); when       |
-| greater than 16)     | ``use_param_tbl`` is enabled, the nature-category        |
-|                      | vegetation fraction from ``vegparam`` is used.           |
-+----------------------+----------------------------------------------------------+
-| Other land           | WRF land type and LAI are retained; the cell remains     |
-|                      | eligible for land-mask and porosity-based soil-moisture  |
-|                      | processing.                                              |
+| Land type 1--16 and  | The WRF land type is used as is. Types 1--12, 14 and     |
+| 18--20               | 18--20 take ``ztop``, ``z0_sfc``, ``Khai_L``, ``Rc_min``,|
+|                      | ``Rgl`` and ``hs_rc`` from the MODIS block of            |
+|                      | ``NoahmpTable.TBL``.                                     |
 +----------------------+----------------------------------------------------------+
 
 The local surface fields are initially allocated with vegetation fraction
@@ -584,10 +584,9 @@ Vegetation emissivity is now based on the leaf-angle extinction coefficients
       \exp\left(-\left(\phi_1+\phi_2\right)LAI\right)\right].
 
 The canopy water-storage capacity includes contributions from foliage and
-woody area. In addition to the original LAI-dependent storage, the update uses
-canopy height and basal area to represent water retained on trunks. Initial
-surface albedos and emissivity are weighted by vegetation fraction so that
-partially vegetated cells do not initially behave as closed canopy.
+woody area: the maximum canopy water storage is ``0.1 * (LAI + SAI)``. Initial
+surface emissivity is weighted by vegetation fraction, and the initial surface
+albedos are set to 0.2 until the radiation scheme updates them.
 
 7. Aerodynamic and surface resistances
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
