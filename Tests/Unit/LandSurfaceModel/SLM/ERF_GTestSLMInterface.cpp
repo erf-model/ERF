@@ -237,8 +237,9 @@ read_checkpoint_range (const std::filesystem::path& checkpoint, const int lev,
                        const std::string& name)
 {
     amrex::MultiFab mf;
+    // VisMF only splits paths on '/', so avoid the backslashes std::filesystem uses on Windows
     amrex::VisMF::Read(mf, (checkpoint / ("Level_" + std::to_string(lev)) /
-                            ("SLM_" + name)).string());
+                            ("SLM_" + name)).generic_string());
     return {mf.min(0), mf.max(0)};
 }
 
