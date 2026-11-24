@@ -2747,34 +2747,33 @@ ERF::ReadVelsOnlyFromCheckpointFile (int lev_to_fill, std::string& chkfile_for_v
 {
     Print() << "Reading vels only from native checkpoint " << chkfile_for_vels << " at level " << lev_to_fill << "\n";
 
-    // Header
-    std::string File(chkfile_for_vels + "/Header");
-
-    VisMF::IO_Buffer io_buffer(VisMF::GetIOBufferSize());
-
-    Vector<char> fileCharPtr;
-    ParallelDescriptor::ReadAndBcastFile(File, fileCharPtr);
-    std::string fileCharPtrString(fileCharPtr.dataPtr());
-    std::istringstream is(fileCharPtrString, std::istringstream::in);
-
     AMREX_ALWAYS_ASSERT(lev_to_fill >= 0 && lev_to_fill <= finest_level);
 
     int lev = lev_to_fill;
 
-    MultiFab xvel(convert(grids[lev],IntVect(1,0,0)),dmap[lev],1,0);
-    VisMF::Read(xvel, MultiFabFileFullPrefix(lev, chkfile_for_vels, "Level_", "XFace"));
-    MultiFab::Copy(vars_new[lev][Vars::xvel],xvel,0,0,1,0);
-    vars_new[lev][Vars::xvel].setBndry(bogus_large_value);
+    // The checkpoint may have been written on other grids (other ranks, max_grid_size or
+    // regridding), so each velocity is read on the grids stored with it, then copied onto
+    // this level's grids. The checkpoint's grids must cover this level's.
+    const int ivel[3] = {Vars::xvel, Vars::yvel, Vars::zvel};
+    const char* face_name[3] = {"XFace", "YFace", "ZFace"};
+    for (int idir = 0; idir < 3; ++idir) {
+        const std::string mf_name = MultiFabFileFullPrefix(lev, chkfile_for_vels, "Level_", face_name[idir]);
+        if (!FileExists(mf_name + "_H")) {
+            Abort("erf.init_vels_from_checkpoint: " + mf_name + "_H not found; does " + chkfile_for_vels +
+                  " have level " + std::to_string(lev) + "?");
+        }
 
-    MultiFab yvel(convert(grids[lev],IntVect(0,1,0)),dmap[lev],1,0);
-    VisMF::Read(yvel, MultiFabFileFullPrefix(lev, chkfile_for_vels, "Level_", "YFace"));
-    MultiFab::Copy(vars_new[lev][Vars::yvel],yvel,0,0,1,0);
-    vars_new[lev][Vars::yvel].setBndry(bogus_large_value);
+        MultiFab vel;
+        VisMF::Read(vel, mf_name);
 
-    MultiFab zvel(convert(grids[lev],IntVect(0,0,1)),dmap[lev],1,0);
-    VisMF::Read(zvel, MultiFabFileFullPrefix(lev, chkfile_for_vels, "Level_", "ZFace"));
-    MultiFab::Copy(vars_new[lev][Vars::zvel],zvel,0,0,1,0);
-    vars_new[lev][Vars::zvel].setBndry(bogus_large_value);
+        MultiFab& dst = vars_new[lev][ivel[idir]];
+        if (!vel.boxArray().contains(dst.boxArray())) {
+            Abort("erf.init_vels_from_checkpoint: the level " + std::to_string(lev) + " grids in " +
+                  chkfile_for_vels + " do not cover the level " + std::to_string(lev) + " grids of this run");
+        }
+        dst.ParallelCopy(vel,0,0,1,IntVect(0),IntVect(0));
+        dst.setBndry(bogus_large_value);
+    }
 }
 
 /**

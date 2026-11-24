@@ -6177,6 +6177,32 @@ add_test_restart_parity(TerrainHill_Restart_IntervalMeans TerrainHill 7 20
     FCOMPARE_RTOL "0.0" FCOMPARE_ATOL "0.0")
 endif()
 
+# erf.init_vels_from_checkpoint on grids other than the checkpoint's (issue 5376): write
+# chk00005 on 16^3 boxes, start again on 8^3 boxes (and one rank fewer) reading the
+# velocities from it, and require them to equal the checkpoint run's exactly.
+set(TEST_NAME InitVelsFromCheckpoint)
+setup_test()
+resolve_test_exe("" "erf_exec" TEST_EXE)
+add_test(NAME ${TEST_NAME} COMMAND ${CMAKE_COMMAND}
+    "-DMPIEXEC=${MPIEXEC_EXECUTABLE}"
+    "-DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}"
+    "-DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}"
+    "-DNRANKS=${NP}"
+    "-DTEST_EXE=${TEST_EXE}"
+    "-DCONFIG=$<CONFIG>"
+    "-DINPUT=${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.i"
+    "-DWORKING_DIRECTORY=${CURRENT_TEST_BINARY_DIR}"
+    "-DFCOMPARE=${FCOMPARE_EXE}"
+    -P ${PROJECT_SOURCE_DIR}/Tests/RunInitVelsFromCheckpoint.cmake)
+set_tests_properties(${TEST_NAME}
+    PROPERTIES
+    TIMEOUT 600
+    PROCESSORS ${NP}
+    WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
+    LABELS "regression;restart"
+    ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/chk_run.log;${CURRENT_TEST_BINARY_DIR}/init_run.log")
+unset(TEST_NAME)
+
 # SLM across a restart. Nothing covered this: the two SLM decks in the tree are gated behind
 # ERF_TEST_ENABLE_EXTRA_LSM_TESTS and need input files this repository does not carry, so an
 # SLM restart was never exercised at all -- which is how the failure reported on issue 4225
