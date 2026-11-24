@@ -418,6 +418,9 @@ target_sources(${erf_exe_name}
     # Motivation: the average down over immersed-forcing levels must weight the fine cells by
     # their fluid mass and leave coarse cells that are solid on their own level alone.
     ${CMAKE_CURRENT_SOURCE_DIR}/Utils/ERF_GTestImmersedAverageDown.cpp
+    # Motivation: with map factors other than one, the face momenta must be averaged down as
+    # mass fluxes, so that each covered coarse face carries the mean of the fine fluxes over it.
+    ${CMAKE_CURRENT_SOURCE_DIR}/Utils/ERF_GTestAverageDownMapFac.cpp
     # Motivation: over immersed-forcing terrain with the fraction-stress wall law the RANS wall
     # distance must be measured from the surface the wall law uses, column by column.
     ${CMAKE_CURRENT_SOURCE_DIR}/Utils/ERF_GTestImmersedWallDist.cpp

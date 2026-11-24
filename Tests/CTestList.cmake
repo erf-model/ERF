@@ -4288,6 +4288,17 @@ add_test_conservation(Conservation_ScalarDiffusion_Stretched ScalarDiffusion_Ref
     OPTIONS "erf.initial_dz=0.025")
 add_test_conservation(Conservation_ScalarDiffusion_MapFactor ScalarDiffusion_Reflux "RHO SCALAR"
     OPTIONS "erf.test_mapfactor=true")
+# Compressible levels coupled two-way with map factors that vary in x and y average the face
+# momenta down as mass fluxes, (rho u) ax/m_y, (rho v) ay/m_x and (rho w)/(m_x m_y) (#5359): a
+# flow advecting the scalar through the faces of the fine patch, on a flat mesh and over a hill
+set(_adv_mapfac_options "erf.test_mapfactor_amp=0.1 erf.molec_diff_type=None prob.U_0=10 prob.V_0=5")
+foreach(_q MASS "RHO SCALAR")
+  string(REPLACE " " "" _qn "${_q}")
+  add_test_conservation(Conservation_${_qn}_Advection_VaryingMapFactor ScalarDiffusion_Reflux "${_q}"
+      OPTIONS "${_adv_mapfac_options}")
+  add_test_conservation(Conservation_${_qn}_Advection_Hill_VaryingMapFactor ScalarDiffusion_Reflux "${_q}"
+      OPTIONS "${_adv_mapfac_options} erf.terrain_type=StaticFittedMesh prob.custom_terrain_type=WoA prob.dir=2 prob.hmax=0.25 prob.L=0.15")
+endforeach()
 add_test_conservation(Conservation_ScalarDiffusion_Ratio221  ScalarDiffusion_Reflux "RHO SCALAR"
     OPTIONS "'amr.ref_ratio_vect=2 2 1'")
 add_test_conservation(Conservation_ScalarDiffusion_Anelastic ScalarDiffusion_Reflux "RHO SCALAR"
