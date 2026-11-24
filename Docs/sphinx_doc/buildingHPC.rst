@@ -113,8 +113,8 @@ Cray auto-detection is enabled by default when a Cray environment is identified.
       * - GPU Architecture flags
         - ``$CRAY_ACCEL_TARGET`` set (e.g., ``nvidia80``)
         - Maps to correct flags (e.g., ``AMReX_CUDA_ARCH=8.0``, ``Kokkos_ARCH_AMPERE80=ON``)
-      * - CUDA+EKAT MPI paths
-        - ``ERF_ENABLE_CUDA=ON`` + EKAT physics enabled
+      * - CUDA+Kokkos MPI paths
+        - ``ERF_ENABLE_CUDA=ON`` + RRTMGP enabled
         - Executes ``CC --cray-print-opts=cflags`` and prepends to ``CMAKE_CUDA_FLAGS``
       * - GPU-Aware MPI linking
         - ``$MPICH_GPU_SUPPORT_ENABLED=1``
@@ -266,7 +266,7 @@ For detailed CMake options and dependencies, see :ref:`sec:build:systems`.
       * - Build System
         - Strengths & Best Use Cases
       * - CMake
-        - **Strengths:** Automates complex dependency graphs (ERF → EKAT → Kokkos). Cray Detection System handles configurations. Generates ``find_package``-compatible configuration (``ERFConfig.cmake``). **Best For:** Most users on supported HPC systems (Perlmutter, Frontier, Polaris, Aurora). Developers building applications that depend on ERF.
+        - **Strengths:** Automates complex dependency graphs (ERF → RRTMGP → Kokkos). Cray Detection System handles configurations. Generates ``find_package``-compatible configuration (``ERFConfig.cmake``). **Best For:** Most users on supported HPC systems (Perlmutter, Frontier, Polaris, Aurora). Developers building applications that depend on ERF.
       * - GNU Make
         - **Strengths:** Uses existing AMReX infrastructure. Utility targets (e.g., ``print-xxx``) for debugging. Direct control over every build variable. **Best For:** Advanced users, performance tuning experts, systems not yet supported by CMake auto-detection.
 

@@ -66,7 +66,7 @@ function(set_erf_compile_flags target)
       set_target_properties(${target} PROPERTIES HIP_ARCHITECTURES "${hip_arch}")
       message(VERBOSE "Set HIP_ARCHITECTURES=${hip_arch} for ${target}")
       # If both AMReX and Kokkos are present, remove duplicate link options
-      if(TARGET amrex AND (ERF_ENABLE_EKAT OR TARGET Kokkos::kokkoscore))
+      if(TARGET amrex AND (ERF_ENABLE_KOKKOS OR TARGET Kokkos::kokkoscore))
         # Get current target's link options
         get_target_property(target_link_opts ${target} LINK_OPTIONS)
         if(target_link_opts)
@@ -96,7 +96,7 @@ function(set_erf_compile_flags target)
       endif()
     else()
       # For older CMake, just add workaround flag
-      if(ERF_ENABLE_EKAT OR TARGET Kokkos::kokkoscore)
+      if(ERF_ENABLE_KOKKOS OR TARGET Kokkos::kokkoscore)
         target_link_options(${target} PRIVATE "-Wl,--allow-multiple-definition")
       endif()
     endif()

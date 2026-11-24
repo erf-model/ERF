@@ -20,7 +20,7 @@ Or, to automatically include the necessary submodules when downloading ERF, type
 .. note::
    **SSH Keys Required for Some Submodules**
 
-   Some ERF submodules (particularly EKAT) use ``git@github.com:`` style URLs which require SSH keys to be configured with GitHub. If you encounter errors like "Permission denied (publickey)" during recursive clone or submodule updates, you have two options:
+   ERF releases up to 26.11 bundle EKAT, whose Kokkos submodule uses a ``git@github.com:`` style URL, which requires SSH keys to be configured with GitHub. If you encounter errors like "Permission denied (publickey)" during recursive clone or submodule updates, you have two options:
 
    1. **Set up SSH keys** (recommended): Configure SSH keys in your `GitHub account settings <https://github.com/settings/keys>`_
 

@@ -412,6 +412,34 @@ TEST(SBMBoundary, ParticleMixingExtendsTheRestartSchemaOnlyWhenActive)
         erf_sbm::particle_mixing_schema(mixing)));
 }
 
+// Walls keep the M6a-1 schema byte for byte; an open face adds the diffusive
+// semantics of every open face, which the advective identity cannot tell apart.
+TEST(SBMBoundary, ParticleMixingNamesTheDiffusionOfOpenFaces)
+{
+    using erf_auxiliary::DiffusionFaceKind;
+    erf_sbm::ParticleMixingConfig mixing;
+    mixing.policy = erf_sbm::ParticleMixingPolicy::HostPassiveScalar;
+    const std::string lines = erf_sbm::particle_mixing_schema(mixing);
+    erf_sbm::SBMPhysicalBoundaryConfig faces;
+    EXPECT_EQ(erf_sbm::particle_mixing_schema(mixing, faces), lines);
+    faces.kind[2] = erf_sbm::AdvectionFaceKind::ImpermeableWall;
+    faces.kind[5] = erf_sbm::AdvectionFaceKind::ImpermeableWall;
+    EXPECT_EQ(erf_sbm::particle_mixing_schema(mixing, faces), lines);
+
+    faces.kind[0] = erf_sbm::AdvectionFaceKind::PrescribedInflow;
+    faces.kind[3] = erf_sbm::AdvectionFaceKind::AdvectiveOutflow;
+    faces.diffusion[0] = DiffusionFaceKind::Dirichlet;
+    const std::string inflow = erf_sbm::particle_mixing_schema(mixing, faces);
+    EXPECT_EQ(inflow, lines + "\nboundary-diffusion=open-faces-v1;xlo=dirichlet;xhi=closed");
+    faces.diffusion[0] = DiffusionFaceKind::DirichletWhereInward;
+    EXPECT_EQ(erf_sbm::particle_mixing_schema(mixing, faces),
+              lines + "\nboundary-diffusion=open-faces-v1;xlo=dirichlet-where-inward;xhi=closed");
+    // The advective identity of the two inflow types is the same.
+    EXPECT_NE(erf_sbm::particle_mixing_schema(mixing, faces), inflow);
+
+    EXPECT_EQ(erf_sbm::particle_mixing_schema(erf_sbm::ParticleMixingConfig{}, faces), "");
+}
+
 TEST(SBMBoundary, LedgerSerializationRoundTripsExactly)
 {
     erf_sbm::SBMBoundaryLedger ledger;

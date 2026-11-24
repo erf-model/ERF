@@ -128,7 +128,7 @@ ERF::WriteCheckpointFile () const
             schema << erf_sbm::restart_schema(sbm_state_manager->layout(),
                                               boundaries.identity(),
                                               erf_sbm::particle_mixing_schema(
-                                                  sbm_transport->particle_mixing()));
+                                                  sbm_transport->particle_mixing(), boundaries));
             if (!schema.good()) FileOpenFailed(schema_file);
             if (!boundaries.all_periodic()) {
                 const std::string ledger_file = checkpointname + "/SBM_BoundaryLedger";
@@ -753,7 +753,7 @@ ERF::WriteCheckpointFile () const
 
         if (solverChoice.use_real_bcs && solverChoice.init_type == InitType::WRFInput) {
             if (lev == 0) {
-                amrex::Print() << "Writing C1H/C2H/RDNW/MUB/PHB variables at level " << lev << std::endl;
+                amrex::Print() << "Writing C1H/C2H/C1F/C2F/RDNW/MUB/PHB variables at level " << lev << std::endl;
                 MultiFab tmp1d(ba1d[0],dmap[0],1,0);
 
                 MultiFab::Copy(tmp1d,*wrf_C1H,0,0,1,0);
@@ -761,6 +761,14 @@ ERF::WriteCheckpointFile () const
 
                 MultiFab::Copy(tmp1d,*wrf_C2H,0,0,1,0);
                 VisMF::Write(tmp1d, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "C2H"));
+
+                MultiFab tmp1d_nd(convert(ba1d[0],IntVect(0,0,1)),dmap[0],1,0);
+
+                MultiFab::Copy(tmp1d_nd,*wrf_C1F,0,0,1,0);
+                VisMF::Write(tmp1d_nd, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "C1F"));
+
+                MultiFab::Copy(tmp1d_nd,*wrf_C2F,0,0,1,0);
+                VisMF::Write(tmp1d_nd, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "C2F"));
 
                 MultiFab::Copy(tmp1d,*wrf_RDNW,0,0,1,0);
                 VisMF::Write(tmp1d, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "RDNW"));
@@ -787,6 +795,14 @@ ERF::WriteCheckpointFile () const
     // coupling's lagged fluxes, on the level the fire grid refines
     if (m_fire_coupler) {
         m_fire_coupler->write_checkpoint(checkpointname);
+    }
+#endif
+
+#ifdef ERF_USE_FLOOD
+    // The flood: the engine's state (FloodEngine::write_checkpoint), then the
+    // flood grid it belongs to (Level_<lev>/FloodGrid)
+    if (m_flood_coupler) {
+        m_flood_coupler->write_checkpoint(checkpointname);
     }
 #endif
 
@@ -1345,7 +1361,7 @@ ERF::ReadCheckpointFile ()
         if (!erf_sbm::restart_schema_matches(sbm_state_manager->layout(), persisted_schema,
                                              boundaries.identity(),
                                              erf_sbm::particle_mixing_schema(
-                                                 sbm_transport->particle_mixing()))) {
+                                                 sbm_transport->particle_mixing(), boundaries))) {
             Abort("SBM restart schema does not exactly match the active spectral layout, "
                   "M3 transport, physical boundary identity and particle mixing");
         }
@@ -1657,6 +1673,15 @@ ERF::ReadCheckpointFile ()
             unsupported.push_back("the fire model (its fire grid is built from the run's level "
                                   "boxes and its state is still read onto them; refused whichever "
                                   "level the fire grid is on)");
+        }
+#endif
+#ifdef ERF_USE_FLOOD
+        // As for the fire: the flood grid is built from the level's boxes and
+        // the engine's state is read onto them.
+        if (m_flood_coupler) {
+            unsupported.push_back("the flood coupling (its flood grid is built from the run's level "
+                                  "boxes and the engine's state is read onto them; refused whichever "
+                                  "level the flood grid is on)");
         }
 #endif
 
@@ -2462,7 +2487,7 @@ ERF::ReadCheckpointFile ()
 
         if (solverChoice.use_real_bcs && solverChoice.init_type == InitType::WRFInput) {
             if (lev == 0) {
-                amrex::Print() << "Reading C1H/C2H/RDNW/MUB/PHB variables at level " << lev << std::endl;
+                amrex::Print() << "Reading C1H/C2H/C1F/C2F/RDNW/MUB/PHB variables at level " << lev << std::endl;
                 //
                 // These are 1-D columns and 2-D/3-D fields on the level-0 grids; all of them
                 // are redistributed the same way, so a changed level-0 decomposition carries
@@ -2472,6 +2497,18 @@ ERF::ReadCheckpointFile ()
                                    lev, 0, 0, 1, IntVect(0), /*src_ghosts=*/true);
                 read_checkpoint_mf(*wrf_C2H,  MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "C2H"),
                                    lev, 0, 0, 1, IntVect(0), /*src_ghosts=*/true);
+                // Checkpoints written before C1F/C2F were stored keep the c1f = 1, c2f = 0
+                // set when the arrays were made; C1H/C2H cannot rebuild them
+                bool has_cf = read_checkpoint_mf_if_present(*wrf_C1F, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "C1F"),
+                                                            lev, 0, 0, 1, IntVect(0), /*src_ghosts=*/true);
+                has_cf = read_checkpoint_mf_if_present(*wrf_C2F, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "C2F"),
+                                                       lev, 0, 0, 1, IntVect(0), /*src_ghosts=*/true) && has_cf;
+                if (!has_cf) {
+                    wrf_C1F->setVal(one);
+                    wrf_C2F->setVal(zero);
+                    amrex::Warning("Checkpoint has no C1F/C2F; using c1f = 1, c2f = 0 to decouple the wrfbdy "
+                                   "geopotential, which is right only for hybrid_opt = 0");
+                }
                 read_checkpoint_mf(*wrf_RDNW, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "RDNW"),
                                    lev, 0, 0, 1, IntVect(0), /*src_ghosts=*/true);
                 read_checkpoint_mf(*wrf_MUB,  MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "MUB"),
@@ -2727,34 +2764,33 @@ ERF::ReadVelsOnlyFromCheckpointFile (int lev_to_fill, std::string& chkfile_for_v
 {
     Print() << "Reading vels only from native checkpoint " << chkfile_for_vels << " at level " << lev_to_fill << "\n";
 
-    // Header
-    std::string File(chkfile_for_vels + "/Header");
-
-    VisMF::IO_Buffer io_buffer(VisMF::GetIOBufferSize());
-
-    Vector<char> fileCharPtr;
-    ParallelDescriptor::ReadAndBcastFile(File, fileCharPtr);
-    std::string fileCharPtrString(fileCharPtr.dataPtr());
-    std::istringstream is(fileCharPtrString, std::istringstream::in);
-
     AMREX_ALWAYS_ASSERT(lev_to_fill >= 0 && lev_to_fill <= finest_level);
 
     int lev = lev_to_fill;
 
-    MultiFab xvel(convert(grids[lev],IntVect(1,0,0)),dmap[lev],1,0);
-    VisMF::Read(xvel, MultiFabFileFullPrefix(lev, chkfile_for_vels, "Level_", "XFace"));
-    MultiFab::Copy(vars_new[lev][Vars::xvel],xvel,0,0,1,0);
-    vars_new[lev][Vars::xvel].setBndry(bogus_large_value);
+    // The checkpoint may have been written on other grids (other ranks, max_grid_size or
+    // regridding), so each velocity is read on the grids stored with it, then copied onto
+    // this level's grids. The checkpoint's grids must cover this level's.
+    const int ivel[3] = {Vars::xvel, Vars::yvel, Vars::zvel};
+    const char* face_name[3] = {"XFace", "YFace", "ZFace"};
+    for (int idir = 0; idir < 3; ++idir) {
+        const std::string mf_name = MultiFabFileFullPrefix(lev, chkfile_for_vels, "Level_", face_name[idir]);
+        if (!FileExists(mf_name + "_H")) {
+            Abort("erf.init_vels_from_checkpoint: " + mf_name + "_H not found; does " + chkfile_for_vels +
+                  " have level " + std::to_string(lev) + "?");
+        }
 
-    MultiFab yvel(convert(grids[lev],IntVect(0,1,0)),dmap[lev],1,0);
-    VisMF::Read(yvel, MultiFabFileFullPrefix(lev, chkfile_for_vels, "Level_", "YFace"));
-    MultiFab::Copy(vars_new[lev][Vars::yvel],yvel,0,0,1,0);
-    vars_new[lev][Vars::yvel].setBndry(bogus_large_value);
+        MultiFab vel;
+        VisMF::Read(vel, mf_name);
 
-    MultiFab zvel(convert(grids[lev],IntVect(0,0,1)),dmap[lev],1,0);
-    VisMF::Read(zvel, MultiFabFileFullPrefix(lev, chkfile_for_vels, "Level_", "ZFace"));
-    MultiFab::Copy(vars_new[lev][Vars::zvel],zvel,0,0,1,0);
-    vars_new[lev][Vars::zvel].setBndry(bogus_large_value);
+        MultiFab& dst = vars_new[lev][ivel[idir]];
+        if (!vel.boxArray().contains(dst.boxArray())) {
+            Abort("erf.init_vels_from_checkpoint: the level " + std::to_string(lev) + " grids in " +
+                  chkfile_for_vels + " do not cover the level " + std::to_string(lev) + " grids of this run");
+        }
+        dst.ParallelCopy(vel,0,0,1,IntVect(0),IntVect(0));
+        dst.setBndry(bogus_large_value);
+    }
 }
 
 /**

@@ -112,6 +112,31 @@ void
 make_qt (const amrex::MultiFab& cons_state, amrex::MultiFab& qt, int n_qstate_into_total);
 
 /**
+ * Average the face momenta of a fine level down onto the coarse faces it covers, as mass
+ * fluxes: (rho u) ax/m_y, (rho v) ay/m_x or (rho w)/(m_x m_y) is averaged and divided by the
+ * same weight on the coarse face.  With map factors other than one, or face areas other than
+ * one over terrain, the plain average of (rho u) is not the coarse momentum whose flux is the
+ * mean of the fine fluxes.  The horizontal weights are those of ERF::average_down_mass_flux.
+ * Faces the fine level does not cover are left as they are.
+ * @param[in] fine Fine face momenta.
+ * @param[in,out] crse Coarse face momenta.
+ * @param[in] rr Refinement ratio.
+ * @param[in] cper Periodicity of the coarse level.
+ * @param[in] mf_f Map factor of the fine faces (no extent in z).
+ * @param[in] mf_c Map factor of the coarse faces (no extent in z).
+ * @param[in] mf2_f Second map factor of the fine faces (the product m_x m_y on w-faces), or null.
+ * @param[in] mf2_c Second map factor of the coarse faces, or null.
+ * @param[in] area_f Area of the fine faces, or null for an area of one.
+ * @param[in] area_c Area of the coarse faces, or null for an area of one.
+ */
+void
+average_down_faces_mapfac (const amrex::MultiFab& fine, amrex::MultiFab& crse, const amrex::IntVect& rr,
+                           const amrex::Periodicity& cper,
+                           const amrex::MultiFab& mf_f, const amrex::MultiFab& mf_c,
+                           const amrex::MultiFab* mf2_f, const amrex::MultiFab* mf2_c,
+                           const amrex::MultiFab* area_f, const amrex::MultiFab* area_c);
+
+/**
  * Average down a cell-centered state over immersed-forcing levels (erf.if_average_down =
  * fluid_mass). The fine cells are weighted by their fluid mass,
  * (rho S)_c = rho_c * sum (1 - beta_f) V_f (rho S)_f / sum (1 - beta_f) V_f rho_f,

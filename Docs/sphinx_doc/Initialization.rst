@@ -114,6 +114,9 @@ entire columns, so they cannot be used on a level whose grids do not span the do
    The value should be the checkpoint directory name (relative to the run
    directory or an absolute path). When set, ERF reads the velocity fields from
    that checkpoint and uses the usual initialization pathway for all other fields.
+   The checkpoint may have been written on other grids or with a different number
+   of MPI ranks; its grids at each level only need to cover the new run's grids
+   at that level.
 
 In any of these cases, the user can specify any perturbations from the
 base state by editing the routines that live in the ``Source/Prob`` directory

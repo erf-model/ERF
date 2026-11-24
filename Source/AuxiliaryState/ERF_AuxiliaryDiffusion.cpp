@@ -22,12 +22,14 @@ on_physical_face (const int index, const int lo, const int hi, const bool period
 }
 
 // Counts nonfinite or negative coefficients, and nonpositive densities scaled
-// by a kinematic coefficient, in every cell a non-physical face reads.
+// by a kinematic coefficient, in every cell a face reads: across interior and
+// periodic faces, and into the ghost cells beyond open domain faces.
 int count_invalid_coefficient_reads (const amrex::Geometry& geom,
                                      const MappedDiffusionCoefficients& coefficients,
                                      const MultiFab& density,
                                      const int density_component,
-                                     const MultiFab* eddy_diffusivity)
+                                     const MultiFab* eddy_diffusivity,
+                                     const MappedDiffusionBoundary& boundary)
 {
     const Box& domain = geom.Domain();
     const bool use_eddy = coefficients.mode.add_turbulence;
@@ -42,8 +44,14 @@ int count_invalid_coefficient_reads (const amrex::Geometry& geom,
         for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
             Box read = amrex::grow(mfi.validbox(), dir, 1);
             if (!geom.isPeriodic(dir)) {
-                read.setSmall(dir, amrex::max(read.smallEnd(dir), domain.smallEnd(dir)));
-                read.setBig(dir, amrex::min(read.bigEnd(dir), domain.bigEnd(dir)));
+                // Face kinds are indexed as amrex::Orientation: low dir, high dir + AMREX_SPACEDIM.
+                if (boundary.kind[static_cast<std::size_t>(dir)] == DiffusionFaceKind::Closed) {
+                    read.setSmall(dir, amrex::max(read.smallEnd(dir), domain.smallEnd(dir)));
+                }
+                if (boundary.kind[static_cast<std::size_t>(dir + AMREX_SPACEDIM)] ==
+                    DiffusionFaceKind::Closed) {
+                    read.setBig(dir, amrex::min(read.bigEnd(dir), domain.bigEnd(dir)));
+                }
             }
             const int eddy_comp = dir < 2 ? coefficients.horizontal.eddy_h_comp
                                           : coefficients.vertical.eddy_v_comp;
@@ -75,7 +83,8 @@ void fill_transmissibility (MappedFaceTransmissibility& transmissibility,
                             const MappedDiffusionCoefficients& coefficients,
                             const MultiFab& density,
                             const int density_component,
-                            const MultiFab* eddy_diffusivity)
+                            const MultiFab* eddy_diffusivity,
+                            const MappedDiffusionBoundary& boundary)
 {
     const Box& domain = geom.Domain();
     const auto dom_lo = amrex::lbound(domain);
@@ -89,6 +98,11 @@ void fill_transmissibility (MappedFaceTransmissibility& transmissibility,
     const auto horizontal = coefficients.horizontal;
     const auto vertical = coefficients.vertical;
     const int rho_comp = density_component;
+    const auto kind = boundary.kind;
+    const auto carrier_array = [&] (const int dir, const amrex::MFIter& mfi) {
+        const MultiFab* carrier = boundary.carrier[static_cast<std::size_t>(dir)];
+        return carrier != nullptr ? carrier->const_array(mfi) : Array4<const Real>{};
+    };
 
     auto& tx_face = transmissibility.dir(0);
     for (amrex::MFIter mfi(tx_face, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
@@ -99,17 +113,24 @@ void fill_transmissibility (MappedFaceTransmissibility& transmissibility,
         const auto map_num = metrics.mf_ux->const_array(mfi);
         const auto map_den = metrics.mf_uy->const_array(mfi);
         const auto area = stretched ? metrics.ax->const_array(mfi) : Array4<const Real>{};
+        const auto carrier = carrier_array(0, mfi);
+        const auto kind_lo = kind[0];
+        const auto kind_hi = kind[AMREX_SPACEDIM];
         const auto tx = tx_face.array(mfi);
         amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+            Real inv_spacing = dx_inv[0];
             if (on_physical_face(i, dom_lo.x, dom_hi.x, periodic_x)) {
-                tx(i, j, k, 0) = Real(0.0);
-                return;
+                if (!DiffusionDomainFaceIsOpen(i == dom_lo.x, kind_lo, kind_hi, carrier, i, j, k)) {
+                    tx(i, j, k, 0) = Real(0.0);
+                    return;
+                }
+                inv_spacing = Real(2.0) * dx_inv[0];
             }
             const Real coeff = ScalarDiffusionFaceCoefficient<
                 MultiplyMolecularByDensity, AddTurbulence>(
                 rho, rho_comp, mu, horizontal, i, j, k, 1, 0, 0, horizontal.eddy_h_comp);
             tx(i, j, k, 0) = ScalarDiffusionMappedHorizontalTransfer(
-                coeff * dx_inv[0] * map_num(i, j, 0) / map_den(i, j, 0),
+                coeff * inv_spacing * map_num(i, j, 0) / map_den(i, j, 0),
                 stretched ? area(i, j, k) : Real(1.0));
         });
     }
@@ -123,17 +144,24 @@ void fill_transmissibility (MappedFaceTransmissibility& transmissibility,
         const auto map_num = metrics.mf_vy->const_array(mfi);
         const auto map_den = metrics.mf_vx->const_array(mfi);
         const auto area = stretched ? metrics.ay->const_array(mfi) : Array4<const Real>{};
+        const auto carrier = carrier_array(1, mfi);
+        const auto kind_lo = kind[1];
+        const auto kind_hi = kind[1 + AMREX_SPACEDIM];
         const auto ty = ty_face.array(mfi);
         amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+            Real inv_spacing = dx_inv[1];
             if (on_physical_face(j, dom_lo.y, dom_hi.y, periodic_y)) {
-                ty(i, j, k, 0) = Real(0.0);
-                return;
+                if (!DiffusionDomainFaceIsOpen(j == dom_lo.y, kind_lo, kind_hi, carrier, i, j, k)) {
+                    ty(i, j, k, 0) = Real(0.0);
+                    return;
+                }
+                inv_spacing = Real(2.0) * dx_inv[1];
             }
             const Real coeff = ScalarDiffusionFaceCoefficient<
                 MultiplyMolecularByDensity, AddTurbulence>(
                 rho, rho_comp, mu, horizontal, i, j, k, 0, 1, 0, horizontal.eddy_h_comp);
             ty(i, j, k, 0) = ScalarDiffusionMappedHorizontalTransfer(
-                coeff * dx_inv[1] * map_num(i, j, 0) / map_den(i, j, 0),
+                coeff * inv_spacing * map_num(i, j, 0) / map_den(i, j, 0),
                 stretched ? area(i, j, k) : Real(1.0));
         });
     }
@@ -146,18 +174,28 @@ void fill_transmissibility (MappedFaceTransmissibility& transmissibility,
                                       : Array4<const Real>{};
         const auto mx = metrics.mf_mx->const_array(mfi);
         const auto my = metrics.mf_my->const_array(mfi);
+        const auto carrier = carrier_array(2, mfi);
+        const auto kind_lo = kind[2];
+        const auto kind_hi = kind[2 + AMREX_SPACEDIM];
         const auto tz = tz_face.array(mfi);
         amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+            Real inv_spacing;
             if (on_physical_face(k, dom_lo.z, dom_hi.z, periodic_z)) {
-                tz(i, j, k, 0) = Real(0.0);
-                return;
+                const bool low = k == dom_lo.z;
+                if (!DiffusionDomainFaceIsOpen(low, kind_lo, kind_hi, carrier, i, j, k)) {
+                    tz(i, j, k, 0) = Real(0.0);
+                    return;
+                }
+                // Half the edge cell, which lies above a low face and below a high one.
+                inv_spacing = stretched ? Real(2.0) / dz[low ? k : k - 1]
+                                        : Real(2.0) * dx_inv[2];
+            } else {
+                // The host S stencil spans the two cell centers of an interior face.
+                inv_spacing = stretched ? Real(2.0) / (dz[k] + dz[k - 1]) : dx_inv[2];
             }
             const Real coeff = ScalarDiffusionFaceCoefficient<
                 MultiplyMolecularByDensity, AddTurbulence>(
                 rho, rho_comp, mu, vertical, i, j, k, 0, 0, 1, vertical.eddy_v_comp);
-            // The host S stencil spans the two cell centers of an interior face.
-            const Real inv_spacing = stretched ? Real(2.0) / (dz[k] + dz[k - 1])
-                                               : dx_inv[2];
             tz(i, j, k, 0) = ScalarDiffusionMappedVerticalTransfer(
                 coeff * inv_spacing, mx(i, j, 0), my(i, j, 0));
         });
@@ -181,6 +219,22 @@ bool BuildMappedDiffusionTransmissibility (
     const MultiFab& density,
     const int density_component,
     const MultiFab* eddy_diffusivity,
+    std::string& diagnostic)
+{
+    return BuildMappedDiffusionTransmissibility(
+        transmissibility, geom, metrics, coefficients, density, density_component,
+        eddy_diffusivity, MappedDiffusionBoundary{}, diagnostic);
+}
+
+bool BuildMappedDiffusionTransmissibility (
+    MappedFaceTransmissibility& transmissibility,
+    const amrex::Geometry& geom,
+    const MappedDiffusionMetrics& metrics,
+    const MappedDiffusionCoefficients& coefficients,
+    const MultiFab& density,
+    const int density_component,
+    const MultiFab* eddy_diffusivity,
+    const MappedDiffusionBoundary& boundary,
     std::string& diagnostic)
 {
     diagnostic.clear();
@@ -245,8 +299,23 @@ bool BuildMappedDiffusionTransmissibility (
         }
     }
 
+    for (int face = 0; face < 2 * AMREX_SPACEDIM; ++face) {
+        const int dir = face % AMREX_SPACEDIM;
+        if (geom.isPeriodic(dir) ||
+            boundary.kind[static_cast<std::size_t>(face)] !=
+                DiffusionFaceKind::DirichletWhereInward) {
+            continue;
+        }
+        const auto& face_field = transmissibility.dir(dir);
+        if (!same_face_layout(face_field, boundary.carrier[static_cast<std::size_t>(dir)])) {
+            diagnostic = "a diffusion face open only where the carrier is inward requires "
+                         "the dry-air carrier on the transmissibility's face layout";
+            return false;
+        }
+    }
+
     const int invalid = count_invalid_coefficient_reads(
-        geom, coefficients, density, density_component, eddy_diffusivity);
+        geom, coefficients, density, density_component, eddy_diffusivity, boundary);
     if (invalid != 0) {
         diagnostic = "diffusion coefficients must be finite and nonnegative, and densities "
                      "finite and positive, in every cell a face reads (" +
@@ -258,17 +327,21 @@ bool BuildMappedDiffusionTransmissibility (
     if (mode.molecular_is_kinematic) {
         if (mode.add_turbulence) {
             fill_transmissibility<true, true>(transmissibility, geom, metrics, coefficients,
-                                              density, density_component, eddy_diffusivity);
+                                              density, density_component, eddy_diffusivity,
+                                              boundary);
         } else {
             fill_transmissibility<true, false>(transmissibility, geom, metrics, coefficients,
-                                               density, density_component, eddy_diffusivity);
+                                               density, density_component, eddy_diffusivity,
+                                               boundary);
         }
     } else if (mode.add_turbulence) {
         fill_transmissibility<false, true>(transmissibility, geom, metrics, coefficients,
-                                           density, density_component, eddy_diffusivity);
+                                           density, density_component, eddy_diffusivity,
+                                           boundary);
     } else {
         fill_transmissibility<false, false>(transmissibility, geom, metrics, coefficients,
-                                            density, density_component, eddy_diffusivity);
+                                            density, density_component, eddy_diffusivity,
+                                            boundary);
     }
 
     for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
@@ -325,7 +398,9 @@ bool BuildLowOrderDiffusionRate (
                 const int comp = components[local];
                 amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
                     const amrex::IntVect cell(AMREX_D_DECL(i, j, k));
-                    if (on_physical_face(cell[dir], lo, hi, periodic)) {
+                    // A closed domain face reads no ghost; an open one has T > 0.
+                    if (on_physical_face(cell[dir], lo, hi, periodic) &&
+                        t(i, j, k, 0) == Real(0.0)) {
                         out(i, j, k, slot) = Real(0.0);
                         return;
                     }
@@ -339,7 +414,7 @@ bool BuildLowOrderDiffusionRate (
     for (int dir = 0; dir < AMREX_SPACEDIM && nslots > 0; ++dir) {
         if (!rate.dir(dir).is_finite(0, nslots, 0)) {
             diagnostic = "low-order diffusion rates are nonfinite; check the intensive field, "
-                         "including the ghost cells read across periodic faces";
+                         "including the ghost cells read across periodic and open faces";
             return false;
         }
     }

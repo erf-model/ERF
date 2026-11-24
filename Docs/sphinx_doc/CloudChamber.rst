@@ -160,8 +160,11 @@ The following constraints are part of the implemented Cloud Chamber contract:
      - Required value
      - Notes
    * - ``erf.compressibility_type``
-     - ``Anelastic`` or ``PseudoIncompressible``
-     - Required in every Cloud Chamber mode.
+     - ``Anelastic``
+     - Required in every Cloud Chamber mode and on every level.  The
+       initializer corrects only :math:`\rho\theta` and the moisture at the
+       fixed base-state density, so ``PseudoIncompressible``, which evolves the
+       density, is rejected.
    * - ``erf.use_gravity``
      - ``true``
      - Required in every Cloud Chamber mode.
