@@ -324,10 +324,12 @@ the drift correction acts on it.
   the reflux changes every coarse step by about as much as the drift
   correction removes; the upwind direction at the coarse/fine faces is
   not yet made consistent between the levels either,
-- a refined level that stops inside the domain in :math:`z` on a
-  terrain-fitted mesh (refinement through the full depth is supported),
+- thin immersed bodies (``erf.zero_xflux_faces``, ``erf.zero_yflux_faces``,
+  ``erf.zero_zflux_faces``), whose projection has constant coefficients;
+  ERF stops if a pseudo-incompressible level has them,
 - density boundary conditions on walls, the WRF boundary density, the
-  cloud chamber and spectral-bin microphysics, which assume a fixed density.
+  cloud chamber and spectral-bin microphysics, which assume a fixed density
+  (ERF stops for the cloud chamber with a pseudo-incompressible level).
 
 (Dry and Moist) Scalars
 -----------------------

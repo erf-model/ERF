@@ -82,7 +82,9 @@ ERF::timeStep (int lev, double time, int /*iteration*/)
                 if (bdy_data_xlo[itime].size() == 0 && need_itime) {
                     bool is_anelastic = (solverChoice.compressibility_type[0] != CompressibilityType::FullyCompressible);
                     read_and_convert_from_wrfbdy(itime,nc_bdy_file,bdy_data_xlo,bdy_data_xhi,bdy_data_ylo,bdy_data_yhi,
-                                                 wrf_MUB, wrf_C1H, wrf_C2H, wrf_RDNW, wrf_PHB, z_phys_cc[lev], z_phys_nd[lev],
+                                                 wrf_MUB, wrf_C1H, wrf_C2H, wrf_C1F, wrf_C2F, wrf_RDNW, wrf_PHB,
+                                                 mapfac[lev],
+                                                 z_phys_cc[lev], z_phys_nd[lev],
                                                  vars_new[lev][Vars::xvel], vars_new[lev][Vars::yvel], vars_new[lev][Vars::cons],
                                                  r_hse, area_vec, geom[lev], use_moist, use_theta_m_bdy, solverChoice.rebalance_wrf_input, domain_bcs_type,
                                                  real_width, bdy_time_interval, is_anelastic);
