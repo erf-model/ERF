@@ -79,13 +79,15 @@ public:
      * @param[in] Qv_prim    primitive water-vapor field
      * @param[in] Qr_prim    primitive rain-water field
      * @param[in] z_phys_nd  nodal physical-height field
+     * @param[in] mapfac     map-factor fields at the level (MapFacType); none means m = 1
      */
     void make_MOSTAverage_at_level (const int& lev,
                                     const amrex::Vector<amrex::MultiFab*>& vars_old,
                                     std::unique_ptr<amrex::MultiFab>& Theta_prim,
                                     std::unique_ptr<amrex::MultiFab>& Qv_prim,
                                     std::unique_ptr<amrex::MultiFab>& Qr_prim,
-                                    std::unique_ptr<amrex::MultiFab>& z_phys_nd);
+                                    std::unique_ptr<amrex::MultiFab>& z_phys_nd,
+                                    const amrex::Vector<std::unique_ptr<amrex::MultiFab>>* mapfac = nullptr);
 
     /**
      * Reset pointers to field MultiFabs.
@@ -643,6 +645,7 @@ protected:
     const amrex::Vector<amrex::Geometry> m_geom;                     // Geometry at each level
     amrex::Vector<amrex::Vector<amrex::MultiFab*>> m_fields;         // Ptr to fields to be averaged
     amrex::Vector<amrex::MultiFab*> m_z_phys_nd;                     // Ptr to terrain height coords
+    amrex::Vector<amrex::Vector<amrex::MultiFab*>> m_mapfac;         // Ptr to map factors (MapFacType)
     std::string m_pp_prefix;                                         // ParmParse prefix
     MeshType m_mesh_type;                                            // Mesh type
     TerrainType m_terrain_type;                                      // Terrain type
