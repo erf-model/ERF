@@ -363,15 +363,10 @@ add_high_order_mixing (erf_auxiliary::MappedFaceFluxRate& high,
                 amrex::ParallelFor(bx, ncomp,
                     [=] AMREX_GPU_DEVICE(int i, int j, int k, int n) noexcept {
                         const int index = dir == 0 ? i : (dir == 1 ? j : k);
-                        bool open = periodic || (index != lo && index != hi + 1);
-                        if (!open) {
-                            const bool low = index == lo;
-                            const auto kind = low ? kind_lo : kind_hi;
-                            const Real sign =
-                                kind == erf_auxiliary::DiffusionFaceKind::DirichletWhereInward
-                                    ? carrier(i, j, k, 0) : Real(0.0);
-                            open = erf_auxiliary::DiffusionFaceIsOpen(kind, low, sign);
-                        }
+                        const bool open =
+                            periodic || (index != lo && index != hi + 1) ||
+                            erf_auxiliary::DiffusionDomainFaceIsOpen(index == lo, kind_lo,
+                                                                     kind_hi, carrier, i, j, k);
                         if (open) {
                             out(i, j, k, n) += add(i, j, k, n);
                         }

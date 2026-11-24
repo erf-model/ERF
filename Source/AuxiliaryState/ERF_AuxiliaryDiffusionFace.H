@@ -1,6 +1,7 @@
 #ifndef ERF_AUXILIARY_DIFFUSION_FACE_H_
 #define ERF_AUXILIARY_DIFFUSION_FACE_H_
 
+#include <AMReX_Array4.H>
 #include <AMReX_GpuQualifiers.H>
 #include <AMReX_REAL.H>
 
@@ -25,6 +26,25 @@ DiffusionFaceIsOpen (const DiffusionFaceKind kind, const bool low_face,
         return low_face ? carrier >= amrex::Real(0.0) : carrier <= amrex::Real(0.0);
     }
     return false;
+}
+
+/**
+ * Whether the domain face cell (i, j, k), on the low or high face of a
+ * direction, exchanges. `carrier` is that direction's dry-air carrier on the
+ * face layout, read only on a DirichletWhereInward face. The low- and
+ * high-order diffusive rates both take their open faces from here, so a face
+ * the limiter blends is open, or closed, in both.
+ */
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE bool
+DiffusionDomainFaceIsOpen (const bool low_face, const DiffusionFaceKind kind_lo,
+                           const DiffusionFaceKind kind_hi,
+                           const amrex::Array4<const amrex::Real>& carrier,
+                           const int i, const int j, const int k) noexcept
+{
+    const DiffusionFaceKind kind = low_face ? kind_lo : kind_hi;
+    const amrex::Real sign = kind == DiffusionFaceKind::DirichletWhereInward
+                                 ? carrier(i, j, k, 0) : amrex::Real(0.0);
+    return DiffusionFaceIsOpen(kind, low_face, sign);
 }
 
 } // namespace erf_auxiliary

@@ -76,20 +76,6 @@ int count_invalid_coefficient_reads (const amrex::Geometry& geom,
     return count;
 }
 
-// Whether a domain face cell of direction `dir` exchanges: closed unless its
-// face kind is open there for the carrier's sign.
-AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE bool
-open_domain_face (const bool low, const DiffusionFaceKind kind_lo,
-                  const DiffusionFaceKind kind_hi,
-                  const Array4<const Real>& carrier,
-                  const int i, const int j, const int k) noexcept
-{
-    const DiffusionFaceKind kind = low ? kind_lo : kind_hi;
-    const Real sign = kind == DiffusionFaceKind::DirichletWhereInward
-                          ? carrier(i, j, k, 0) : Real(0.0);
-    return DiffusionFaceIsOpen(kind, low, sign);
-}
-
 template <bool MultiplyMolecularByDensity, bool AddTurbulence>
 void fill_transmissibility (MappedFaceTransmissibility& transmissibility,
                             const amrex::Geometry& geom,
@@ -134,7 +120,7 @@ void fill_transmissibility (MappedFaceTransmissibility& transmissibility,
         amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
             Real inv_spacing = dx_inv[0];
             if (on_physical_face(i, dom_lo.x, dom_hi.x, periodic_x)) {
-                if (!open_domain_face(i == dom_lo.x, kind_lo, kind_hi, carrier, i, j, k)) {
+                if (!DiffusionDomainFaceIsOpen(i == dom_lo.x, kind_lo, kind_hi, carrier, i, j, k)) {
                     tx(i, j, k, 0) = Real(0.0);
                     return;
                 }
@@ -165,7 +151,7 @@ void fill_transmissibility (MappedFaceTransmissibility& transmissibility,
         amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
             Real inv_spacing = dx_inv[1];
             if (on_physical_face(j, dom_lo.y, dom_hi.y, periodic_y)) {
-                if (!open_domain_face(j == dom_lo.y, kind_lo, kind_hi, carrier, i, j, k)) {
+                if (!DiffusionDomainFaceIsOpen(j == dom_lo.y, kind_lo, kind_hi, carrier, i, j, k)) {
                     ty(i, j, k, 0) = Real(0.0);
                     return;
                 }
@@ -196,7 +182,7 @@ void fill_transmissibility (MappedFaceTransmissibility& transmissibility,
             Real inv_spacing;
             if (on_physical_face(k, dom_lo.z, dom_hi.z, periodic_z)) {
                 const bool low = k == dom_lo.z;
-                if (!open_domain_face(low, kind_lo, kind_hi, carrier, i, j, k)) {
+                if (!DiffusionDomainFaceIsOpen(low, kind_lo, kind_hi, carrier, i, j, k)) {
                     tz(i, j, k, 0) = Real(0.0);
                     return;
                 }
