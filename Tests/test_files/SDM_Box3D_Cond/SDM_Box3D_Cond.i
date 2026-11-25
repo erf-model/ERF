@@ -17,6 +17,7 @@ geometry.is_periodic = 1 1 1
 
 # TIME STEP CONTROL
 erf.fixed_dt       = 0.0002     # fixed time step [s]
+erf.fixed_dt_cfl_limit = false  # keep the fixed dt the test was set up with (erf-model/ERF#5238)
 erf.timestepping_type = "RK3_NoSubstepping"
 
 # DIAGNOSTICS & VERBOSITY

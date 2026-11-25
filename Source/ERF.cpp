@@ -87,6 +87,7 @@ bool ERF::diffusive_dt_limit = false;
 Real ERF::diffusive_cfl      = myhalf;
 
 int  ERF::fixed_mri_dt_ratio = 0;
+bool ERF::fixed_dt_cfl_limit = true;
 
 // Dictate verbosity in screen output
 int  ERF::verbose       = 0;
@@ -4253,6 +4254,7 @@ ERF::ReadParameters ()
         }
 
         pp.queryAdd("fixed_mri_dt_ratio", fixed_mri_dt_ratio);
+        pp.queryAdd("fixed_dt_cfl_limit", fixed_dt_cfl_limit);
 
         // We use this to keep track of how many boxes we read in from WRF initialization
         num_files_at_level.resize(max_level+1,0);
@@ -5004,6 +5006,10 @@ ERF::ReadParameters ()
     }
 
     ParameterSanityChecks();
+
+    // The fixed dt as the inputs give it, kept for the checkpoint once the CFL limit lowers it
+    fixed_dt_input      = fixed_dt;
+    fixed_fast_dt_input = fixed_fast_dt;
 }
 
 // Read in some parameters from inputs file

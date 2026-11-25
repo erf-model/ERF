@@ -25,6 +25,7 @@ zlo.type = "SlipWall"
 zhi.type = "SlipWall"
 
 erf.fixed_dt       = 0.5
+erf.fixed_dt_cfl_limit = false  # keep the fixed dt the test was set up with (erf-model/ERF#5238)
 erf.init_type      = input_sounding
 erf.use_gravity    = true
 erf.buoyancy_type  = 2
