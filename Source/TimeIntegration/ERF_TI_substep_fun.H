@@ -155,7 +155,7 @@ auto acoustic_substepping_fun = [&,one_d=one,zero_d=zero](int fast_step, int n_s
                              l_use_moisture, SolverChoice::mesh_type, solverChoice.gravity, solverChoice.c_p,
                              (l_moving_mesh ? detJ_cc_new[level] : detJ_cc[level]), dtau, beta_s,
                              z_phys_cc[level].get(), z_phys_nd[level].get(),
-                             l_variable_beta_s, phys_bc_type);
+                             !l_moving_mesh, l_variable_beta_s, phys_bc_type);
         }
 
         bool l_rayleigh_implicit = solverChoice.rayleigh_implicit_w(level);

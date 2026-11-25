@@ -244,7 +244,7 @@
         // Define the pressure gradient
         // *****************************************************************************
         make_gradp_pert(level, solverChoice, fine_geom, S_data,
-                        base_to_use, qt, *zpn_to_use, *zpc_to_use,
+                        base_to_use, qt, *zpc_to_use,
                         mapfac[level],
                         get_eb(level), gradp[level]);
 

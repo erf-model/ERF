@@ -28,6 +28,11 @@ using namespace amrex;
  * @param[in]  beta_s        Coefficient which determines how implicit vs explicit the solve is
  * @param[in]  z_phys_cc     Height coordinate at cell centers (null without terrain)
  * @param[in]  z_phys_nd     Height coordinate at nodes (null without terrain)
+ * @param[in]  use_zcc_kface_metric If true (and z_phys_cc is given), the face metric of the vertical
+ *                                  pressure gradient is the distance between the cell centers, as in
+ *                                  the slow vertical pressure gradient and the hydrostatic base state.
+ *                                  Otherwise (the moving mesh, whose z_phys_cc is not that of the end of
+ *                                  the sub-step) it is the average of detJ_cc on the two sides of the face
  * @param[in]  use_variable_beta_s If true, beta_s on each w-face is set from the terrain slope and
  *                                 the vertical acoustic Courant number there in place of beta_s
  * @param[in]  phys_bc_type  Physical boundary condition types
@@ -47,6 +52,7 @@ void make_fast_coeffs (int /*level*/,
                        Real beta_s,
                        const MultiFab* z_phys_cc,
                        const MultiFab* z_phys_nd,
+                       bool use_zcc_kface_metric,
                        bool use_variable_beta_s,
                        amrex::GpuArray<ERF_BC, AMREX_SPACEDIM*2> &phys_bc_type)
 {
@@ -67,6 +73,7 @@ void make_fast_coeffs (int /*level*/,
     MultiFab  beta_s_mf(fast_coeffs, amrex::make_alias, 5, 1);
 
     const bool has_z_nd = (z_phys_nd != nullptr);
+    const bool l_zcc_kface = use_zcc_kface_metric && (z_phys_cc != nullptr);
 
 
     // *************************************************************************
@@ -180,7 +187,13 @@ void make_fast_coeffs (int /*level*/,
             {
                 Real pi_c =  myhalf * (pi_stage_ca(i,j,k-1) + pi_stage_ca(i,j,k));
 
-                Real     detJ_on_kface = myhalf * (detJ(i,j,k) + detJ(i,j,k-1));
+                // The face metric of the vertical pressure gradient: the distance between the cell
+                //    centers (in units of dz), which is what the slow vertical pressure gradient and the
+                //    hydrostatic base state use.  On a single level this is the average of detJ on the
+                //    two sides of the face, but not on a coarse level over terrain, whose detJ is
+                //    averaged from the finest mesh
+                Real     detJ_on_kface = (l_zcc_kface) ? (z_cc(i,j,k) - z_cc(i,j,k-1)) * dzi
+                                                       : myhalf * (detJ(i,j,k) + detJ(i,j,k-1));
                 Real inv_detJ_on_kface = one / detJ_on_kface;
 
                 Real qv_p = (l_use_moisture) ? prim(i,j,k  ,PrimQ1_comp) : zero;
