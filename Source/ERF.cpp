@@ -41,6 +41,11 @@
 #include "ERF_FireEngineRegistry.H"
 #endif
 
+#ifdef ERF_USE_FLOOD
+#include "ERF_FloodPrerequisites.H"
+#include "ERF_FloodEngineRegistry.H"
+#endif
+
 using namespace amrex;
 
 double ERF::startCPUTime        = 0.0;
@@ -82,6 +87,7 @@ bool ERF::diffusive_dt_limit = false;
 Real ERF::diffusive_cfl      = myhalf;
 
 int  ERF::fixed_mri_dt_ratio = 0;
+bool ERF::fixed_dt_cfl_limit = true;
 
 // Dictate verbosity in screen output
 int  ERF::verbose       = 0;
@@ -115,6 +121,11 @@ double ERF::last_check_file_time    = 0.0;
 // double: writeNow() takes double&, as for the other plot times. Starts at 0 like
 // them (and is realigned on restart), so fire plots land on k * fire_plot_per.
 double ERF::last_fire_plot_time = 0.0;
+#endif
+
+#ifdef ERF_USE_FLOOD
+// As last_fire_plot_time: flood plots land on k * flood_plot_per
+double ERF::last_flood_plot_time = 0.0;
 #endif
 
 bool ERF::plot_file_on_restart = true;
@@ -171,6 +182,12 @@ ERF::Evolve ()
         if (m_fire_coupler->params().fire_debug) {
             amrex::Print() << "[FIRE] Initial fire output written at time 0" << std::endl;
         }
+    }
+#endif
+#ifdef ERF_USE_FLOOD
+    if (m_flood_coupler && istep[0] == 0 && (m_flood_plot_int > 0 || m_flood_plot_per > zero)) {
+        m_flood_coupler->engine().write_plotfile(m_flood_plot_file, static_cast<Real>(cur_time), istep[0]);
+        if (m_flood_plot_per > zero) {last_flood_plot_time += m_flood_plot_per;}
     }
 #endif
 
@@ -319,6 +336,14 @@ ERF::WriteAtIntermediateTime (int step, double cur_time)
         if (writeNow(cur_time, step+1, m_fire_plot_int, m_fire_plot_per, dt[0], last_fire_plot_time)) {
             m_fire_coupler->engine().write_plotfile(m_fire_plot_file, cur_time, step+1);
             if (m_fire_plot_per > zero) {last_fire_plot_time += m_fire_plot_per;}
+        }
+    }
+#endif
+#ifdef ERF_USE_FLOOD
+    if (m_flood_coupler && (m_flood_plot_int > 0 || m_flood_plot_per > zero)) {
+        if (writeNow(cur_time, step+1, m_flood_plot_int, m_flood_plot_per, dt[0], last_flood_plot_time)) {
+            m_flood_coupler->engine().write_plotfile(m_flood_plot_file, static_cast<Real>(cur_time), step+1);
+            if (m_flood_plot_per > zero) {last_flood_plot_time += m_flood_plot_per;}
         }
     }
 #endif
@@ -2488,6 +2513,37 @@ ERF::InitData_post ()
     }
 #endif
 
+    // The flood coupling, built once on the level it refines (the finest level
+    // by default), on a clean start and on a restart alike. On a restart the
+    // microphysics accumulators are already restored (restart() runs first), so
+    // the precipitation reference is the checkpoint's accumulation.
+#ifdef ERF_USE_FLOOD
+    if (m_flood_coupler) {
+        const int flood_lev = flood_anchor_level(m_flood_coupler->params().anchor_level, finest_level);
+        m_flood_coupler->initialize(*this, flood_lev, z_phys_nd[flood_lev].get());
+        m_flood_coupler->set_fields_time(t_new[flood_lev]);
+        if (m_flood_coupler->engine().wants_surface_precip()) {
+            const SurfacePrecipAccumulationSources sources =
+                micro ? micro->Get_Surface_Precip_Accumulation_Ptrs(flood_lev)
+                      : SurfacePrecipAccumulationSources{};
+            verify_flood_precip_source(m_flood_coupler->engine().name(), sources);
+            m_flood_coupler->set_precip_reference(sources);
+        }
+        // max_step counts level-0 steps; the flood takes one step per step of its level
+        int flood_steps_per_coarse_step = 1;
+        for (int l = 1; l <= flood_lev; ++l) { flood_steps_per_coarse_step *= nsubsteps[l]; }
+        // the engine counts elapsed time, so give it the run's length
+        const amrex::Real flood_stop = (stop_time < std::numeric_limits<double>::max())
+                                     ? static_cast<amrex::Real>(stop_time - start_time)
+                                     : std::numeric_limits<amrex::Real>::max();
+        m_flood_coupler->engine().start_run(flood_stop, max_step, flood_steps_per_coarse_step);
+
+        if (restart_chkfile != "") {
+            m_flood_coupler->read_checkpoint(restart_chkfile, istep[flood_lev]);
+        }
+    }
+#endif
+
     // The force-restore hydrology's rain comes from the microphysics' surface precipitation
     // accumulators: a scheme without them would give no rain, silently.
     if (solverChoice.rad_type == RadiationType::TwoStream &&
@@ -3787,6 +3843,35 @@ ERF::initializeFire (const int& /*a_nlevsmax*/ /*!< number of AMR levels */)
 #endif
 }
 
+void
+ERF::initializeFlood (const int& /*a_nlevsmax*/ /*!< number of AMR levels */)
+{
+#ifndef ERF_USE_FLOOD
+    {   // a flood deck on a build without the module would run as plain ERF, silently
+        amrex::ParmParse pp("erf.flood"); bool want = false; pp.query("enable", want);
+        if (want) { amrex::Abort("erf.flood.enable = true but this executable was built without the flood coupling"
+                                 "; rebuild with it (CMake ERF_ENABLE_FLOOD=ON, GNU make USE_FLOOD=TRUE)"
+                                 " and a flood engine directory (GNU make FLOOD_HOME, CMake ERF_FLOOD_ENGINE_DIRS)"); }
+    }
+#else
+    // The coupling inputs, with their range checks; with erf.flood.enable the
+    // engine must be one compiled into this executable (ERF_REGISTER_FLOOD_ENGINE)
+    m_flood_params = FloodCouplingParams::read();
+    if (!m_flood_params.enable) { return; }
+
+    // FloodCouplingParams::read() has already rejected a name no engine has;
+    // this is the backstop for a registered creator that returns no engine.
+    std::unique_ptr<FloodEngine> engine = make_flood_engine(m_flood_params.engine, m_flood_params);
+    if (!engine) {
+        amrex::Abort("[FLOOD] erf.flood.engine = \"" + m_flood_params.engine + "\" is registered"
+                     " but its creator returned no engine");
+    }
+    m_flood_coupler = std::make_unique<FloodCoupler>(m_flood_params, std::move(engine));
+    amrex::Print() << "[FLOOD] Flood coupling enabled (engine " << m_flood_params.engine
+                   << ", grid_ratio=" << m_flood_params.grid_ratio << ")\n";
+#endif
+}
+
 #ifdef ERF_USE_WINDFARM
 void
 ERF::initializeWindFarm (const int& a_nlevsmax/*!< number of AMR levels */ )
@@ -3832,6 +3917,10 @@ ERF::restart ()
 #ifdef ERF_USE_FIRE
     // no restart-time fire plot moves this clock on, so it goes to the next instant too
     if (m_fire_plot_per > zero) {last_fire_plot_time = next_time(m_fire_plot_per);}
+#endif
+#ifdef ERF_USE_FLOOD
+    // no restart-time flood plot moves this clock on, so it goes to the next instant too
+    if (m_flood_plot_per > zero) {last_flood_plot_time = next_time(m_flood_plot_per);}
 #endif
 
     // With erf.plot_file_on_restart the plot and subvolume files are written at restart
@@ -4179,6 +4268,7 @@ ERF::ReadParameters ()
         }
 
         pp.queryAdd("fixed_mri_dt_ratio", fixed_mri_dt_ratio);
+        pp.queryAdd("fixed_dt_cfl_limit", fixed_dt_cfl_limit);
 
         // We use this to keep track of how many boxes we read in from WRF initialization
         num_files_at_level.resize(max_level+1,0);
@@ -4357,6 +4447,20 @@ ERF::ReadParameters ()
             if (!int_given && !per_given) {
                 m_fire_plot_int = m_plot3d_int_1;
                 m_fire_plot_per = m_plot3d_per_1;
+            }
+        }
+#endif
+#ifdef ERF_USE_FLOOD
+        // The engine's own flood plotfile, on the 3D plotfile schedule unless
+        // the deck gives one of its own
+        {
+            ParmParse pp_flood("erf.flood");
+            pp_flood.query("plot_file", m_flood_plot_file);
+            const bool int_given = pp_flood.query("plot_int", m_flood_plot_int);
+            const bool per_given = pp_flood.query("plot_per", m_flood_plot_per);
+            if (!int_given && !per_given) {
+                m_flood_plot_int = m_plot3d_int_1;
+                m_flood_plot_per = m_plot3d_per_1;
             }
         }
 #endif
@@ -4916,6 +5020,10 @@ ERF::ReadParameters ()
     }
 
     ParameterSanityChecks();
+
+    // The fixed dt as the inputs give it, kept for the checkpoint once the CFL limit lowers it
+    fixed_dt_input      = fixed_dt;
+    fixed_fast_dt_input = fixed_fast_dt;
 }
 
 // Read in some parameters from inputs file

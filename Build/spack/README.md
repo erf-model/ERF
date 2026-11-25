@@ -37,12 +37,13 @@ For GPU builds, use `+cuda cuda_arch=<n>`, `+rocm amdgpu_target=<gfx>`, or
 The `+rrtmgp` and `+noahmp` variants enable RTE-RRTMGP radiation and Noah-MP.
 For ERF 26.09 to 26.11 only, `+eamxx_shoc` builds the EAMxx SHOC turbulence;
 later versions have only the native SHOC, which needs no variant. The recipe
-fetches the sources and the required EKAT stack at the commits pinned by the
-selected ERF version.
+fetches the sources and the required Kokkos stack (Kokkos itself from 26.12, EKAT
+and its Kokkos before) at the commits pinned by the selected ERF version.
 
 The following platform and toolchain limits apply:
 
-* RRTMGP and EAMxx SHOC are unavailable on Apple Silicon with ERF's EKAT pins.
+* Through ERF 26.11, RRTMGP and EAMxx SHOC are unavailable on Apple Silicon with
+  ERF's EKAT pins.
 * For ERF releases through 26.09, SYCL builds with RRTMGP or SHOC need oneAPI
   older than 2026. ERF 26.11 and development use the newer EKAT/Kokkos stack,
   which supports oneAPI 2026.
@@ -77,17 +78,17 @@ uses this recipe.
 | `spack_repo/erf/packages/erf/package.py` | ERF recipe for releases from 23.10 and `develop`, with variants for supported build options |
 | `spack_repo/erf/packages/amrex/package.py` | AMReX override adding `particles_precision` for `ERF_PARTICLES_PRECISION` |
 | `spack_repo/erf/repo.yaml` | Repository namespace (`erf`) and package API version |
-| `check_pins.py` | Checks dependency pins against ERF's source tree and EKAT's dependencies |
+| `check_pins.py` | Checks dependency pins against ERF's source tree and EKAT's dependencies (to 26.11) |
 | `../../spack-repo-index.yaml` | Locates this repository for `spack repo add <git URL>` |
 
 When updating the package:
 
 * After changing dependency pins, run `python3 Build/spack/check_pins.py`
-  from the ERF root. The RRTMGP/EKAT and Noah-MP commits, and the AMReX commit
-  used by `@develop` or a release in `_amrex_release_commits`, must match
-  ERF's submodule pins. For 26.09 to 26.11 the E3SM commit must match those
-  releases' `Build/GNU_Ekat/eamxx_clone.sh`. Use `--fix` to update the recipe's development
-  Noah-MP and AMReX pins.
+  from the ERF root. The RRTMGP/Kokkos (RRTMGP/EKAT through 26.11) and Noah-MP
+  commits, and the AMReX commit used by `@develop` or a release in
+  `_amrex_release_commits`, must match ERF's submodule pins. For 26.09 to 26.11
+  the E3SM commit must match those releases' `Build/GNU_Ekat/eamxx_clone.sh`.
+  Use `--fix` to update the recipe's development Noah-MP and AMReX pins.
 * For a new release, add the version and tarball's SHA-256 checksum
   (`spack checksum erf <version>`), plus its Noah-MP pin
   (`git ls-tree <tag> Submodules/Noah-MP`). Check the AMReX gitlink too; if

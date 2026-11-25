@@ -1038,8 +1038,14 @@ List of Parameters
 |                                      | (the vertical is excluded with implicit substepping);    |                    |                   |
 |                                      | values near 1 are unstable                               |                    |                   |
 +--------------------------------------+----------------------------------------------------------+--------------------+-------------------+
-| **erf.fixed_dt**                     | set level 0 dt as this value regardless of cfl or other  | Real > 0           | unused if not set |
-|                                      | settings                                                 |                    |                   |
+| **erf.fixed_dt**                     | set level 0 dt as this value regardless of other         | Real > 0           | unused if not set |
+|                                      | settings, except that it is lowered if it exceeds the    |                    |                   |
+|                                      | CFL limit min(erf.cfl, 0.8) (see erf.fixed_dt_cfl_limit) |                    |                   |
++--------------------------------------+----------------------------------------------------------+--------------------+-------------------+
+| **erf.fixed_dt_cfl_limit**           | lower a fixed dt whose Courant number exceeds            | Boolean            | true              |
+|                                      | min(erf.cfl, 0.8) on any level, on all levels, to that   |                    |                   |
+|                                      | Courant number (see Notes); false keeps erf.fixed_dt as  |                    |                   |
+|                                      | given                                                    |                    |                   |
 +--------------------------------------+----------------------------------------------------------+--------------------+-------------------+
 | **erf.fixed_fast_dt**                | set fast dt as this value                                | Real > 0           | unused if not set |
 +--------------------------------------+----------------------------------------------------------+--------------------+-------------------+
@@ -1282,14 +1288,16 @@ Notes
 -  | Without acoustic substepping (any **erf.timestepping_type** other than RK3_ImplicitSubstep) there is only one time step to be calculated,
      and **erf.fixed_fast_dt** and **erf.fixed_mri_dt_ratio** are not used.
 
-   * | If **erf.fixed_dt** is also specified, the timestep will be set to **fixed_dt**.
+   * | If **erf.fixed_dt** is also specified, the timestep will be set to **fixed_dt**
+       (lowered if it exceeds the CFL limit, see below).
 
    * | If **erf.fixed_dt** is not specified, the timestep will be computed using the CFL condition for compressible flow.
        If **erf.cfl** is specified, that CFL value will be used.  If not, the default value will be used.
 
 -  | If **erf.timestepping_type** = **RK3_ImplicitSubstep** we must determine both the slow and fast timesteps.
 
-   * | If **erf.fixed_dt** is specified, the slow timestep will be set to **fixed_dt**.
+   * | If **erf.fixed_dt** is specified, the slow timestep will be set to **fixed_dt**
+       (lowered if it exceeds the CFL limit, see below).
 
    * | If **erf.fixed_dt** is not set, the slow timestep will be computed using the CFL
        condition for incompressible, anelastic or pseudo-incompressible flow.  If **erf.cfl** is specified, that CFL value will be used.
@@ -1318,6 +1326,28 @@ Notes
          (default 0.7).  The ratio of slow timestep to fast timestep is rounded up, so the fast timestep
          never exceeds that limit, and then increased to the next even integer (or, if
          **erf.force_stage1_single_substep** = 0, to the next multiple of 6).
+
+-  | A fixed timestep must respect the CFL limit.  Whenever a level has a new set of grids (at
+     initialisation, and right after a regrid), the Courant number of the fixed timestep on that
+     level is computed from the same estimate as the adaptive timestep (for compressible flow the
+     advective and acoustic speeds, with a third of the horizontal acoustic speed only when
+     substepping, also with EB; for anelastic flow the advective speeds).  The limit is
+     min(**erf.cfl**, 0.8): an **erf.cfl** below 0.8 is used as given, and a larger one is capped
+     at 0.8, a margin below the stability limit.  If the Courant number exceeds the limit on any
+     level, the fixed timestep is lowered on all levels to exactly the limit on the most
+     constrained level, and a message is printed.
+     **erf.fixed_fast_dt** is lowered by the same factor, so its ratio to **erf.fixed_dt** is
+     kept, and **erf.fixed_mri_dt_ratio** is unchanged.  A regrid part-way through a coarse step
+     cannot change the timestep of that step, so a lowered timestep applies from the next coarse
+     step.  The timestep then stays fixed as the flow evolves; it is not lowered again until the
+     grids change, but a warning is printed (once per set of grids) if the flow speeds up to a
+     Courant number more than 10% above the limit.  The SBM donor-positivity and Cloud Chamber wall-transfer limits on a fixed
+     timestep are checked after this lowering.  The fixed timestep and **erf.cfl** are saved in
+     the checkpoint, so a restart with the same **erf.fixed_dt** continues with exactly the same
+     timestep; a restart with a different **erf.fixed_dt** or **erf.cfl** checks it again.  A
+     fixed timestep above the CFL limit can make the run unstable, for example on a refined level
+     (`erf-model/ERF#5238 <https://github.com/erf-model/ERF/issues/5238>`_).
+     Set **erf.fixed_dt_cfl_limit** = false to keep **erf.fixed_dt** as given.
 
 .. _examples-of-usage-6:
 
@@ -5417,8 +5447,10 @@ execution restrictions.
    * - ``erf.sbm_particle_mixing``
      - Particle mixing policy. ``HostPassiveScalar`` mixes the spectrum with
        ERF's Smagorinsky or Deardorff LES scalar eddy diffusivity;
-       ``ConstantReference`` with constant kinematic diffusivities. Single
-       level, constant- or stretched-z mesh, periodic and wall faces only.
+       ``ConstantReference`` with constant kinematic diffusivities. One or two
+       levels, constant- or stretched-z mesh. An ``Inflow`` face mixes with its
+       ``sbm_inflow_z`` spectrum, an ``inflow_outflow`` face only where the
+       carrier enters, and outflow and wall faces carry no mixing.
      - ``None``, ``ConstantReference``, ``HostPassiveScalar``
      - ``None``
    * - ``erf.sbm_particle_mixing_kh``, ``erf.sbm_particle_mixing_kv``
@@ -6875,6 +6907,49 @@ besides.
 |                                                | erf.plot_per_1 (the old erf.fire_plot_* keys stop the run) |                                |                        |
 +------------------------------------------------+------------------------------------------------------------+--------------------------------+------------------------+
 | **erf.fire.plot_per**                          | Seconds between fire plotfiles; <= 0 disables              | Real                           | erf.plot_per_1         |
++------------------------------------------------+------------------------------------------------------------+--------------------------------+------------------------+
+
+.. _sec:InputsFlood:
+
+Flood Coupling
+==============
+
+These inputs configure the atmosphere side of the flood coupling described in
+:ref:`sec:FloodCoupling`; they need a build with ``ERF_ENABLE_FLOOD=ON``
+(``USE_FLOOD = TRUE`` with GNU make). The ``erf.flood`` keys other than the
+three plotfile keys are read once at start-up by ``FloodCouplingParams::read()``,
+which stops the run on a value outside the range given here, naming the key;
+``erf.flood.anchor_level`` is checked against the finest level when the flood
+grid is built.
+A flood engine reads its own inputs besides.
+
++------------------------------------------------+------------------------------------------------------------+--------------------------------+------------------------+
+| Parameter                                      | Definition                                                 | Acceptable Values              | Default                |
++================================================+============================================================+================================+========================+
+| **erf.flood.enable**                           | Run a flood (needs a flood engine compiled in, see         | Boolean                        | false                  |
+|                                                | :ref:`sec:FloodCoupling`)                                  |                                |                        |
++------------------------------------------------+------------------------------------------------------------+--------------------------------+------------------------+
+| **erf.flood.engine**                           | The flood engine behind the coupling, one of the engines   | String                         | the only one built     |
+|                                                | compiled in (ERF_REGISTER_FLOOD_ENGINE); required when     |                                |                        |
+|                                                | several are; with none, setting it stops the run           |                                |                        |
++------------------------------------------------+------------------------------------------------------------+--------------------------------+------------------------+
+| **erf.flood.grid_ratio**                       | Flood cells per atmospheric cell in x and y                | Integer >= 1                   | 1                      |
++------------------------------------------------+------------------------------------------------------------+--------------------------------+------------------------+
+| **erf.flood.anchor_level**                     | AMR level whose grid the flood grid refines; -1 is the     | -1, or 0 to the finest level   | -1                     |
+|                                                | finest level at start-up. Above level 0 the level must     |                                |                        |
+|                                                | keep its boxes (erf.regrid_int = -1); on every level the   |                                |                        |
+|                                                | boxes must span the full height and cover one rectangle;   |                                |                        |
+|                                                | a level below the finest prints a note                     |                                |                        |
++------------------------------------------------+------------------------------------------------------------+--------------------------------+------------------------+
+| **erf.flood.plot_file**                        | Prefix of the engine's flood plotfile                      | String                         | ``plt_flood_``         |
++------------------------------------------------+------------------------------------------------------------+--------------------------------+------------------------+
+| **erf.flood.plot_int**                         | Steps between flood plotfiles; <= 0 disables. With neither | Integer                        | erf.plot_int_1         |
+|                                                | this nor plot_per given, both take erf.plot_int_1 and      |                                |                        |
+|                                                | erf.plot_per_1, so the engine writes a plotfile at every   |                                |                        |
+|                                                | 3D plotfile                                                |                                |                        |
++------------------------------------------------+------------------------------------------------------------+--------------------------------+------------------------+
+| **erf.flood.plot_per**                         | Seconds between flood plotfiles; <= 0 disables; see        | Real                           | erf.plot_per_1         |
+|                                                | erf.flood.plot_int for the fallback                        |                                |                        |
 +------------------------------------------------+------------------------------------------------------------+--------------------------------+------------------------+
 
 .. _inputs-particles:

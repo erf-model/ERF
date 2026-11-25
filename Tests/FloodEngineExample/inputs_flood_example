@@ -1,0 +1,53 @@
+# The example flood engine (ERF_FloodEngineExample.cpp) under Kessler rain from a
+# supersaturated layer below 150 m (sounding_moist, as in the RegridKeepsPrecipAccum
+# test) in a laterally periodic box. A cool bubble off the centre (1 K, wider in x
+# than in y) makes the rain vary over the columns, about threefold. The engine keeps
+# all the water that falls on each flood cell, so its depth flood_depth [m] must
+# equal the microphysics' surface rain accumulation precip_rain_accum [kg/m2] of its
+# column divided by 1000 kg/m3. The CTest compares the two on every flood cell
+# (check_depth.py), and a restart from the mid-run checkpoint against the straight run.
+max_step  = 120
+stop_time = 1.0e9
+erf.prob_name = "ABL"
+erf.init_type           = "input_sounding"
+erf.sounding_type       = Ideal
+erf.input_sounding_file = "sounding_moist"
+
+geometry.prob_extent = 1600. 1600. 1024.
+geometry.is_periodic = 1 1 0
+amr.n_cell           = 16 16 32
+amr.max_grid_size    = 8 16 32
+zlo.type = "SlipWall"
+zhi.type = "SlipWall"
+amr.max_level        = 0
+
+erf.use_gravity     = true
+erf.moisture_model  = "Kessler"
+erf.molec_diff_type = "None"
+erf.les_type        = "None"
+erf.pbl_type        = "None"
+erf.fixed_dt           = 0.5
+erf.fixed_mri_dt_ratio = 6
+
+erf.check_file    = chk
+erf.check_int     = 60
+erf.plot_file_1   = plt
+erf.plot_int_1    = 120
+erf.plot_vars_1   = density theta qv qc qp flood_depth
+erf.plot2d_file_1 = plt2d
+erf.plot2d_int_1  = 120
+erf.plot2d_vars_1 = precip_rain_accum
+erf.v = 0
+
+prob.bubble_dT  = -1.0
+prob.bubble_x_c = 500.
+prob.bubble_y_c = 1000.
+prob.bubble_z_c = 75.
+prob.bubble_x_r = 300.
+prob.bubble_y_r = 200.
+prob.bubble_z_r = 150.
+
+erf.flood.enable     = true
+erf.flood.engine     = example
+erf.flood.grid_ratio = 2
+erf.flood.plot_int   = 120

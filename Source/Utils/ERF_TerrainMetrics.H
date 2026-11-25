@@ -790,8 +790,8 @@ Compute_Zrel_AtCellCenter (const int &i, const int &j, const int &k,
  * @param[in] w Vertical velocity.
  * @param[in] u_arr X-velocity array.
  * @param[in] v_arr Y-velocity array.
- * @param[in] mf_u X-velocity map factor.
- * @param[in] mf_v Y-velocity map factor.
+ * @param[in] mf_ux Map factor m_x at x-faces (u points).
+ * @param[in] mf_vy Map factor m_y at y-faces (v points).
  * @param[in] z_nd Nodal physical height field.
  * @param[in] dxInv Inverse cell spacing.
  * @return Contravariant vertical velocity.
@@ -802,8 +802,8 @@ amrex::Real
 OmegaFromW (int& i, int& j, int& k, amrex::Real w,
             const amrex::Array4<const amrex::Real>& u_arr,
             const amrex::Array4<const amrex::Real>& v_arr,
-            const amrex::Array4<const amrex::Real>& mf_u,
-            const amrex::Array4<const amrex::Real>& mf_v,
+            const amrex::Array4<const amrex::Real>& mf_ux,
+            const amrex::Array4<const amrex::Real>& mf_vy,
             const amrex::Array4<const amrex::Real>& z_nd,
             const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& dxInv)
 {
@@ -828,18 +828,18 @@ OmegaFromW (int& i, int& j, int& k, amrex::Real w,
                                   myhalf * ( u_arr(i+1,j  ,k-1) +       u_arr(i+1,j  ,k  ) );
     amrex::Real u_lo = (k == 0) ? amrex::Real(1.5) *   u_arr(i  ,j  ,k  ) - myhalf * u_arr(i  ,j  ,k+1)  :
                                   myhalf * ( u_arr(i  ,j  ,k-1) +       u_arr(i  ,j  ,k  ) );
-    amrex::Real mf_u_hi = mf_u(i+1,j,0);
-    amrex::Real mf_u_lo = mf_u(i  ,j,0);
+    amrex::Real mf_ux_hi = mf_ux(i+1,j,0);
+    amrex::Real mf_ux_lo = mf_ux(i  ,j,0);
 
     amrex::Real v_hi = (k == 0) ? amrex::Real(1.5) *   v_arr(i  ,j+1,k  ) - myhalf * v_arr(i  ,j+1,k+1)  :
                                   myhalf * ( v_arr(i  ,j+1,k-1) +       v_arr(i  ,j+1,k  ) );
     amrex::Real v_lo = (k == 0) ? amrex::Real(1.5) *   v_arr(i  ,j  ,k  ) - myhalf * v_arr(i  ,j  ,k+1)  :
                                   myhalf * ( v_arr(i  ,j  ,k-1) +       v_arr(i  ,j  ,k  ) );
-    amrex::Real mf_v_hi = mf_v(i,j+1,0);
-    amrex::Real mf_v_lo = mf_v(i,j  ,0);
+    amrex::Real mf_vy_hi = mf_vy(i,j+1,0);
+    amrex::Real mf_vy_lo = mf_vy(i,j  ,0);
 
-    amrex::Real u_met = met_xi  * myhalf * ( u_hi*mf_u_hi + u_lo*mf_u_lo );
-    amrex::Real v_met = met_eta * myhalf * ( v_hi*mf_v_hi + v_lo*mf_v_lo );
+    amrex::Real u_met = met_xi  * myhalf * ( u_hi*mf_ux_hi + u_lo*mf_ux_lo );
+    amrex::Real v_met = met_eta * myhalf * ( v_hi*mf_vy_hi + v_lo*mf_vy_lo );
 
     amrex::Real omega =  w - u_met - v_met;
     return omega;
@@ -855,8 +855,8 @@ OmegaFromW (int& i, int& j, int& k, amrex::Real w,
  * @param[in] omega Contravariant vertical velocity.
  * @param[in] u_arr X-velocity array.
  * @param[in] v_arr Y-velocity array.
- * @param[in] mf_u X-velocity map factor.
- * @param[in] mf_v Y-velocity map factor.
+ * @param[in] mf_ux Map factor m_x at x-faces (u points).
+ * @param[in] mf_vy Map factor m_y at y-faces (v points).
  * @param[in] z_nd Nodal physical height field.
  * @param[in] dxInv Inverse cell spacing.
  * @return Vertical velocity w.
@@ -867,8 +867,8 @@ amrex::Real
 WFromOmega (int& i, int& j, int& k, amrex::Real omega,
             const amrex::Array4<const amrex::Real>& u_arr,
             const amrex::Array4<const amrex::Real>& v_arr,
-            const amrex::Array4<const amrex::Real>& mf_u,
-            const amrex::Array4<const amrex::Real>& mf_v,
+            const amrex::Array4<const amrex::Real>& mf_ux,
+            const amrex::Array4<const amrex::Real>& mf_vy,
             const amrex::Array4<const amrex::Real>& z_nd,
             const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& dxInv)
 {
@@ -893,18 +893,18 @@ WFromOmega (int& i, int& j, int& k, amrex::Real omega,
                                   myhalf           * ( u_arr(i+1,j  ,k-1) +          u_arr(i+1,j  ,k  ) );
     amrex::Real u_lo = (k == 0) ? amrex::Real(1.5) *   u_arr(i  ,j  ,k  ) - myhalf * u_arr(i  ,j  ,k+1)  :
                                   myhalf           * ( u_arr(i  ,j  ,k-1) +          u_arr(i  ,j  ,k  ) );
-    amrex::Real mf_u_hi = mf_u(i+1,j,0);
-    amrex::Real mf_u_lo = mf_u(i  ,j,0);
+    amrex::Real mf_ux_hi = mf_ux(i+1,j,0);
+    amrex::Real mf_ux_lo = mf_ux(i  ,j,0);
 
     amrex::Real v_hi = (k == 0) ? amrex::Real(1.5) *   v_arr(i  ,j+1,k  ) - myhalf * v_arr(i  ,j+1,k+1)  :
                                   myhalf           * ( v_arr(i  ,j+1,k-1) +          v_arr(i  ,j+1,k  ) );
     amrex::Real v_lo = (k == 0) ? amrex::Real(1.5) *   v_arr(i  ,j  ,k  ) - myhalf * v_arr(i  ,j  ,k+1)  :
                                   myhalf           * ( v_arr(i  ,j  ,k-1) +          v_arr(i  ,j  ,k  ) );
-    amrex::Real mf_v_hi = mf_v(i,j+1,0);
-    amrex::Real mf_v_lo = mf_v(i,j  ,0);
+    amrex::Real mf_vy_hi = mf_vy(i,j+1,0);
+    amrex::Real mf_vy_lo = mf_vy(i,j  ,0);
 
-    amrex::Real u_met = met_xi  * myhalf * ( u_hi*mf_u_hi + u_lo*mf_u_lo );
-    amrex::Real v_met = met_eta * myhalf * ( v_hi*mf_v_hi + v_lo*mf_v_lo );
+    amrex::Real u_met = met_xi  * myhalf * ( u_hi*mf_ux_hi + u_lo*mf_ux_lo );
+    amrex::Real v_met = met_eta * myhalf * ( v_hi*mf_vy_hi + v_lo*mf_vy_lo );
 
     amrex::Real w = omega + u_met + v_met;
     return w;
@@ -925,8 +925,8 @@ WFromOmega (int& i, int& j, int& k, amrex::Real omega,
  * @param[in] w Vertical velocity.
  * @param[in] u_arr X-velocity array.
  * @param[in] v_arr Y-velocity array.
- * @param[in] mf_u X-velocity map factor.
- * @param[in] mf_v Y-velocity map factor.
+ * @param[in] mf_ux Map factor m_x at x-faces (u points).
+ * @param[in] mf_vy Map factor m_y at y-faces (v points).
  * @param[in] z_nd Nodal physical height field.
  * @param[in] dxInv Inverse cell spacing.
  * @return Contravariant vertical velocity.
@@ -937,8 +937,8 @@ amrex::Real
 OmegaFromW (int& i, int& j, int& k, amrex::Real w,
             const amrex::Array4<const amrex::Real>& u_arr,
             const amrex::Array4<const amrex::Real>& v_arr,
-            const amrex::Array4<const amrex::Real>& mf_u,
-            const amrex::Array4<const amrex::Real>& mf_v,
+            const amrex::Array4<const amrex::Real>& mf_ux,
+            const amrex::Array4<const amrex::Real>& mf_vy,
             const amrex::Array4<const amrex::Real>& z_nd,
             const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& dxInv)
 {
@@ -957,18 +957,18 @@ OmegaFromW (int& i, int& j, int& k, amrex::Real w,
                                   myhalf * ( u_arr(i+1,j  ,k-1) +       u_arr(i+1,j  ,k  ) );
     amrex::Real u_lo = (k == 0) ? amrex::Real(1.5) *   u_arr(i  ,j  ,k  ) - myhalf * u_arr(i  ,j  ,k+1)  :
                                   myhalf * ( u_arr(i  ,j  ,k-1) +       u_arr(i  ,j  ,k  ) );
-    amrex::Real mf_u_hi = mf_u(i+1,j,0);
-    amrex::Real mf_u_lo = mf_u(i  ,j,0);
+    amrex::Real mf_ux_hi = mf_ux(i+1,j,0);
+    amrex::Real mf_ux_lo = mf_ux(i  ,j,0);
 
     amrex::Real v_hi = (k == 0) ? amrex::Real(1.5) *   v_arr(i  ,j+1,k  ) - myhalf * v_arr(i  ,j+1,k+1)  :
                                   myhalf * ( v_arr(i  ,j+1,k-1) +       v_arr(i  ,j+1,k  ) );
     amrex::Real v_lo = (k == 0) ? amrex::Real(1.5) *   v_arr(i  ,j  ,k  ) - myhalf * v_arr(i  ,j  ,k+1)  :
                                   myhalf * ( v_arr(i  ,j  ,k-1) +       v_arr(i  ,j  ,k  ) );
-    amrex::Real mf_v_hi = mf_v(i,j+1,0);
-    amrex::Real mf_v_lo = mf_v(i,j  ,0);
+    amrex::Real mf_vy_hi = mf_vy(i,j+1,0);
+    amrex::Real mf_vy_lo = mf_vy(i,j  ,0);
 
-    amrex::Real u_met = met_xi  * myhalf * ( u_hi*mf_u_hi + u_lo*mf_u_lo );
-    amrex::Real v_met = met_eta * myhalf * ( v_hi*mf_v_hi + v_lo*mf_v_lo );
+    amrex::Real u_met = met_xi  * myhalf * ( u_hi*mf_ux_hi + u_lo*mf_ux_lo );
+    amrex::Real v_met = met_eta * myhalf * ( v_hi*mf_vy_hi + v_lo*mf_vy_lo );
 
     amrex::Real omega =  w - u_met - v_met;
     return omega;
@@ -984,8 +984,8 @@ OmegaFromW (int& i, int& j, int& k, amrex::Real w,
  * @param[in] omega Contravariant vertical velocity.
  * @param[in] u_arr X-velocity array.
  * @param[in] v_arr Y-velocity array.
- * @param[in] mf_u X-velocity map factor.
- * @param[in] mf_v Y-velocity map factor.
+ * @param[in] mf_ux Map factor m_x at x-faces (u points).
+ * @param[in] mf_vy Map factor m_y at y-faces (v points).
  * @param[in] z_nd Nodal physical height field.
  * @param[in] dxInv Inverse cell spacing.
  * @return Vertical velocity w.
@@ -996,8 +996,8 @@ amrex::Real
 WFromOmega (int& i, int& j, int& k, amrex::Real omega,
             const amrex::Array4<const amrex::Real>& u_arr,
             const amrex::Array4<const amrex::Real>& v_arr,
-            const amrex::Array4<const amrex::Real>& mf_u,
-            const amrex::Array4<const amrex::Real>& mf_v,
+            const amrex::Array4<const amrex::Real>& mf_ux,
+            const amrex::Array4<const amrex::Real>& mf_vy,
             const amrex::Array4<const amrex::Real>& z_nd,
             const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& dxInv)
 {
@@ -1016,18 +1016,18 @@ WFromOmega (int& i, int& j, int& k, amrex::Real omega,
                                   myhalf * ( u_arr(i+1,j  ,k-1) +       u_arr(i+1,j  ,k  ) );
     amrex::Real u_lo = (k == 0) ? amrex::Real(1.5) *   u_arr(i  ,j  ,k  ) - myhalf * u_arr(i  ,j  ,k+1)  :
                                   myhalf * ( u_arr(i  ,j  ,k-1) +       u_arr(i  ,j  ,k  ) );
-    amrex::Real mf_u_hi = mf_u(i+1,j,0);
-    amrex::Real mf_u_lo = mf_u(i  ,j,0);
+    amrex::Real mf_ux_hi = mf_ux(i+1,j,0);
+    amrex::Real mf_ux_lo = mf_ux(i  ,j,0);
 
     amrex::Real v_hi = (k == 0) ? amrex::Real(1.5) *   v_arr(i  ,j+1,k  ) - myhalf * v_arr(i  ,j+1,k+1)  :
                                   myhalf * ( v_arr(i  ,j+1,k-1) +       v_arr(i  ,j+1,k  ) );
     amrex::Real v_lo = (k == 0) ? amrex::Real(1.5) *   v_arr(i  ,j  ,k  ) - myhalf * v_arr(i  ,j  ,k+1)  :
                                   myhalf * ( v_arr(i  ,j  ,k-1) +       v_arr(i  ,j  ,k  ) );
-    amrex::Real mf_v_hi = mf_v(i,j+1,0);
-    amrex::Real mf_v_lo = mf_v(i,j  ,0);
+    amrex::Real mf_vy_hi = mf_vy(i,j+1,0);
+    amrex::Real mf_vy_lo = mf_vy(i,j  ,0);
 
-    amrex::Real u_met = met_xi  * myhalf * ( u_hi*mf_u_hi + u_lo*mf_u_lo );
-    amrex::Real v_met = met_eta * myhalf * ( v_hi*mf_v_hi + v_lo*mf_v_lo );
+    amrex::Real u_met = met_xi  * myhalf * ( u_hi*mf_ux_hi + u_lo*mf_ux_lo );
+    amrex::Real v_met = met_eta * myhalf * ( v_hi*mf_vy_hi + v_lo*mf_vy_lo );
 
     amrex::Real w = omega + u_met + v_met;
     return w;

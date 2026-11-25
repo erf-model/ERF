@@ -26,7 +26,6 @@ tuolumne_hip_6.4.0_build:
     EXTRA_CMAKE_ARGS: "-DNETCDF_INCLUDE_DIRS=$NETCDF_DIR/include/"
 
     # RRTMGP/Kokkos options:
-    #ERF_ENABLE_EKAT=ON
     #ERF_ENABLE_KOKKOS=ON
     #Kokkos_ENABLE_HIP_RELOCATABLE_DEVICE_CODE=ON
     #Kokkos_ARCH_AMD_GFX942_APU=ON
@@ -50,7 +49,6 @@ tuolumne_hip_6.4.0_test:
     ERF_ENABLE_FFT: "ON"
 
     # RRTMGP/Kokkos options:
-    #ERF_ENABLE_EKAT=ON
     #ERF_ENABLE_KOKKOS=ON
     #Kokkos_ENABLE_HIP_RELOCATABLE_DEVICE_CODE=ON
     #Kokkos_ARCH_AMD_GFX942_APU=ON

@@ -44,7 +44,7 @@ from E3SM.
 
 ## Runtime selection
 
-Native SHOC is always built in tree. It does not require EAMxx, EKAT, or Kokkos.
+Native SHOC is always built in tree. It does not require EAMxx or Kokkos.
 
 Select it at runtime:
 
