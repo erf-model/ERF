@@ -212,6 +212,9 @@ target_sources(${erf_exe_name}
     # documented formulas, with the vertical part dropped only where every implicit stage is
     # shown to stay bounded.
     ${CMAKE_CURRENT_SOURCE_DIR}/Diffusion/ERF_GTestSmag2DLimiters.cpp
+    # Motivation: a fixed dt above the CFL limit erf.cfl must be lowered to the Courant number
+    # min(erf.cfl, 0.8), and a fixed dt within the limit kept (erf-model/ERF#5238).
+    ${CMAKE_CURRENT_SOURCE_DIR}/TimeIntegration/ERF_GTestFixedDtCFLLimit.cpp
     # Motivation: with erf.use_variable_beta_s unset, the constant beta_s must be replaced
     # exactly when it is below the acoustic stability limit min(sigma^2, 1) of the terrain
     # (erf-model/ERF#5082).
@@ -814,7 +817,7 @@ if(TARGET erf_exec AND ERF_DIM STREQUAL "3" AND
   add_sbm_expected_failure_test(SBM_M3_Fixed_Unsafe_Donor_DT
     inputs_adaptive_anelastic_donor
     "SBM M3 fixed timestep exceeds donor positivity limit"
-    "-DOVERRIDE=erf.fixed_dt=0.2")
+    "-DOVERRIDE=erf.fixed_dt=0.2 erf.fixed_dt_cfl_limit=false")
   add_sbm_expected_failure_test(SBM_M3_Reject_PseudoIncompressible
     inputs_adaptive_anelastic_donor
     "SBM M3 does not yet support erf.compressibility_type = PseudoIncompressible"
@@ -853,7 +856,7 @@ if(TARGET erf_exec AND ERF_DIM STREQUAL "3" AND
   add_sbm_expected_failure_test(SBM_M3_Fixed_Unsafe_Anelastic_Stretched_Donor_DT
     inputs_adaptive_anelastic_stretched_donor
     "SBM M3 fixed timestep exceeds donor positivity limit"
-    "-DOVERRIDE=erf.fixed_dt=0.08")
+    "-DOVERRIDE=erf.fixed_dt=0.08 erf.fixed_dt_cfl_limit=false")
   # The limit on this deck is 1/14.4 s = 0.0694 s, from the outflow rate U/dx + V/dy + W/dz of the
   # 0.1 thick bottom cell: the estimate must see the same mapped faces as the transport
   add_test(NAME SBM_M3_Fixed_Safe_Anelastic_Stretched_Donor_DT
