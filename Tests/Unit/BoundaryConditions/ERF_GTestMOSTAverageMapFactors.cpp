@@ -146,17 +146,7 @@ struct MapFacLevel
         qv->setVal(Real(0.01));
         vars_old = {&cons, &xvel, &yvel, &zvel};
 
-        // Node (i,j) is at the physical position (i*delta, j*delta) on both meshes
-        for (MFIter mfi(*z_phys_nd); mfi.isValid(); ++mfi) {
-            const Box gbx = mfi.fabbox();
-            auto z_arr = z_phys_nd->array(mfi);
-            ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-            {
-                z_arr(i,j,k) = slope_x * static_cast<Real>(i) * delta
-                             + slope_y * static_cast<Real>(j) * delta
-                             + static_cast<Real>(k) * dz;
-            });
-        }
+        fill_z_phys();
         Gpu::streamSynchronize();
 
         if (m > zero) {
@@ -168,6 +158,21 @@ struct MapFacLevel
             mapfac[MapFacType::u_x] = std::make_unique<MultiFab>(convert(ba2d,IntVect(1,0,0)), dm, 1, IntVect(3,3,0));
             mapfac[MapFacType::v_x] = std::make_unique<MultiFab>(convert(ba2d,IntVect(0,1,0)), dm, 1, IntVect(3,3,0));
             for (auto& mf : mapfac) { mf->setVal(m); }
+        }
+    }
+
+    void fill_z_phys ()
+    {
+        // Node (i,j) is at the physical position (i*delta, j*delta) on both meshes
+        for (MFIter mfi(*z_phys_nd); mfi.isValid(); ++mfi) {
+            const Box gbx = mfi.fabbox();
+            auto z_arr = z_phys_nd->array(mfi);
+            ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                z_arr(i,j,k) = slope_x * static_cast<Real>(i) * delta
+                             + slope_y * static_cast<Real>(j) * delta
+                             + static_cast<Real>(k) * dz;
+            });
         }
     }
 
