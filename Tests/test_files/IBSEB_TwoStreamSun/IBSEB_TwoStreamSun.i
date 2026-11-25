@@ -17,6 +17,7 @@ geometry.is_periodic = 1 1 0
 zlo.type = "NoSlipWall"
 zhi.type = "SlipWall"
 erf.fixed_dt           = 0.5
+erf.fixed_dt_cfl_limit = false  # keep the fixed dt the test was set up with (erf-model/ERF#5238)
 erf.substepping_cfl    = 0.5
 erf.sum_interval   = -1
 erf.v              = 0

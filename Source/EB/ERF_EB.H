@@ -32,31 +32,8 @@ class eb_ {
     //! Destroy the EB factory manager.
     ~eb_ ();
 
-    /**
-     * \brief Construct an EB description from terrain data.
-     * \param a_geom Geometry used to place the terrain EB.
-     * \param terrain_fab Terrain height data.
-     * \param a_dz_stretched Device vector containing stretched vertical spacing.
-     * \param is_anelastic Whether the owning level is not FullyCompressible (anelastic or pseudo-incompressible).
-     */
-    eb_ (amrex::Geometry const& a_geom,
-         amrex::FArrayBox const& terrain_fab,
-         amrex::Gpu::DeviceVector<amrex::Real>& a_dz_stretched,
-         bool is_anelastic);
     //! Construct an empty EB factory manager.
     eb_ ();
-
-    /**
-     * \brief Define the EB level metadata used by this factory manager.
-     * \param level AMR level index.
-     * \param a_geom Geometry for the level.
-     * \param a_eb_level AMReX EB level owned by the global EB index space.
-     * \param is_anelastic Whether the owning level is not FullyCompressible (anelastic or pseudo-incompressible).
-     */
-    void define (int level,
-                 amrex::Geometry const& a_geom,
-                 amrex::EB2::Level const* a_eb_level,
-                 bool is_anelastic);
 
     /**
      * \brief Build cell-centered and staggered EB factories for the level.

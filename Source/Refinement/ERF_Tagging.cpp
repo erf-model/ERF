@@ -537,7 +537,9 @@ ERF::compute_tag_field (int levc, const std::string& field, Real time, MultiFab&
             auto& dfab = mf[mfi];
             auto& sfab = mf_cc_vel[mfi];
             auto& zfab = (*z_phys_cc[levc])[mfi];
-            derived::erf_dervortz(bx, dfab, 0, 1, sfab, zfab, Geom(levc), time, nullptr, levc);
+            derived::erf_dervortz(bx, dfab, 0, 1, sfab, zfab, Geom(levc), time, nullptr, levc,
+                                  &(*mapfac[levc][MapFacType::m_x])[mfi],
+                                  &(*mapfac[levc][MapFacType::m_y])[mfi]);
         }
 
     // This allows dynamic refinement based on the value of the scalar/theta
@@ -570,7 +572,9 @@ ERF::compute_tag_field (int levc, const std::string& field, Real time, MultiFab&
             auto& sfab = mf_cc_vel[mfi];
             auto& zfab = (*z_phys_cc[levc])[mfi];
 
-            derived::erf_derhelicity(bx, dfab, 0, 1, sfab, zfab, Geom(levc), time, nullptr, levc);
+            derived::erf_derhelicity(bx, dfab, 0, 1, sfab, zfab, Geom(levc), time, nullptr, levc,
+                                     &(*mapfac[levc][MapFacType::m_x])[mfi],
+                                     &(*mapfac[levc][MapFacType::m_y])[mfi]);
         }
     } else if (field_lc == "max_reflectivity")
     {

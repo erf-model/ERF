@@ -161,7 +161,9 @@ class SBMTransport
      * Install the particle mixing policy and its mesh. With a policy other
      * than None, every stage adds the low-order diffusive exchange to the
      * donor rates and ERF's diffusion of the stage input to the high-order
-     * rates, so the group limiter bounds their combined correction.
+     * rates, so the group limiter bounds their combined correction. Open
+     * diffusive faces of the physical boundaries exchange with their inflow
+     * spectrum in both.
      */
     void set_particle_mixing (const ParticleMixingConfig& config,
                               erf_auxiliary::DiffusionMesh mesh);
@@ -255,6 +257,10 @@ class SBMTransport
   private:
     struct LevelStorage;
     struct DeviceMetadata;
+
+    // The host diffusion BC of each face: ext_dir where particle mixing
+    // exchanges with the inflow spectrum, foextrap elsewhere.
+    void install_mixing_bc ();
 
     const SBMLayout& m_layout;
     SBMBulkProjection m_projection;

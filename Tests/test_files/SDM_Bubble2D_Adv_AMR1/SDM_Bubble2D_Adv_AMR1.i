@@ -20,6 +20,7 @@ zhi.type = "SlipWall"
 
 # TIME STEP CONTROL
 erf.fixed_dt = 0.5
+erf.fixed_dt_cfl_limit = false  # keep the fixed dt the test was set up with (erf-model/ERF#5238)
 erf.fixed_mri_dt_ratio = 4
 
 # DIAGNOSTICS & VERBOSITY

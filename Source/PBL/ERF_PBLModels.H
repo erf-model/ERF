@@ -150,6 +150,8 @@ ComputeDiffusivityMYNNEDMF (const amrex::MultiFab& xvel,
  * @param[in] z_phys_cc Physical location of cell centers
  * @param[in] terrain_blank Immersed solid fraction, or null
  * @param[in] Q_fire_atm Lagged fire heat flux [W/m2] for the w* boost (erf.pbl_mrf_fire_thermal_excess), or null
+ * @param[in] mf_m Map factors m_x and m_y at cell centers, for the physical cell size of the
+ *                 scale-aware blending, or null (unit map factors)
  */
 void
 ComputeDiffusivityMRF (const amrex::MultiFab& xvel,
@@ -169,7 +171,8 @@ ComputeDiffusivityMRF (const amrex::MultiFab& xvel,
                        const std::unique_ptr<amrex::MultiFab>& z_phys_cc,
                        const MoistureComponentIndices& moisture_indices,
                        const amrex::MultiFab* terrain_blank = nullptr,
-                       const amrex::MultiFab* Q_fire_atm = nullptr);
+                       const amrex::MultiFab* Q_fire_atm = nullptr,
+                       amrex::GpuArray<const amrex::MultiFab*, 2> mf_m = {{nullptr, nullptr}});
 
 /**
  * Compute eddy diffusivities of momentum (eddy viscosity) and heat using the

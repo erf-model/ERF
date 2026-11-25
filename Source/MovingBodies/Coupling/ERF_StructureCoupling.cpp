@@ -73,6 +73,7 @@ ERF::initialize_structure_model ()
                              surface_ptr, structure_unit_map_factors(lev), tc.rans_type == RANSType::kEqn, tc.Cmu0,
                              restart_chkfile, fixed_dt[lev], stop, max_step, fully_compressible};
     m_structure_model->initialize(init);
+    m_structure_model_initialized = true;
 
     if (!restart_chkfile.empty()) { read_structure_coarse_source_checkpoint(lev); }
 }

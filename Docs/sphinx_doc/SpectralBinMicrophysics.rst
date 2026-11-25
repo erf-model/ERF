@@ -21,7 +21,7 @@ narrower: it predicts a bin-resolved liquid-water distribution and advances
 it by resolved atmospheric advection on a single grid level or on a
 two-level adaptive mesh (see :ref:`sec:SBMMultilevel`), between periodic,
 wall, outflow and prescribed-inflow boundaries (see :ref:`sec:SBMBoundaries`),
-and on a single level can mix it with ERF's LES eddy diffusivity (see
+and can mix it with ERF's LES eddy diffusivity (see
 :ref:`sec:SBMParticleMixing`).
 Aerosol evolution and cloud microphysical processes are not yet included.
 See :ref:`AuxiliaryState` for the reusable mapped-transport interface.
@@ -29,17 +29,16 @@ See :ref:`AuxiliaryState` for the reusable mapped-transport interface.
 .. warning::
 
    The current ``SBM`` option provides resolved advection of a liquid-water
-   size distribution on one or two grid levels, and turbulent mixing of it on
-   one level. It is not yet a complete warm-cloud or warm-rain microphysics
-   scheme.
+   size distribution on one or two grid levels, and turbulent mixing of it.
+   It is not yet a complete warm-cloud or warm-rain microphysics scheme.
 
    The liquid spectrum is the authoritative condensed-water state. It is
    advected using ERF's dry-air mass carrier, high-order reconstruction,
    coupled flux-corrected transport, and fixed projections to conventional
    cloud- and rain-water fields.
 
-   The runtime does not yet provide particle mixing on refined or
-   terrain-following meshes or through open boundaries,
+   The runtime does not yet provide particle mixing on terrain-following
+   meshes or through ``ho_outflow`` faces,
    condensation/evaporation, aerosol activation or evolution,
    collision-coalescence, sedimentation, precipitation, spectral transport on
    more than two levels or on refined stretched or terrain-following meshes,
@@ -492,7 +491,9 @@ periodic domain keeps the identity it had before physical faces existed.
 Particle mixing other than ``None`` adds its policy, with any reference
 diffusivities, and its diffusion method to the identity, so a restart under
 another policy or other coefficients is rejected; without mixing the identity
-is unchanged.
+is unchanged. With mixing, a domain with an inflow or outflow face also records
+how each such face mixes the spectrum, which separates ERF's ``Inflow`` from
+its ``inflow_outflow``; with periodic and wall faces alone that line is absent.
 
 Auxiliary prognostic-state transport
 ------------------------------------
@@ -789,7 +790,8 @@ outside an inflow face hold the inflow spectrum. They are filled at every
 stage on every level, after the coarse/fine ghosts of a refined level, and
 are never stored. Every face whose WENO-Z3 stencil can reach such a ghost --
 the physical face itself and the next face inside -- takes the donor rate as
-its high-order candidate, so the accepted rate there is the donor rate.
+its high-order advective candidate, so advection there is the donor rate;
+particle mixing adds its own candidates (see :ref:`sec:SBMParticleMixing`).
 
 The inflow spectrum gives every layout component per kilogram of dry air,
 in the component order of ``erf.sbm_fixture_initial_state``: liquid-water
@@ -856,10 +858,9 @@ reject any LES closure, which would mix the vapor but not the spectrum, or
 the spectrum by unrelated coefficients. Every policy rejects PBL and RANS
 closures, since the PBL schemes other than SHOC set ``Q_v`` but not
 ``Scalar_v`` and several add nonlocal transport, and rejects molecular
-diffusion. Mixing also requires one level (``amr.max_level = 0``), a
-constant- or stretched-z mesh, and periodic or wall faces (including
-``surface_layer``); refined meshes, terrain-fitted meshes and open faces are
-rejected until they are qualified.
+diffusion. Mixing also requires a constant- or stretched-z mesh; terrain-fitted
+meshes are rejected until a positive low-order operator is qualified there.
+It runs on one level or on the two levels of SBM's AMR envelope.
 
 Particle molecular (Brownian) diffusion is zero under every policy; a vapor
 or scalar molecular diffusivity is never inherited. A nonfinite or negative
@@ -877,8 +878,38 @@ Where the limiter is inactive the spectrum is therefore mixed exactly as an
 ERF scalar would be, with the host integrator's order of accuracy, and a
 uniform ratio :math:`U/\rho_d` stays uniform under varying density and
 coefficients. Two-moment pairs are mixed in physical mass and number: the
-operator is linear, so no endpoint transformation is needed. Physical faces
-carry no diffusive transfer.
+operator is linear, so no endpoint transformation is needed.
+
+Each domain face mixes the spectrum as ERF diffuses its scalars there:
+
+* periodic faces are interior faces;
+* walls (including ``surface_layer``), ``Outflow`` and ``ho_outflow`` faces
+  carry no particle mixing. ERF diffuses its scalars through an
+  ``ho_outflow`` face against an extrapolated ghost cell, which has no
+  positive low-order form, so the spectrum keeps that face closed;
+* an ``Inflow`` face exchanges with its ``sbm_inflow_z`` spectrum on every
+  cell of the face, as ERF's ``ext_dir`` scalars do;
+* an ``inflow_outflow`` face does so only where the dry-air carrier enters,
+  as ERF's ``ext_dir_upwind`` scalars do. ERF accepts ``inflow_outflow`` on
+  x and y faces only.
+
+Where an inflow face mixes, its low-order exchange spans half the edge cell,
+from the cell's center to the face that holds the inflow value, with the host
+face coefficient of the ghost and edge cells, and it joins the combined bound
+below. The high-order candidate is ERF's own boundary stencil: one-sided on a
+constant-z mesh, and two-point against the face value on the side faces of a
+stretched one. The ghost cell beyond the face holds no budget, so the edge
+cell's budget alone limits the face, and where it is inactive the boundary
+mixes as an ERF scalar would. The boundary ledger records the accepted
+transfer through the face, advective and diffusive together; with the flow at
+rest, mixing alone crosses it.
+
+On two levels a fine stage reads its coarse/fine ghost spectrum from the
+coarse parent, its density from ERF's fill of the stage state, and the eddy
+diffusivity as ERF extrapolates it from the fine interior. The interface
+registers take the accepted rate, mixing included, so reflux closes the
+leaf-domain inventory, which the budget check verifies each coarse step. As
+with advection, a fine level's coarse/fine faces keep their low-order rates.
 
 Low-order advection and diffusion evaluated from the same anchor keep every
 cell nonnegative only under their combined bound
@@ -899,11 +930,18 @@ rejected. ``ConstantReference`` coefficients are known in advance, but ERF
 prepares the ``HostPassiveScalar`` eddy coefficients inside the step, so their
 estimate uses the previous step's coefficients. The first step of a run sees
 none, and the first step after a restart, whose eddy coefficients are not
-checkpointed, keeps the checkpointed timestep; the stage check guards both,
-and aborts rather than shrinking the step. Where the eddy diffusivity can
+checkpointed, keeps the checkpointed timestep, even with the flow at rest,
+where no rate is known yet; the stage check guards both, and aborts rather
+than shrinking the step. Where the eddy diffusivity can
 approach the advective limit, for example an LES started from a strong
 perturbation, leave margin with a smaller ``erf.cfl`` or shrink the first step
-with ``erf.init_shrink``.
+with ``erf.init_shrink``. The estimate fills the density ghost cells it reads
+with the same ERF steps that fill the stage state at the start of the step:
+the interpolated coarse density at a coarse/fine boundary, and beyond an
+inflow face that mixes, the density ERF gives that ghost (``<face>.density``,
+boundary planes, or the interior density in an anelastic run). It is made
+before the step regrids, on the previous step's grids, and later stages see
+their own density; the stage check guards both.
 
 The limiter keeps a roundoff margin of :math:`128\,\epsilon` times each
 cell's gross budget, so a cell it drains exactly to a bound cannot round
@@ -1192,8 +1230,7 @@ The current configuration requires:
 * a three-dimensional ERF build;
 * at most two AMR levels, ``amr.max_level <= 1``;
 * periodic, wall, outflow or prescribed-inflow faces, as in
-  :ref:`sec:SBMBoundaries`, and only periodic and wall faces with particle
-  mixing;
+  :ref:`sec:SBMBoundaries`;
 * static non-EB geometry; end-to-end evidence covers ``ConstantDz``,
   ``StretchedDz``, and the static ``Cos4Hill`` fitted-mesh profile;
 * no moving terrain, embedded boundaries, or immersed buildings;
@@ -1203,7 +1240,7 @@ The current configuration requires:
 * no molecular diffusion;
 * no PBL or RANS closure, and an LES closure (``Smagorinsky`` or
   ``Deardorff``) only with ``erf.sbm_particle_mixing = HostPassiveScalar``;
-* particle mixing only on one level and on a constant- or stretched-z mesh;
+* particle mixing only on a constant- or stretched-z mesh;
 * no ERF numerical diffusion;
 * no sponge source;
 * no configured perturbation forcing;
