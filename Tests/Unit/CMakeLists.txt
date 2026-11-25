@@ -116,6 +116,9 @@ target_sources(${erf_exe_name}
     # direction must take the plane at the periodic image, not the near side of the seam.
     ${CMAKE_CURRENT_SOURCE_DIR}/BoundaryConditions/ERF_GTestBndryPlaneIndex.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/BoundaryConditions/ERF_GTestMultiScalarSlots.cpp
+    # Motivation: below sloping terrain with map factors other than one, the zero-gradient
+    # ghost fill must zero the derivative along the physical normal, at cells and faces.
+    ${CMAKE_CURRENT_SOURCE_DIR}/BoundaryConditions/ERF_GTestTerrainGhostFillMapFac.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/BoundaryConditions/ERF_GTestInflowProfile.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/BoundaryConditions/ERF_GTestSurfaceLayerStress.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/BoundaryConditions/ERF_GTestSurfaceLayer.cpp
@@ -131,6 +134,10 @@ target_sources(${erf_exe_name}
     # Motivation: the MOST reference height must use the true stretched cell
     # centers, and a query on a mesh face must be found rather than abort.
     ${CMAKE_CURRENT_SOURCE_DIR}/BoundaryConditions/ERF_GTestMOSTAverageZref.cpp
+    # Motivation: on terrain with a uniform map factor m, the MOST normal-vector reference
+    # cell and point, the rotated velocities and the subgrid velocity scale must match a
+    # mesh m times finer with m = 1.
+    ${CMAKE_CURRENT_SOURCE_DIR}/BoundaryConditions/ERF_GTestMOSTAverageMapFactors.cpp
     # Motivation: a BTF fine level's mesh must not depend on how its grids are split in z.
     ${CMAKE_CURRENT_SOURCE_DIR}/Utils/ERF_GTestTerrainFineColumns.cpp
     # Motivation: the input sponge's per-height reduction read every k from every box, so a
@@ -536,6 +543,15 @@ if(ERF_ENABLE_NOAHMP)
     ${CMAKE_CURRENT_SOURCE_DIR}/LandSurfaceModel/Noah-MP/ERF_GTestNoahMPLevelDriver.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/LandSurfaceModel/Noah-MP/ERF_GTestNoahMPSnowFields.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/LandSurfaceModel/Noah-MP/ERF_GTestNoahMPCheckpointLayout.cpp
+  )
+endif()
+if(ERF_ENABLE_FIRE OR ERF_ENABLE_FLOOD)
+  # Motivation: the surface-coupling layer the fire and the flood couplings share must coarsen
+  # a level-0 surface field to the bits of amrex::average_down() (the fire coupling's level-0
+  # answers before the layer), and refuse unpaired grids, a nodal ghost fill, a grid ratio
+  # below 1 and a duplicate or empty engine name with the coupling's own names.
+  target_sources(${erf_exe_name} PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/SurfaceCoupling/ERF_GTestSurfaceCoupling.cpp
   )
 endif()
 if(ERF_ENABLE_FIRE)

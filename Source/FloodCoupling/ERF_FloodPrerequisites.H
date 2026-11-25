@@ -12,7 +12,8 @@ class ERF;
  *
  * Verifies that ERF is configured so that a flood grid can be coupled to it,
  * whichever flood engine runs on that grid. Each engine checks its own inputs
- * after these (FloodEngine::verify_prerequisites). Every check aborts with a
+ * after these (FloodEngine::verify_prerequisites). The checks are those of
+ * every surface coupling (ERF_SurfacePrerequisites.H); each aborts with a
  * message that names the input to change.
  */
 

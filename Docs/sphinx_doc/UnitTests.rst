@@ -260,12 +260,14 @@ Test configuration options
    * - ``ERF_ENABLE_PARTICLES``
      - Enables particle code and tests that depend on it.
    * - ``ERF_ENABLE_FIRE``
-     - Enables the fire coupling. ERF registers no fire tests: the coupling's unit tests
-       (``FireCoupler``, ``FireAnchorLevel``, ``FirePrecip`` and others) live in
+     - Enables the fire coupling and the unit tests of the layer it shares with the flood
+       coupling (``SurfaceGrid``, ``SurfaceEngineRegistry``). The fire coupling's own unit
+       tests (``FireCoupler``, ``FireAnchorLevel``, ``FirePrecip`` and others) live in
        erf-model/FLARE, with the engines that use the coupling.
    * - ``ERF_ENABLE_FLOOD``
      - Enables the flood coupling and its unit tests (``FloodGrid``, ``FloodCoupler``,
-       ``FloodEngineRegistry``, ``FloodCouplingParams``); with
+       ``FloodEngineRegistry``, ``FloodCouplingParams``, and the shared ``SurfaceGrid`` and
+       ``SurfaceEngineRegistry``); with
        ``ERF_FLOOD_ENGINE_DIRS=Tests/FloodEngineExample`` also ``FloodEngineExample`` and the
        ``Flood_ExampleEngine*`` regression tests.
    * - ``ERF_ENABLE_MOVING_BODIES``

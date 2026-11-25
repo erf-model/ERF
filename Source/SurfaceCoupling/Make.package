@@ -1,0 +1,9 @@
+CEXE_sources += ERF_SurfaceCouplingParams.cpp
+CEXE_sources += ERF_SurfaceGrid.cpp
+CEXE_sources += ERF_SurfacePrerequisites.cpp
+
+CEXE_headers += ERF_SurfaceCouplingNames.H
+CEXE_headers += ERF_SurfaceCouplingParams.H
+CEXE_headers += ERF_SurfaceEngineRegistry.H
+CEXE_headers += ERF_SurfaceGrid.H
+CEXE_headers += ERF_SurfacePrerequisites.H

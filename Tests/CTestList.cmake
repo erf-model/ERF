@@ -1279,7 +1279,7 @@ function(add_test_cloud_chamber_sidewall_bands TEST_NAME)
                      "${CURRENT_TEST_BINARY_DIR}/most_xlo/simulation.log")
     set_tests_properties(${TEST_NAME} PROPERTIES
         TIMEOUT 600 PROCESSORS ${NP} WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}"
-        LABELS "regression;cloud-chamber;parallel" ENVIRONMENT "OMP_NUM_THREADS=1;LC_ALL=C"
+        LABELS "regression;cloud-chamber" ENVIRONMENT "OMP_NUM_THREADS=1;LC_ALL=C"
         ATTACHED_FILES_ON_FAIL "${logs}")
 endfunction()
 
