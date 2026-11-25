@@ -421,10 +421,10 @@ Real mapped_inventory (const MultiFab& state, const MultiFab& measure, const int
 }
 
 // The host's diffusive transfer through an open xlo face, written out from
-// ERF's stencils rather than its builders: on an N grid the one-sided
-// (-8/3, 3, -1/3) gradient against the face value, on a stretched grid the
-// two-point gradient against it with the face area. Added to the edge cells'
-// tendency, with the zero-carrier test runs in mind.
+// ERF's stencils rather than its builders: the one-sided (-8/3, 3, -1/3)
+// gradient against the face value, on a stretched grid with the face area too
+// (erf-model/ERF#5385). Added to the edge cells' tendency, with the
+// zero-carrier test runs in mind.
 void add_inflow_face_tendency (const Run& run, const MultiFab& z, MultiFab& tendency)
 {
     const int ncomp = z.nComp();
@@ -454,13 +454,12 @@ void add_inflow_face_tendency (const Run& run, const MultiFab& z, MultiFab& tend
                 ? kh * Real(0.5) * (rho(i - 1, j, k, Rho_comp) + rho(i, j, k, Rho_comp))
                 : Real(0.5) * (eddy(i - 1, j, k, EddyDiff::Scalar_h) +
                                eddy(i, j, k, EddyDiff::Scalar_h));
+            const Real grad = -(Real(8.0) / Real(3.0)) * z_in[n] + Real(3.0) * zv(i, j, k, n) -
+                              (Real(1.0) / Real(3.0)) * zv(i + 1, j, k, n);
             Real flux;
             if (stretched) {
-                flux = -coeff * ux(i, j, 0) * dx_inv * (zv(i, j, k, n) - z_in[n]) /
-                       uy(i, j, 0) * area(i, j, k);
+                flux = -coeff * ux(i, j, 0) * dx_inv * grad / uy(i, j, 0) * area(i, j, k);
             } else {
-                const Real grad = -(Real(8.0) / Real(3.0)) * z_in[n] + Real(3.0) * zv(i, j, k, n) -
-                                  (Real(1.0) / Real(3.0)) * zv(i + 1, j, k, n);
                 flux = -coeff * grad * dx_inv * ux(i, j, 0) / uy(i, j, 0);
             }
             out(i, j, k, n) += dx_inv * flux / omega(i, j, k, 0);

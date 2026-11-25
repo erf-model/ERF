@@ -153,6 +153,83 @@ StretchedDiffusionDirichletWeights (
 }
 
 /**
+ * Whether the x (Direction 0) or y (Direction 1) face at (i, j, k) is an open
+ * domain face whose diffusive flux takes the one-sided stencil against the face
+ * value held in the ghost cell: ext_dir, ext_dir_prim, or ext_dir_upwind where
+ * the face velocity `vel` points into the domain. The face index is tested
+ * first, so `vel` is read only on a domain face with ext_dir_upwind (a box away
+ * from the domain face holds no velocity there, and a caller whose BCs never
+ * use ext_dir_upwind may pass an empty array).
+ */
+template <int Direction>
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE void
+ScalarDiffusionLateralExtDir (
+  const amrex::BCRec& bc,
+  const amrex::Array4<const amrex::Real>& vel,
+  const int i,
+  const int j,
+  const int k,
+  const amrex::Dim3& dom_lo,
+  const amrex::Dim3& dom_hi,
+  bool& ext_lo,
+  bool& ext_hi) noexcept
+{
+  static_assert(Direction == 0 || Direction == 1);
+  const int n = Direction == 0 ? i : j;
+  const int face_lo = Direction == 0 ? dom_lo.x : dom_lo.y;
+  const int face_hi = (Direction == 0 ? dom_hi.x : dom_hi.y) + 1;
+  ext_lo = n == face_lo &&
+    ((bc.lo(Direction) == ERFBCType::ext_dir) ||
+     (bc.lo(Direction) == ERFBCType::ext_dir_prim) ||
+     (bc.lo(Direction) == ERFBCType::ext_dir_upwind &&
+      vel(i, j, k) >= amrex::Real(0.0)));
+  ext_hi = n == face_hi &&
+    ((bc.hi(Direction) == ERFBCType::ext_dir) ||
+     (bc.hi(Direction) == ERFBCType::ext_dir_prim) ||
+     (bc.hi(Direction) == ERFBCType::ext_dir_upwind &&
+      vel(i, j, k) <= amrex::Real(0.0)));
+}
+
+/**
+ * The horizontal difference of the scalar at an x (Direction 0) or y
+ * (Direction 1) face: its gradient there times the cell size. At an open domain face
+ * (ext_dir_lo / ext_dir_hi, from ScalarDiffusionLateralExtDir) the ghost cell
+ * holds the face value, half a cell from the edge-cell center, and the
+ * (-8/3, 3, -1/3) stencil gives the gradient to the face to second order;
+ * elsewhere it is the two-point difference.
+ */
+template <int Direction>
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE amrex::Real
+ScalarDiffusionHorizontalDelta (
+  const amrex::Array4<const amrex::Real>& scalar,
+  const int scalar_comp,
+  const int i,
+  const int j,
+  const int k,
+  const bool ext_dir_lo,
+  const bool ext_dir_hi) noexcept
+{
+  static_assert(Direction == 0 || Direction == 1);
+  constexpr int di = Direction == 0 ? 1 : 0;
+  constexpr int dj = Direction == 1 ? 1 : 0;
+  if (ext_dir_lo) {
+    return -(amrex::Real(8.0) / amrex::Real(3.0)) *
+             scalar(i - di, j - dj, k, scalar_comp) +
+           amrex::Real(3.0) * scalar(i, j, k, scalar_comp) -
+           (amrex::Real(1.0) / amrex::Real(3.0)) *
+             scalar(i + di, j + dj, k, scalar_comp);
+  }
+  if (ext_dir_hi) {
+    return
+      (amrex::Real(8.0) / amrex::Real(3.0)) * scalar(i, j, k, scalar_comp) -
+      amrex::Real(3.0) * scalar(i - di, j - dj, k, scalar_comp) +
+      (amrex::Real(1.0) / amrex::Real(3.0)) *
+        scalar(i - 2 * di, j - 2 * dj, k, scalar_comp);
+  }
+  return scalar(i, j, k, scalar_comp) - scalar(i - di, j - dj, k, scalar_comp);
+}
+
+/**
  * Compute the existing N-grid signed face flux, F^D=-K grad(chi). `scalar_comp`
  * selects the intensive scalar and `flux_comp` is applied by the caller to its
  * independent face-flux view. Horizontal map-factor numerator and denominator
@@ -177,38 +254,9 @@ ScalarDiffusionFlux_N (
 {
   static_assert(Direction >= 0 && Direction < 3);
   amrex::Real grad;
-  if constexpr (Direction == 0) {
-    if (ext_dir_lo) {
-      grad = -(amrex::Real(8.0) / amrex::Real(3.0)) *
-               scalar(i - 1, j, k, scalar_comp) +
-             amrex::Real(3.0) * scalar(i, j, k, scalar_comp) -
-             (amrex::Real(1.0) / amrex::Real(3.0)) *
-               scalar(i + 1, j, k, scalar_comp);
-    } else if (ext_dir_hi) {
-      grad =
-        (amrex::Real(8.0) / amrex::Real(3.0)) * scalar(i, j, k, scalar_comp) -
-        amrex::Real(3.0) * scalar(i - 1, j, k, scalar_comp) +
-        (amrex::Real(1.0) / amrex::Real(3.0)) *
-          scalar(i - 2, j, k, scalar_comp);
-    } else {
-      grad = scalar(i, j, k, scalar_comp) - scalar(i - 1, j, k, scalar_comp);
-    }
-  } else if constexpr (Direction == 1) {
-    if (ext_dir_lo) {
-      grad = -(amrex::Real(8.0) / amrex::Real(3.0)) *
-               scalar(i, j - 1, k, scalar_comp) +
-             amrex::Real(3.0) * scalar(i, j, k, scalar_comp) -
-             (amrex::Real(1.0) / amrex::Real(3.0)) *
-               scalar(i, j + 1, k, scalar_comp);
-    } else if (ext_dir_hi) {
-      grad =
-        (amrex::Real(8.0) / amrex::Real(3.0)) * scalar(i, j, k, scalar_comp) -
-        amrex::Real(3.0) * scalar(i, j - 1, k, scalar_comp) +
-        (amrex::Real(1.0) / amrex::Real(3.0)) *
-          scalar(i, j - 2, k, scalar_comp);
-    } else {
-      grad = scalar(i, j, k, scalar_comp) - scalar(i, j - 1, k, scalar_comp);
-    }
+  if constexpr (Direction == 0 || Direction == 1) {
+    grad = ScalarDiffusionHorizontalDelta<Direction>(
+      scalar, scalar_comp, i, j, k, ext_dir_lo, ext_dir_hi);
   } else {
     if (ext_dir_lo) {
       grad = -(amrex::Real(8.0) / amrex::Real(3.0)) *
@@ -272,7 +320,8 @@ StretchedScalarGradient (
 }
 
 /** Existing S-grid horizontal raw flux before its separate map-factor
- * adjustment kernel. */
+ * adjustment kernel. The horizontal spacing is uniform, so an open domain face
+ * takes the N-grid one-sided stencil (ScalarDiffusionHorizontalDelta). */
 template <int Direction>
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE amrex::Real
 ScalarDiffusionFlux_S_Horizontal (
@@ -283,13 +332,13 @@ ScalarDiffusionFlux_S_Horizontal (
   const int k,
   const amrex::Real coeff,
   const amrex::Real inv_spacing,
-  const amrex::Real face_map) noexcept
+  const amrex::Real face_map,
+  const bool ext_dir_lo,
+  const bool ext_dir_hi) noexcept
 {
   static_assert(Direction == 0 || Direction == 1);
-  const amrex::Real delta =
-    Direction == 0
-      ? scalar(i, j, k, scalar_comp) - scalar(i - 1, j, k, scalar_comp)
-      : scalar(i, j, k, scalar_comp) - scalar(i, j - 1, k, scalar_comp);
+  const amrex::Real delta = ScalarDiffusionHorizontalDelta<Direction>(
+    scalar, scalar_comp, i, j, k, ext_dir_lo, ext_dir_hi);
   const amrex::Real gradient = inv_spacing * delta;
   return -coeff * face_map * gradient;
 }
@@ -320,7 +369,10 @@ ScalarDiffusionFlux_Ty (
  * Terrain x-face raw diffusion flux, including ERF's x-face map factor.
  * `coeff` is the already selected effective face coefficient. Prescribed
  * surface flux replacement is boundary policy and is intentionally outside
- * this geometry primitive.
+ * this geometry primitive. At an open domain face (ext_dir_lo / ext_dir_hi,
+ * from ScalarDiffusionLateralExtDir) the ghost column holds the face trace:
+ * the x derivative takes the one-sided stencil against it, and the vertical
+ * derivative in the cross term is the trace's own.
  */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE amrex::Real
 TerrainScalarDiffusionFluxAtIFace (
@@ -333,25 +385,40 @@ TerrainScalarDiffusionFluxAtIFace (
   const amrex::Array4<const amrex::Real>& z_nd,
   const amrex::Array4<const amrex::Real>& z_cc,
   const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
-  const amrex::Array4<const amrex::Real>& mf_ux) noexcept
+  const amrex::Array4<const amrex::Real>& mf_ux,
+  const bool ext_dir_lo,
+  const bool ext_dir_hi) noexcept
 {
   const amrex::Real h_xi = Compute_h_xi_AtIface(i, j, k, cellSizeInv, z_nd);
   const amrex::Real idz_hi =
     amrex::Real(1.0) / (z_cc(i, j, k + 1) - z_cc(i, j, k - 1));
   const amrex::Real idz_lo =
     amrex::Real(1.0) / (z_cc(i - 1, j, k + 1) - z_cc(i - 1, j, k - 1));
-  const amrex::Real grad_z =
-    amrex::Real(0.5) * (scalar(i, j, k + 1, scalar_comp) * idz_hi +
-                        scalar(i - 1, j, k + 1, scalar_comp) * idz_lo -
-                        scalar(i, j, k - 1, scalar_comp) * idz_hi -
-                        scalar(i - 1, j, k - 1, scalar_comp) * idz_lo);
+  // At an open domain face the ghost column holds the face trace, so the
+  // vertical derivative along the face is that column's own; elsewhere it is
+  // the average of the two columns.
+  amrex::Real grad_z;
+  if (ext_dir_lo) {
+    grad_z = (scalar(i - 1, j, k + 1, scalar_comp) -
+              scalar(i - 1, j, k - 1, scalar_comp)) * idz_lo;
+  } else if (ext_dir_hi) {
+    grad_z = (scalar(i, j, k + 1, scalar_comp) -
+              scalar(i, j, k - 1, scalar_comp)) * idz_hi;
+  } else {
+    grad_z =
+      amrex::Real(0.5) * (scalar(i, j, k + 1, scalar_comp) * idz_hi +
+                          scalar(i - 1, j, k + 1, scalar_comp) * idz_lo -
+                          scalar(i, j, k - 1, scalar_comp) * idz_hi -
+                          scalar(i - 1, j, k - 1, scalar_comp) * idz_lo);
+  }
   const amrex::Real grad_xi =
-    cellSizeInv[0] *
-    (scalar(i, j, k, scalar_comp) - scalar(i - 1, j, k, scalar_comp));
+    cellSizeInv[0] * ScalarDiffusionHorizontalDelta<0>(
+      scalar, scalar_comp, i, j, k, ext_dir_lo, ext_dir_hi);
   return ScalarDiffusionFlux_Tx(coeff, mf_ux(i, j, 0), grad_xi, h_xi, grad_z);
 }
 
-/** Terrain y-face raw diffusion flux, including ERF's y-face map factor. */
+/** Terrain y-face raw diffusion flux, including ERF's y-face map factor; open
+ * domain faces as in TerrainScalarDiffusionFluxAtIFace. */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE amrex::Real
 TerrainScalarDiffusionFluxAtJFace (
   const amrex::Array4<const amrex::Real>& scalar,
@@ -363,21 +430,35 @@ TerrainScalarDiffusionFluxAtJFace (
   const amrex::Array4<const amrex::Real>& z_nd,
   const amrex::Array4<const amrex::Real>& z_cc,
   const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
-  const amrex::Array4<const amrex::Real>& mf_vy) noexcept
+  const amrex::Array4<const amrex::Real>& mf_vy,
+  const bool ext_dir_lo,
+  const bool ext_dir_hi) noexcept
 {
   const amrex::Real h_eta = Compute_h_eta_AtJface(i, j, k, cellSizeInv, z_nd);
   const amrex::Real idz_hi =
     amrex::Real(1.0) / (z_cc(i, j, k + 1) - z_cc(i, j, k - 1));
   const amrex::Real idz_lo =
     amrex::Real(1.0) / (z_cc(i, j - 1, k + 1) - z_cc(i, j - 1, k - 1));
-  const amrex::Real grad_z =
-    amrex::Real(0.5) * (scalar(i, j, k + 1, scalar_comp) * idz_hi +
-                        scalar(i, j - 1, k + 1, scalar_comp) * idz_lo -
-                        scalar(i, j, k - 1, scalar_comp) * idz_hi -
-                        scalar(i, j - 1, k - 1, scalar_comp) * idz_lo);
+  // At an open domain face the ghost column holds the face trace, so the
+  // vertical derivative along the face is that column's own; elsewhere it is
+  // the average of the two columns.
+  amrex::Real grad_z;
+  if (ext_dir_lo) {
+    grad_z = (scalar(i, j - 1, k + 1, scalar_comp) -
+              scalar(i, j - 1, k - 1, scalar_comp)) * idz_lo;
+  } else if (ext_dir_hi) {
+    grad_z = (scalar(i, j, k + 1, scalar_comp) -
+              scalar(i, j, k - 1, scalar_comp)) * idz_hi;
+  } else {
+    grad_z =
+      amrex::Real(0.5) * (scalar(i, j, k + 1, scalar_comp) * idz_hi +
+                          scalar(i, j - 1, k + 1, scalar_comp) * idz_lo -
+                          scalar(i, j, k - 1, scalar_comp) * idz_hi -
+                          scalar(i, j - 1, k - 1, scalar_comp) * idz_lo);
+  }
   const amrex::Real grad_eta =
-    cellSizeInv[1] *
-    (scalar(i, j, k, scalar_comp) - scalar(i, j - 1, k, scalar_comp));
+    cellSizeInv[1] * ScalarDiffusionHorizontalDelta<1>(
+      scalar, scalar_comp, i, j, k, ext_dir_lo, ext_dir_hi);
   return ScalarDiffusionFlux_Ty(coeff, mf_vy(i, j, 0), grad_eta, h_eta, grad_z);
 }
 
@@ -697,18 +778,9 @@ BuildScalarDiffusionFluxes_N_Impl (
       MultiplyMolecularByDensity, AddTurbulence>(
       density, rho_comp, mu_turb, coefficients, i, j, k, 1, 0, 0,
       coefficients.eddy_h_comp);
-    // The face index comes first: a box away from a domain face holds no
-    // velocity there.
-    const bool ext_lo = i == dom_lo.x &&
-      ((bc_ptr[bc_comp].lo(0) == ERFBCType::ext_dir) ||
-       (bc_ptr[bc_comp].lo(0) == ERFBCType::ext_dir_prim) ||
-       (bc_ptr[bc_comp].lo(0) == ERFBCType::ext_dir_upwind &&
-        u(dom_lo.x, j, k) >= Real(0.0)));
-    const bool ext_hi = i == dom_hi.x + 1 &&
-      ((bc_ptr[bc_comp].hi(0) == ERFBCType::ext_dir) ||
-       (bc_ptr[bc_comp].hi(0) == ERFBCType::ext_dir_prim) ||
-       (bc_ptr[bc_comp].hi(0) == ERFBCType::ext_dir_upwind &&
-        u(dom_hi.x + 1, j, k) <= Real(0.0)));
+    bool ext_lo, ext_hi;
+    ScalarDiffusionLateralExtDir<0>(bc_ptr[bc_comp], u, i, j, k, dom_lo, dom_hi,
+                                    ext_lo, ext_hi);
     const bool on_surface =
       (surface.xlo && i == dom_lo.x) ||
       (surface.xhi && i == dom_hi.x + 1);
@@ -735,16 +807,9 @@ BuildScalarDiffusionFluxes_N_Impl (
       MultiplyMolecularByDensity, AddTurbulence>(
       density, rho_comp, mu_turb, coefficients, i, j, k, 0, 1, 0,
       coefficients.eddy_h_comp);
-    const bool ext_lo = j == dom_lo.y &&
-      ((bc_ptr[bc_comp].lo(1) == ERFBCType::ext_dir) ||
-       (bc_ptr[bc_comp].lo(1) == ERFBCType::ext_dir_prim) ||
-       (bc_ptr[bc_comp].lo(1) == ERFBCType::ext_dir_upwind &&
-        v(i, dom_lo.y, k) >= Real(0.0)));
-    const bool ext_hi = j == dom_hi.y + 1 &&
-      ((bc_ptr[bc_comp].hi(1) == ERFBCType::ext_dir) ||
-       (bc_ptr[bc_comp].hi(1) == ERFBCType::ext_dir_prim) ||
-       (bc_ptr[bc_comp].hi(1) == ERFBCType::ext_dir_upwind &&
-        v(i, dom_hi.y + 1, k) <= Real(0.0)));
+    bool ext_lo, ext_hi;
+    ScalarDiffusionLateralExtDir<1>(bc_ptr[bc_comp], v, i, j, k, dom_lo, dom_hi,
+                                    ext_lo, ext_hi);
     const bool on_surface =
       (surface.ylo && j == dom_lo.y) ||
       (surface.yhi && j == dom_hi.y + 1);
@@ -858,6 +923,8 @@ BuildScalarDiffusionFluxes_S_Impl (
   const amrex::Real* dz,
   const int klo,
   const int khi,
+  const amrex::Array4<const amrex::Real>& u,
+  const amrex::Array4<const amrex::Real>& v,
   const amrex::Array4<const amrex::Real>& mf_ux,
   const amrex::Array4<const amrex::Real>& mf_uy,
   const amrex::Array4<const amrex::Real>& mf_vx,
@@ -893,11 +960,15 @@ BuildScalarDiffusionFluxes_S_Impl (
     const bool on_surface =
       (surface.xlo && i == dom_lo.x) ||
       (surface.xhi && i == dom_hi.x + 1);
+    bool ext_lo, ext_hi;
+    ScalarDiffusionLateralExtDir<0>(bc_ptr[bc_comp], u, i, j, k, dom_lo, dom_hi,
+                                    ext_lo, ext_hi);
     if (on_surface && prescribed.use_x_on_side) {
       xflux(i, j, k, flux_comp) = prescribed.x(i, j, k, prescribed.x_comp);
     } else {
       xflux(i, j, k, flux_comp) = ScalarDiffusionFlux_S_Horizontal<0>(
-        scalar, scalar_comp, i, j, k, coeff, dx_inv, mf_ux(i, j, 0));
+        scalar, scalar_comp, i, j, k, coeff, dx_inv, mf_ux(i, j, 0),
+        ext_lo, ext_hi);
     }
   });
 
@@ -909,11 +980,15 @@ BuildScalarDiffusionFluxes_S_Impl (
     const bool on_surface =
       (surface.ylo && j == dom_lo.y) ||
       (surface.yhi && j == dom_hi.y + 1);
+    bool ext_lo, ext_hi;
+    ScalarDiffusionLateralExtDir<1>(bc_ptr[bc_comp], v, i, j, k, dom_lo, dom_hi,
+                                    ext_lo, ext_hi);
     if (on_surface && prescribed.use_y_on_side) {
       yflux(i, j, k, flux_comp) = prescribed.y(i, j, k, prescribed.y_comp);
     } else {
       yflux(i, j, k, flux_comp) = ScalarDiffusionFlux_S_Horizontal<1>(
-        scalar, scalar_comp, i, j, k, coeff, dy_inv, mf_vy(i, j, 0));
+        scalar, scalar_comp, i, j, k, coeff, dy_inv, mf_vy(i, j, 0),
+        ext_lo, ext_hi);
     }
   });
 
@@ -969,6 +1044,8 @@ BuildScalarDiffusionFluxes_S (
   const amrex::Real* dz,
   const int klo,
   const int khi,
+  const amrex::Array4<const amrex::Real>& u,
+  const amrex::Array4<const amrex::Real>& v,
   const amrex::Array4<const amrex::Real>& mf_ux,
   const amrex::Array4<const amrex::Real>& mf_uy,
   const amrex::Array4<const amrex::Real>& mf_vx,
@@ -980,21 +1057,21 @@ BuildScalarDiffusionFluxes_S (
   if (mode.molecular_is_kinematic) {
     if (mode.add_turbulence) {
       BuildScalarDiffusionFluxes_S_Impl<true, true>(
-        bx, domain, field, policy, dx_inv, dy_inv, dz, klo, khi, mf_ux,
-        mf_uy, mf_vx, mf_vy, bc_ptr, bc_comp);
+        bx, domain, field, policy, dx_inv, dy_inv, dz, klo, khi, u, v,
+        mf_ux, mf_uy, mf_vx, mf_vy, bc_ptr, bc_comp);
     } else {
       BuildScalarDiffusionFluxes_S_Impl<true, false>(
-        bx, domain, field, policy, dx_inv, dy_inv, dz, klo, khi, mf_ux,
-        mf_uy, mf_vx, mf_vy, bc_ptr, bc_comp);
+        bx, domain, field, policy, dx_inv, dy_inv, dz, klo, khi, u, v,
+        mf_ux, mf_uy, mf_vx, mf_vy, bc_ptr, bc_comp);
     }
   } else if (mode.add_turbulence) {
     BuildScalarDiffusionFluxes_S_Impl<false, true>(
-      bx, domain, field, policy, dx_inv, dy_inv, dz, klo, khi, mf_ux,
-      mf_uy, mf_vx, mf_vy, bc_ptr, bc_comp);
+      bx, domain, field, policy, dx_inv, dy_inv, dz, klo, khi, u, v,
+      mf_ux, mf_uy, mf_vx, mf_vy, bc_ptr, bc_comp);
   } else {
     BuildScalarDiffusionFluxes_S_Impl<false, false>(
-      bx, domain, field, policy, dx_inv, dy_inv, dz, klo, khi, mf_ux,
-      mf_uy, mf_vx, mf_vy, bc_ptr, bc_comp);
+      bx, domain, field, policy, dx_inv, dy_inv, dz, klo, khi, u, v,
+      mf_ux, mf_uy, mf_vx, mf_vy, bc_ptr, bc_comp);
   }
 }
 
@@ -1009,6 +1086,8 @@ BuildScalarDiffusionFluxes_T_Impl (
   const amrex::Array4<const amrex::Real>& z_nd,
   const amrex::Array4<const amrex::Real>& z_cc,
   const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
+  const amrex::Array4<const amrex::Real>& u,
+  const amrex::Array4<const amrex::Real>& v,
   const amrex::Array4<const amrex::Real>& mf_ux,
   const amrex::Array4<const amrex::Real>& mf_vy,
   const amrex::BCRec* bc_ptr,
@@ -1055,8 +1134,12 @@ BuildScalarDiffusionFluxes_T_Impl (
     } else if (on_bottom_z && prescribed.use_x_on_bottom_z) {
       xflux(i, j, k, flux_comp) = prescribed.x(i, j, 0, prescribed.x_comp);
     } else {
+      bool ext_lo, ext_hi;
+      ScalarDiffusionLateralExtDir<0>(bc_ptr[bc_comp], u, i, j, k, dom_lo,
+                                      dom_hi, ext_lo, ext_hi);
       xflux(i, j, k, flux_comp) = TerrainScalarDiffusionFluxAtIFace(
-        scalar, scalar_comp, coeff, i, j, k, z_nd, z_cc, cellSizeInv, mf_ux);
+        scalar, scalar_comp, coeff, i, j, k, z_nd, z_cc, cellSizeInv, mf_ux,
+        ext_lo, ext_hi);
     }
   });
 
@@ -1076,8 +1159,12 @@ BuildScalarDiffusionFluxes_T_Impl (
     } else if (on_bottom_z && prescribed.use_y_on_bottom_z) {
       yflux(i, j, k, flux_comp) = prescribed.y(i, j, 0, prescribed.y_comp);
     } else {
+      bool ext_lo, ext_hi;
+      ScalarDiffusionLateralExtDir<1>(bc_ptr[bc_comp], v, i, j, k, dom_lo,
+                                      dom_hi, ext_lo, ext_hi);
       yflux(i, j, k, flux_comp) = TerrainScalarDiffusionFluxAtJFace(
-        scalar, scalar_comp, coeff, i, j, k, z_nd, z_cc, cellSizeInv, mf_vy);
+        scalar, scalar_comp, coeff, i, j, k, z_nd, z_cc, cellSizeInv, mf_vy,
+        ext_lo, ext_hi);
     }
   });
 
@@ -1126,6 +1213,8 @@ BuildScalarDiffusionFluxes_T (
   const amrex::Array4<const amrex::Real>& z_nd,
   const amrex::Array4<const amrex::Real>& z_cc,
   const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
+  const amrex::Array4<const amrex::Real>& u,
+  const amrex::Array4<const amrex::Real>& v,
   const amrex::Array4<const amrex::Real>& mf_ux,
   const amrex::Array4<const amrex::Real>& mf_vy,
   const amrex::BCRec* bc_ptr,
@@ -1135,21 +1224,21 @@ BuildScalarDiffusionFluxes_T (
   if (mode.molecular_is_kinematic) {
     if (mode.add_turbulence) {
       BuildScalarDiffusionFluxes_T_Impl<true, true>(
-        bx, domain, field, policy, rotate, z_nd, z_cc, cellSizeInv, mf_ux,
-        mf_vy, bc_ptr, bc_comp);
+        bx, domain, field, policy, rotate, z_nd, z_cc, cellSizeInv, u, v,
+        mf_ux, mf_vy, bc_ptr, bc_comp);
     } else {
       BuildScalarDiffusionFluxes_T_Impl<true, false>(
-        bx, domain, field, policy, rotate, z_nd, z_cc, cellSizeInv, mf_ux,
-        mf_vy, bc_ptr, bc_comp);
+        bx, domain, field, policy, rotate, z_nd, z_cc, cellSizeInv, u, v,
+        mf_ux, mf_vy, bc_ptr, bc_comp);
     }
   } else if (mode.add_turbulence) {
     BuildScalarDiffusionFluxes_T_Impl<false, true>(
-      bx, domain, field, policy, rotate, z_nd, z_cc, cellSizeInv, mf_ux,
-      mf_vy, bc_ptr, bc_comp);
+      bx, domain, field, policy, rotate, z_nd, z_cc, cellSizeInv, u, v,
+      mf_ux, mf_vy, bc_ptr, bc_comp);
   } else {
     BuildScalarDiffusionFluxes_T_Impl<false, false>(
-      bx, domain, field, policy, rotate, z_nd, z_cc, cellSizeInv, mf_ux,
-      mf_vy, bc_ptr, bc_comp);
+      bx, domain, field, policy, rotate, z_nd, z_cc, cellSizeInv, u, v,
+      mf_ux, mf_vy, bc_ptr, bc_comp);
   }
 }
 

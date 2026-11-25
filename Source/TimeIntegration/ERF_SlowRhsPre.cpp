@@ -685,7 +685,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
             // by (1 - implicit_fac) and add in the implicit contribution with
             // ERF_Implicit.H
             if (l_use_stretched_dz) {
-                DiffusionSrcForState_S(bx, domain, n_start, n_comp,
+                DiffusionSrcForState_S(bx, domain, n_start, n_comp, u, v,
                                        cell_data, cell_prim, cell_rhs,
                                        diffflux_x, diffflux_y, diffflux_z,
                                        stretched_dz_d, dxInv,
@@ -696,7 +696,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
                                        bc_ptr_d, l_apply_surface_layer_fluxes_in_diffusion, SurfLayer, l_vert_implicit_fac,
                                        l_reflux_diffusion);
             } else if (l_use_terrain_fitted_coords) {
-                DiffusionSrcForState_T(bx, domain, n_start, n_comp, l_rotate,
+                DiffusionSrcForState_T(bx, domain, n_start, n_comp, l_rotate, u, v,
                                        cell_data, cell_prim, cell_rhs,
                                        diffflux_x, diffflux_y, diffflux_z,
                                        z_nd, z_cc, ax_arr, ay_arr, az_arr, detJ_arr,
