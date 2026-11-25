@@ -3212,9 +3212,25 @@ ERF::has_own_low_file (int lev) const
 // is accurate to well below the level at which any of this matters; over one coarse cell it
 // varies by O(1e-5).
 //
+// What is interpolated (conservatively) is not m itself but the factor the horizontal cell
+// area and face lengths carry: 1/(m_x m_y) at cell centers (with isotropic map factors,
+// 1/m^2) and 1/m on the faces.  The fine cells in a coarse cell then have the coarse cell's
+// area between them, and the fine faces on a coarse face its length, so the volumes and the
+// face areas of the two levels nest.  Interpolating m instead keeps the average of m, which
+// is not the average of 1/m^2: the fine volumes then miss the coarse volume by O((dm/dx dx)^2),
+// and a regrid changes the composite volume (and with it the mass) by that much.
+//
+// This assumes isotropic map factors (m_y aliases m_x).  With anisotropic ones the cell area
+// 1/(m_x m_y) must still nest, which interpolating m_x and m_y separately does not do: it
+// would need, e.g., the area factor interpolated conservatively and m_x/m_y interpolated
+// linearly, with m_x and m_y recovered from the two.
+//
 void
 ERF::interp_mapfac_from_coarse (int lev)
 {
+    static_assert(MapFacType::m_y == MapFacType::m_x,
+                  "interp_mapfac_from_coarse nests the cell areas only for isotropic map factors");
+
     AMREX_ALWAYS_ASSERT(lev > 0);
     AMREX_ALWAYS_ASSERT(mapfac[lev].size() == mapfac[lev-1].size());
 
@@ -3253,14 +3269,41 @@ ERF::interp_mapfac_from_coarse (int lev)
         // (see the note in Interp2DArrays)
         const IntVect rr2d(refRatio(lev-1)[0], refRatio(lev-1)[1], 1);
 
+        // The area (cell centers, 1/m^2) or length (faces, 1/m) factor
+        const bool cell_area = !ixtype.nodeCentered(0) && !ixtype.nodeCentered(1);
+
+        const MultiFab& mf_c = *mapfac[lev-1][i];
+        MultiFab q_c(mf_c.boxArray(), mf_c.DistributionMap(), 1, mf_c.nGrowVect());
+        for (MFIter mfi(q_c); mfi.isValid(); ++mfi) {
+            const auto& q = q_c.array(mfi);
+            const auto& m = mf_c.const_array(mfi);
+            ParallelFor(mfi.fabbox(), [=] AMREX_GPU_DEVICE (int ii, int jj, int kk) noexcept
+            {
+                q(ii,jj,kk) = (cell_area) ? one / (m(ii,jj,kk) * m(ii,jj,kk)) : one / m(ii,jj,kk);
+            });
+        }
+
+        MultiFab& mf_f = *mapfac[lev][i];
+        MultiFab q_f(mf_f.boxArray(), mf_f.DistributionMap(), 1, mf_f.nGrowVect());
+        q_f.setVal(one);
+
         // NOTE: this interpolater assumes that ALL ghost cells of the coarse MultiFab
         //       have been pre-filled - this includes ghost cells both inside and outside
         //       the domain
-        InterpFromCoarseLevel(*mapfac[lev][i], ngv, ngv,
-                              *mapfac[lev-1][i], 0, 0, 1,
+        InterpFromCoarseLevel(q_f, ngv, ngv,
+                              q_c, 0, 0, 1,
                               geom[lev-1], geom[lev],
                               rr2d, mapper,
                               domain_bcs_type, bccomp);
+
+        for (MFIter mfi(mf_f); mfi.isValid(); ++mfi) {
+            const auto& m = mf_f.array(mfi);
+            const auto& q = q_f.const_array(mfi);
+            ParallelFor(amrex::grow(mfi.validbox(), ngv), [=] AMREX_GPU_DEVICE (int ii, int jj, int kk) noexcept
+            {
+                m(ii,jj,kk) = (cell_area) ? one / std::sqrt(q(ii,jj,kk)) : one / q(ii,jj,kk);
+            });
+        }
 
         // Prefer this level's own data in the ghost cells it shares with another fine box
         mapfac[lev][i]->FillBoundary(geom[lev].periodicity());
