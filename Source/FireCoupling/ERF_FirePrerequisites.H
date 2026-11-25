@@ -24,7 +24,9 @@ class ERF;
  *
  * Each engine checks its own inputs after these (FireEngine::verify_prerequisites).
  *
- * All checks use AMREX_ALWAYS_ASSERT_WITH_MESSAGE for actionable diagnostics.
+ * The checks on the level the fire grid refines are those of every surface
+ * coupling (verify_surface_grid_level, ERF_SurfacePrerequisites.H); each
+ * check aborts with a message that names the input to change.
  */
 
 /**
@@ -68,14 +70,13 @@ void verify_fire_precip_source(const std::string& engine_name,
  * Checks performed (in order):
  * 1. SurfaceLayer pointer is not null (zlo.type = surface_layer), unless
  *    needs_surface_layer is false (FireEngine::needs_surface_layer)
- * 2. 0 <= lev <= finest level
- * 3. On a level above 0: static refinement (erf.regrid_int <= 0)
- * 7. Every box of the level spans its full height (no z-decomposition)
- * 7b. The level's boxes cover one rectangle in x and y
+ * 2-7b, 11. verify_surface_grid_level: 0 <= lev <= finest level; on a level
+ *    above 0 static refinement (erf.regrid_int <= 0); every box of the level
+ *    spans its full height (no z-decomposition); the level's boxes cover one
+ *    rectangle in x and y; the domain starts at index 0
  * 8. grid_ratio >= 1
  * 9. All boxes divisible by grid_ratio in x and y
  * 10. Distribution map size matches grid size
- * 11. Domain z, x and y indices start at 0
  */
 void verify_fire_prerequisites(const ERF& erf,
                                int lev,

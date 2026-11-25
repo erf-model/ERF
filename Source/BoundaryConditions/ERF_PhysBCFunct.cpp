@@ -132,9 +132,16 @@ void ERFPhysBCFunct_cons::operator() (MultiFab& mf, MultiFab& xvel, MultiFab& yv
             Box cbx2 = bx; cbx2.grow(nghost);
 
             Array4<const Real> z_nd_arr;
-
+            Array4<const Real> mf_x_arr;
+            Array4<const Real> mf_y_arr;
             if (m_z_phys_nd) {
                 z_nd_arr = m_z_phys_nd->const_array(mfi);
+            }
+            if (m_mapfac_x) {
+                mf_x_arr = m_mapfac_x->const_array(mfi);
+            }
+            if (m_mapfac_y) {
+                mf_y_arr = m_mapfac_y->const_array(mfi);
             }
 
             if (!gdomain.contains(cbx2)) {
@@ -149,7 +156,7 @@ void ERFPhysBCFunct_cons::operator() (MultiFab& mf, MultiFab& xvel, MultiFab& yv
                 }
 
                 // We send the full FAB box with ghost cells
-                impose_vertical_cons_bcs(cons_arr,cbx2,domain,z_nd_arr,dxInv,icomp,ncomp,time,do_terrain_adjustment);
+                impose_vertical_cons_bcs(cons_arr,cbx2,domain,z_nd_arr,mf_x_arr,mf_y_arr,dxInv,icomp,ncomp,time,do_terrain_adjustment);
             }
 
         } // MFIter
@@ -224,9 +231,16 @@ void ERFPhysBCFunct_u::operator() (MultiFab& mf, MultiFab& xvel, MultiFab& yvel,
             Box xbx2 = surroundingNodes(bx,0); xbx2.grow(nghost);
 
             Array4<const Real> z_nd_arr;
-
+            Array4<const Real> mf_x_arr;
+            Array4<const Real> mf_y_arr;
             if (m_z_phys_nd) {
                 z_nd_arr = m_z_phys_nd->const_array(mfi);
+            }
+            if (m_mapfac_x) {
+                mf_x_arr = m_mapfac_x->const_array(mfi);
+            }
+            if (m_mapfac_y) {
+                mf_y_arr = m_mapfac_y->const_array(mfi);
             }
 
             if (!gdomainx.contains(xbx2)) {
@@ -239,7 +253,7 @@ void ERFPhysBCFunct_u::operator() (MultiFab& mf, MultiFab& xvel, MultiFab& yvel,
                     impose_inflow_profile_xvel(dest_arr,velx_arr,vely_arr,z_nd_arr,xbx1,domain,bccomp);
                 }
 
-                impose_vertical_xvel_bcs(dest_arr,xbx2,domain,z_nd_arr,dxInv,bccomp,time);
+                impose_vertical_xvel_bcs(dest_arr,xbx2,domain,z_nd_arr,mf_x_arr,mf_y_arr,dxInv,bccomp,time);
             }
         } // MFIter
     } // OpenMP
@@ -313,9 +327,16 @@ void ERFPhysBCFunct_v::operator() (MultiFab& mf, MultiFab& xvel, MultiFab& yvel,
             Box ybx2 = surroundingNodes(bx,1); ybx2.grow(nghost);
 
             Array4<const Real> z_nd_arr;
-
+            Array4<const Real> mf_x_arr;
+            Array4<const Real> mf_y_arr;
             if (m_z_phys_nd) {
                 z_nd_arr = m_z_phys_nd->const_array(mfi);
+            }
+            if (m_mapfac_x) {
+                mf_x_arr = m_mapfac_x->const_array(mfi);
+            }
+            if (m_mapfac_y) {
+                mf_y_arr = m_mapfac_y->const_array(mfi);
             }
 
             if (!gdomainy.contains(ybx2)) {
@@ -328,7 +349,7 @@ void ERFPhysBCFunct_v::operator() (MultiFab& mf, MultiFab& xvel, MultiFab& yvel,
                     impose_inflow_profile_yvel(dest_arr,velx_arr,vely_arr,z_nd_arr,ybx1,domain,bccomp);
                 }
 
-                impose_vertical_yvel_bcs(dest_arr,ybx2,domain,z_nd_arr,dxInv,bccomp,time);
+                impose_vertical_yvel_bcs(dest_arr,ybx2,domain,z_nd_arr,mf_x_arr,mf_y_arr,dxInv,bccomp,time);
             }
 
         } // MFIter
@@ -388,6 +409,10 @@ void ERFPhysBCFunct_w::operator() (MultiFab& mf, MultiFab& xvel, MultiFab& yvel,
     //
     if (gdomainz.smallEnd(2) == 0) gdomainz.setSmall(2,1);
 
+    // With terrain, w is converted from omega (WFromOmega), which reads the map factors
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!m_z_phys_nd || (m_mapfac_u && m_mapfac_v),
+                                     "ERFPhysBCFunct_w: terrain needs the u and v map factors");
+
 #ifdef AMREX_USE_OMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
 #endif
@@ -414,11 +439,16 @@ void ERFPhysBCFunct_w::operator() (MultiFab& mf, MultiFab& xvel, MultiFab& yvel,
             }
 
             Array4<const Real> z_nd_arr;
-            const Array4<const Real>& mf_u = m_mapfac_u->const_array(mfi);
-            const Array4<const Real>& mf_v = m_mapfac_v->const_array(mfi);
-
+            Array4<const Real> mf_u_arr;
+            Array4<const Real> mf_v_arr;
             if (m_z_phys_nd) {
                 z_nd_arr = m_z_phys_nd->const_array(mfi);
+            }
+            if (m_mapfac_u) {
+                mf_u_arr = m_mapfac_u->const_array(mfi);
+            }
+            if (m_mapfac_v) {
+                mf_v_arr = m_mapfac_v->const_array(mfi);
             }
 
             //
@@ -431,10 +461,10 @@ void ERFPhysBCFunct_w::operator() (MultiFab& mf, MultiFab& xvel, MultiFab& yvel,
 
                 if (!gdomainz.contains(zbx) && !m_use_real_bcs) {
                     impose_lateral_zvel_bcs(velz_arr,velx_arr,vely_arr,zbx,domain,
-                                            mf_u,mf_v,z_nd_arr,dxInv,m_terrain_type,bccomp_w,time);
+                                            mf_u_arr,mf_v_arr,z_nd_arr,dxInv,m_terrain_type,bccomp_w,time);
                 }
 
-                impose_vertical_zvel_bcs(velz_arr,velx_arr,vely_arr,zbx,domain,mf_u,mf_v,
+                impose_vertical_zvel_bcs(velz_arr,velx_arr,vely_arr,zbx,domain,mf_u_arr,mf_v_arr,
                                          z_nd_arr,dxInv,bccomp_u, bccomp_v, bccomp_w, m_terrain_type, time);
             }
 
