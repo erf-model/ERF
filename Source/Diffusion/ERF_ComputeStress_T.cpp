@@ -339,8 +339,10 @@ ComputeStressConsVisc_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
     },
     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
-        Real mfx = myhalf * (mf_ux(i,j,0) + mf_ux(i,j-1,0));
-        Real mfy = myhalf * (mf_vy(i,j,0) + mf_vy(i-1,j,0));
+        // Edge map factors as in the strain kernels: m_x from the v-points and m_y from the
+        // u-points on either side of the edge
+        Real mfy = myhalf * (mf_uy(i,j,0) + mf_uy(i  ,j-1,0));
+        Real mfx = myhalf * (mf_vx(i,j,0) + mf_vx(i-1,j  ,0));
 
         Real met_h_zeta = Compute_h_zeta_AtEdgeCenterK(i,j,k,dxInv,z_nd);
 
@@ -781,8 +783,10 @@ ComputeStressVarVisc_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
     },
     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
-        Real mfx = myhalf * (mf_ux(i,j,0) + mf_ux(i,j-1,0));
-        Real mfy = myhalf * (mf_vy(i,j,0) + mf_vy(i-1,j,0));
+        // Edge map factors as in the strain kernels: m_x from the v-points and m_y from the
+        // u-points on either side of the edge
+        Real mfy = myhalf * (mf_uy(i,j,0) + mf_uy(i  ,j-1,0));
+        Real mfx = myhalf * (mf_vx(i,j,0) + mf_vx(i-1,j  ,0));
 
         Real met_h_zeta = Compute_h_zeta_AtEdgeCenterK(i,j,k,dxInv,z_nd);
 
