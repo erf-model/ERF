@@ -140,6 +140,8 @@ struct Options
     Real hill{Real(0.1)};
     Real plane{Real(0.0)};
     bool varying_density{false};
+    // Map factors varying in x and y about 1, isotropic as ERF's are.
+    bool variable_maps{false};
     Real carrier_x{0};
     // The x carrier falls linearly from carrier_x at xhi to -carrier_x at xlo.
     bool carrier_ramp{false};
@@ -375,7 +377,18 @@ make_run (const Options& options)
         amrex::convert(ba2d, IntVect(1, 0, 0)), dm, 1, 0);
     run->mapfac[MapFacType::v_x] = std::make_unique<MultiFab>(
         amrex::convert(ba2d, IntVect(0, 1, 0)), dm, 1, 0);
-    for (int m = 0; m < MapFacType::num; ++m) { run->mapfac[m]->setVal(Real(1.0)); }
+    for (int m = 0; m < MapFacType::num; ++m) {
+        const Real amplitude = options.variable_maps ? Real(0.05) : Real(0.0);
+        const Real nxr = Real(nx);
+        const Real nyr = Real(ny);
+        for (amrex::MFIter mfi(*run->mapfac[m]); mfi.isValid(); ++mfi) {
+            const auto a = run->mapfac[m]->array(mfi);
+            amrex::ParallelFor(mfi.fabbox(), [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept {
+                a(i, j, 0, 0) = Real(1.0) + amplitude * std::sin(two_pi * Real(i + m) / nxr) +
+                                Real(0.5) * amplitude * std::cos(two_pi * Real(j) / nyr);
+            });
+        }
+    }
 
     run->z_nd.define(amrex::convert(ba, IntVect(1)), dm, 1, 2);
     fill_heights(run->z_nd, options);
@@ -664,6 +677,7 @@ void run_recovery ()
 {
     Options eddy;
     eddy.varying_density = true;
+    eddy.variable_maps = true;
     eddy.mode = erf_sbm::MomentMode::TwoMoment;
     expect_recovers_native_diffusion(eddy);
 

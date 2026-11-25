@@ -1069,6 +1069,9 @@ if(TARGET erf_exec AND ERF_DIM STREQUAL "3" AND
     "-DRUN_ARGS=${_sbm_mixing_terrain}|erf.les_type=Deardorff|erf.tke_min=1.e-2|${_sbm_boundary_2m}|erf.sbm_fixture_initial_state_xhi=3.0e-6 1.2e-5 9.0e-6 2.4e-5 2.0e12 4.0e12 1.5e12 2.0e12")
   add_sbm_boundary_budget_test(SBM_Mixing_Terrain_Adaptive_ConstantReference
     inputs_mixing_walls zero "-DRUN_ARGS=${_sbm_mixing_terrain}|${_sbm_mixing_constant_adaptive}|max_step=6")
+  add_sbm_boundary_budget_test(SBM_Mixing_Terrain_Stretched_ConstantReference
+    inputs_mixing_walls zero
+    "-DRUN_ARGS=${_sbm_mixing_terrain}|${_sbm_mixing_constant}|erf.grid_stretching_ratio=1.1|erf.initial_dz=0.08")
 
   # Through an inflow face: ERF's inflow exchanges with the inflow spectrum on
   # every face cell and inflow_outflow where the carrier enters; outflow and
