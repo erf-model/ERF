@@ -2564,6 +2564,16 @@ add_test_box_parity(IsentropicVortexAdvecting_WENO7_BoxParity IsentropicVortexAd
 # add_test_r(IVA_NumDiff                       ""  "erf_exec" "plt00010")
 add_test_r(MovingTerrain_nosub               ""  "erf_exec" "plt00020")
 add_test_r(MovingTerrain_sub                 ""  "erf_exec" "plt00010")
+# The moving-terrain acoustic substep (erf_substep_MT) with map factors that vary in x and y
+# (#5359): its mass and (rho theta) fluxes divide by m_y and m_x and its divergence takes m_x m_y,
+# so with a flow through a periodic, closed domain the mass and rho theta are conserved.  The
+# surface is flat (prob.Ampl=0), so only the substep's map factors are tested; without them
+# MASS drifts by 3e-7 in 20 steps
+foreach(_q MASS "RHO THETA")
+  string(REPLACE " " "" _qn "${_q}")
+  add_test_conservation(Conservation_${_qn}_MovingTerrainSubstep_VaryingMapFactor ScalarDiffusion_Reflux "${_q}"
+      OPTIONS "amr.max_level=0 max_step=20 erf.terrain_type=MovingFittedMesh prob.custom_terrain_type=MovingSineWave prob.Ampl=0 erf.use_lagged_delta_rt=false erf.test_mapfactor_amp=0.1 erf.molec_diff_type=None prob.U_0=10 prob.V_0=5")
+endforeach()
 
 # Problem setups measured from geometry.prob_lo (#4603, #4619, #4623) and the Poiseuille
 # y-velocity perturbation (#4618). Each shift test writes the initial state twice, the
@@ -4288,6 +4298,17 @@ add_test_conservation(Conservation_ScalarDiffusion_Stretched ScalarDiffusion_Ref
     OPTIONS "erf.initial_dz=0.025")
 add_test_conservation(Conservation_ScalarDiffusion_MapFactor ScalarDiffusion_Reflux "RHO SCALAR"
     OPTIONS "erf.test_mapfactor=true")
+# Compressible levels coupled two-way with map factors that vary in x and y average the face
+# momenta down as mass fluxes, (rho u) ax/m_y, (rho v) ay/m_x and (rho w)/(m_x m_y) (#5359): a
+# flow advecting the scalar through the faces of the fine patch, on a flat mesh and over a hill
+set(_adv_mapfac_options "erf.test_mapfactor_amp=0.1 erf.molec_diff_type=None prob.U_0=10 prob.V_0=5")
+foreach(_q MASS "RHO SCALAR")
+  string(REPLACE " " "" _qn "${_q}")
+  add_test_conservation(Conservation_${_qn}_Advection_VaryingMapFactor ScalarDiffusion_Reflux "${_q}"
+      OPTIONS "${_adv_mapfac_options}")
+  add_test_conservation(Conservation_${_qn}_Advection_Hill_VaryingMapFactor ScalarDiffusion_Reflux "${_q}"
+      OPTIONS "${_adv_mapfac_options} erf.terrain_type=StaticFittedMesh prob.custom_terrain_type=WoA prob.dir=2 prob.hmax=0.25 prob.L=0.15")
+endforeach()
 add_test_conservation(Conservation_ScalarDiffusion_Ratio221  ScalarDiffusion_Reflux "RHO SCALAR"
     OPTIONS "'amr.ref_ratio_vect=2 2 1'")
 add_test_conservation(Conservation_ScalarDiffusion_Anelastic ScalarDiffusion_Reflux "RHO SCALAR"

@@ -6,6 +6,7 @@ erf.input_sounding_file = input_sounding
 erf.sounding_type = ConstantDensity
 max_step = 4
 erf.fixed_dt = 0.02
+erf.fixed_dt_cfl_limit = false  # keep the fixed dt the test was set up with (erf-model/ERF#5238)
 erf.fixed_mri_dt_ratio = 16
 erf.vert_implicit_fac = 1
 erf.implicit_moisture_diffusion = true

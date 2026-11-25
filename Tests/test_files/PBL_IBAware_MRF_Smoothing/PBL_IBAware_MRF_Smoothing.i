@@ -17,6 +17,7 @@ erf.most.surf_temp_flux = 0.1     # heated surface, so the PBL height varies fro
 erf.most.pblh_calc = "MRF"
 zhi.type = "SlipWall"
 erf.fixed_dt           = 0.5
+erf.fixed_dt_cfl_limit = false  # keep the fixed dt the test was set up with (erf-model/ERF#5238)
 erf.substepping_cfl    = 0.5
 erf.sum_interval   = -1
 erf.v              = 0

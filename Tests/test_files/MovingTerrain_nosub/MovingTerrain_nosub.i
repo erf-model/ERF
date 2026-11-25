@@ -26,6 +26,7 @@ erf.terrain_smoothing = 2   # Sullivan 2004 approach
 
 erf.timestepping_type = RK3_NoSubstepping
 erf.fixed_dt           = 0.005
+erf.fixed_dt_cfl_limit = false  # keep the fixed dt the test was set up with (erf-model/ERF#5238)
 
 # DIAGNOSTICS & VERBOSITY
 erf.sum_interval   = -1        # timesteps between computing mass

@@ -33,6 +33,7 @@ erf.molec_diff_type = "None"
 erf.les_type        = "None"
 erf.pbl_type        = "None"
 erf.fixed_dt        = 1.0
+erf.fixed_dt_cfl_limit = false  # keep the fixed dt the test was set up with (erf-model/ERF#5238)
 
 erf.time_avg_vel      = true
 erf.compute_mean_vars = true

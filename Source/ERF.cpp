@@ -87,6 +87,7 @@ bool ERF::diffusive_dt_limit = false;
 Real ERF::diffusive_cfl      = myhalf;
 
 int  ERF::fixed_mri_dt_ratio = 0;
+bool ERF::fixed_dt_cfl_limit = true;
 
 // Dictate verbosity in screen output
 int  ERF::verbose       = 0;
@@ -2276,7 +2277,7 @@ ERF::InitData_post ()
                                                                 Qr_prim[lev], z_phys_nd[lev],
                                                                 Hwave[lev].get(),Lwave[lev].get(),eddyDiffs_lev[lev].get(),
                                                                 lsm_data[lev], lsm_data_name, lsm_flux[lev], lsm_flux_name,
-                                                                sst_lev[lev], tsk_lev[lev], lmask_lev[lev]);
+                                                                sst_lev[lev], tsk_lev[lev], lmask_lev[lev], &mapfac[lev]);
             }
 
             // The custom and rico flux types prescribe u*, T* and q* directly: these are
@@ -4253,6 +4254,7 @@ ERF::ReadParameters ()
         }
 
         pp.queryAdd("fixed_mri_dt_ratio", fixed_mri_dt_ratio);
+        pp.queryAdd("fixed_dt_cfl_limit", fixed_dt_cfl_limit);
 
         // We use this to keep track of how many boxes we read in from WRF initialization
         num_files_at_level.resize(max_level+1,0);
@@ -5004,6 +5006,10 @@ ERF::ReadParameters ()
     }
 
     ParameterSanityChecks();
+
+    // The fixed dt as the inputs give it, kept for the checkpoint once the CFL limit lowers it
+    fixed_dt_input      = fixed_dt;
+    fixed_fast_dt_input = fixed_fast_dt;
 }
 
 // Read in some parameters from inputs file

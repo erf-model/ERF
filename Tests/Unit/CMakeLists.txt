@@ -131,6 +131,10 @@ target_sources(${erf_exe_name}
     # Motivation: the MOST reference height must use the true stretched cell
     # centers, and a query on a mesh face must be found rather than abort.
     ${CMAKE_CURRENT_SOURCE_DIR}/BoundaryConditions/ERF_GTestMOSTAverageZref.cpp
+    # Motivation: on terrain with a uniform map factor m, the MOST normal-vector reference
+    # cell and point, the rotated velocities and the subgrid velocity scale must match a
+    # mesh m times finer with m = 1.
+    ${CMAKE_CURRENT_SOURCE_DIR}/BoundaryConditions/ERF_GTestMOSTAverageMapFactors.cpp
     # Motivation: a BTF fine level's mesh must not depend on how its grids are split in z.
     ${CMAKE_CURRENT_SOURCE_DIR}/Utils/ERF_GTestTerrainFineColumns.cpp
     # Motivation: the input sponge's per-height reduction read every k from every box, so a
@@ -212,6 +216,9 @@ target_sources(${erf_exe_name}
     # documented formulas, with the vertical part dropped only where every implicit stage is
     # shown to stay bounded.
     ${CMAKE_CURRENT_SOURCE_DIR}/Diffusion/ERF_GTestSmag2DLimiters.cpp
+    # Motivation: a fixed dt above the CFL limit erf.cfl must be lowered to the Courant number
+    # min(erf.cfl, 0.8), and a fixed dt within the limit kept (erf-model/ERF#5238).
+    ${CMAKE_CURRENT_SOURCE_DIR}/TimeIntegration/ERF_GTestFixedDtCFLLimit.cpp
     # Motivation: with erf.use_variable_beta_s unset, the constant beta_s must be replaced
     # exactly when it is below the acoustic stability limit min(sigma^2, 1) of the terrain
     # (erf-model/ERF#5082).
@@ -418,6 +425,9 @@ target_sources(${erf_exe_name}
     # Motivation: the average down over immersed-forcing levels must weight the fine cells by
     # their fluid mass and leave coarse cells that are solid on their own level alone.
     ${CMAKE_CURRENT_SOURCE_DIR}/Utils/ERF_GTestImmersedAverageDown.cpp
+    # Motivation: with map factors other than one, the face momenta must be averaged down as
+    # mass fluxes, so that each covered coarse face carries the mean of the fine fluxes over it.
+    ${CMAKE_CURRENT_SOURCE_DIR}/Utils/ERF_GTestAverageDownMapFac.cpp
     # Motivation: over immersed-forcing terrain with the fraction-stress wall law the RANS wall
     # distance must be measured from the surface the wall law uses, column by column.
     ${CMAKE_CURRENT_SOURCE_DIR}/Utils/ERF_GTestImmersedWallDist.cpp
@@ -820,7 +830,7 @@ if(TARGET erf_exec AND ERF_DIM STREQUAL "3" AND
   add_sbm_expected_failure_test(SBM_M3_Fixed_Unsafe_Donor_DT
     inputs_adaptive_anelastic_donor
     "SBM M3 fixed timestep exceeds donor positivity limit"
-    "-DOVERRIDE=erf.fixed_dt=0.2")
+    "-DOVERRIDE=erf.fixed_dt=0.2 erf.fixed_dt_cfl_limit=false")
   add_sbm_expected_failure_test(SBM_M3_Reject_PseudoIncompressible
     inputs_adaptive_anelastic_donor
     "SBM M3 does not yet support erf.compressibility_type = PseudoIncompressible"
@@ -859,7 +869,7 @@ if(TARGET erf_exec AND ERF_DIM STREQUAL "3" AND
   add_sbm_expected_failure_test(SBM_M3_Fixed_Unsafe_Anelastic_Stretched_Donor_DT
     inputs_adaptive_anelastic_stretched_donor
     "SBM M3 fixed timestep exceeds donor positivity limit"
-    "-DOVERRIDE=erf.fixed_dt=0.08")
+    "-DOVERRIDE=erf.fixed_dt=0.08 erf.fixed_dt_cfl_limit=false")
   # The limit on this deck is 1/14.4 s = 0.0694 s, from the outflow rate U/dx + V/dy + W/dz of the
   # 0.1 thick bottom cell: the estimate must see the same mapped faces as the transport
   add_test(NAME SBM_M3_Fixed_Safe_Anelastic_Stretched_Donor_DT
