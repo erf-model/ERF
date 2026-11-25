@@ -10,6 +10,8 @@ using namespace amrex;
  * @param[out] rhs_arr tendency for the boundary-normal momentum equation
  * @param[in] vel_norm_arr velocity component normal to the open boundary
  * @param[in] cell_data_arr cell-centered conservative state
+ * @param[in] mf_norm map factor in direction dir at the cell center
+ *            (mf_mx for dir 0, mf_my for dir 1)
  * @param[in] dxInv inverse grid spacing
  * @param[in] do_lo flag for a low-side open boundary
  */
@@ -19,6 +21,7 @@ AdvectionSrcForOpenBC_Normal (const Box& bx,
                               const Array4<      Real>& rhs_arr,
                               const Array4<const Real>& vel_norm_arr,
                               const Array4<const Real>& cell_data_arr,
+                              const Array4<const Real>& mf_norm,
                               const GpuArray<Real, AMREX_SPACEDIM>& dxInv,
                               const bool do_lo)
 {
@@ -39,7 +42,9 @@ AdvectionSrcForOpenBC_Normal (const Box& bx,
 
         Real rho_face  = myhalf * ( cell_data_arr(ivr1,Rho_comp) + cell_data_arr(ivr2,Rho_comp) );
         Real mom_star  = rho_face * Real(sgn) * max( Real(sgn)*(vel_norm_arr(ivu1) + c_o_star), zero_d );
-        Real vel_grad  =  ( vel_norm_arr(ivu1) - vel_norm_arr(ivu2) ) * dxInv[dir];
+        // Physical gradient: m_x d/dxi or m_y d/deta, with the map factor at the interior
+        //    cell center where the velocity difference is centered
+        Real vel_grad  =  ( vel_norm_arr(ivu1) - vel_norm_arr(ivu2) ) * dxInv[dir] * mf_norm(ivr1[0],ivr1[1],0);
         Real flux      = -( mom_star * vel_grad );
         rhs_arr(i,j,k) = flux;
     });
@@ -58,6 +63,9 @@ AdvectionSrcForOpenBC_Normal (const Box& bx,
  * @param[in] ax area fraction of x-faces
  * @param[in] az area fraction of z-faces
  * @param[in] detJ Jacobian of the metric transformation
+ * @param[in] mf_ux x map factor at x-faces
+ * @param[in] mf_uy y map factor at x-faces
+ * @param[in] mf_vx x map factor at y-faces
  * @param[in] cellSizeInv inverse grid spacing
  * @param[in] do_lo flag for a low-side open boundary
  */
@@ -72,6 +80,9 @@ AdvectionSrcForOpenBC_Tangent_Xmom (const Box& bxx,
                                     const Array4<const Real>& ax,
                                     const Array4<const Real>& az,
                                     const Array4<const Real>& detJ,
+                                    const Array4<const Real>& mf_ux,
+                                    const Array4<const Real>& mf_uy,
+                                    const Array4<const Real>& mf_vx,
                                     const GpuArray<Real, AMREX_SPACEDIM>& cellSizeInv,
                                     const bool do_lo)
 {
@@ -82,16 +93,26 @@ AdvectionSrcForOpenBC_Tangent_Xmom (const Box& bxx,
     ParallelFor(bxx,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
         if (ax(i,j,k) > zero) {
-            Real xflux_hi = fourth * (rho_u(i, j  , k) + rho_u(i+1, j  , k)) * (u(i+1,j,k) + u(i,j,k)) * myhalf * (ax(i,j,k) + ax(i+1,j,k));
-            Real xflux_lo = fourth * (rho_u(i, j  , k) + rho_u(i-1, j  , k)) * (u(i-1,j,k) + u(i,j,k)) * myhalf * (ax(i,j,k) + ax(i-1,j,k));
+            // The x-face mass flux is rho u / m_y
+            Real xflux_hi = fourth * (rho_u(i, j  , k) / mf_uy(i,j,0) + rho_u(i+1, j  , k) / mf_uy(i+1,j,0)) *
+                                     (u(i+1,j,k) + u(i,j,k)) * myhalf * (ax(i,j,k) + ax(i+1,j,k));
+            Real xflux_lo = fourth * (rho_u(i, j  , k) / mf_uy(i,j,0) + rho_u(i-1, j  , k) / mf_uy(i-1,j,0)) *
+                                     (u(i-1,j,k) + u(i,j,k)) * myhalf * (ax(i,j,k) + ax(i-1,j,k));
 
             Real zflux_hi = fourth * (Omega(i, j, k+1) + Omega(i-1, j, k+1)) * (u(i,j,k+1) + u(i,j,k)) * az(i,j,k+1);
             Real zflux_lo = fourth * (Omega(i, j, k  ) + Omega(i-1, j, k  )) * (u(i,j,k-1) + u(i,j,k)) * az(i,j,k  );
 
+            Real mfsq = mf_ux(i,j,0) * mf_uy(i,j,0);
+
+            // Average y-momenta to x-vel location
+            bool avg_x = true;
+            bool avg_y = false;
+            bool avg_z = false;
+
             Real x_src = (xflux_hi - xflux_lo) * dxInv;
-            Real y_src = AdvectionSrcForOpenBC_Tangent(i, j, k, 0, dir, u, rho_v, dyInv, do_lo);
+            Real y_src = AdvectionSrcForOpenBC_Tangent(i, j, k, 0, dir, u, rho_v, mf_vx, dyInv, do_lo, avg_x, avg_y, avg_z);
             Real z_src = (zflux_hi - zflux_lo) * dzInv;
-            Real advectionSrc = x_src + y_src + z_src;
+            Real advectionSrc = (x_src + y_src) * mfsq + z_src;
 
             rho_u_rhs(i, j, k) = -advectionSrc / (myhalf * (detJ(i,j,k) + detJ(i-1,j,k)));
         } else {
@@ -113,6 +134,9 @@ AdvectionSrcForOpenBC_Tangent_Xmom (const Box& bxx,
  * @param[in] ay area fraction of y-faces
  * @param[in] az area fraction of z-faces
  * @param[in] detJ Jacobian of the metric transformation
+ * @param[in] mf_vx x map factor at y-faces
+ * @param[in] mf_vy y map factor at y-faces
+ * @param[in] mf_uy y map factor at x-faces
  * @param[in] cellSizeInv inverse grid spacing
  * @param[in] do_lo flag for a low-side open boundary
  */
@@ -127,6 +151,9 @@ AdvectionSrcForOpenBC_Tangent_Ymom (const Box& bxy,
                                     const Array4<const Real>& ay,
                                     const Array4<const Real>& az,
                                     const Array4<const Real>& detJ,
+                                    const Array4<const Real>& mf_vx,
+                                    const Array4<const Real>& mf_vy,
+                                    const Array4<const Real>& mf_uy,
                                     const GpuArray<Real, AMREX_SPACEDIM>& cellSizeInv,
                                     const bool do_lo)
 {
@@ -137,16 +164,26 @@ AdvectionSrcForOpenBC_Tangent_Ymom (const Box& bxy,
     ParallelFor(bxy,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
         if (ay(i,j,k) > zero) {
-            Real yflux_hi = fourth * (rho_v(i  ,j+1,k) + rho_v(i  ,j  ,k)) * (v(i,j+1,k) + v(i,j,k)) * myhalf * (ay(i,j,k) + ay(i,j+1,k));
-            Real yflux_lo = fourth * (rho_v(i  ,j  ,k) + rho_v(i  ,j-1,k)) * (v(i,j-1,k) + v(i,j,k)) * myhalf * (ay(i,j,k) + ay(i,j-1,k));
+            // The y-face mass flux is rho v / m_x
+            Real yflux_hi = fourth * (rho_v(i  ,j+1,k) / mf_vx(i,j+1,0) + rho_v(i  ,j  ,k) / mf_vx(i,j  ,0)) *
+                                     (v(i,j+1,k) + v(i,j,k)) * myhalf * (ay(i,j,k) + ay(i,j+1,k));
+            Real yflux_lo = fourth * (rho_v(i  ,j  ,k) / mf_vx(i,j  ,0) + rho_v(i  ,j-1,k) / mf_vx(i,j-1,0)) *
+                                     (v(i,j-1,k) + v(i,j,k)) * myhalf * (ay(i,j,k) + ay(i,j-1,k));
 
             Real zflux_hi = fourth * (Omega(i, j, k+1) + Omega(i, j-1, k+1)) * (v(i,j,k+1) + v(i,j,k)) * az(i,j,k+1);
             Real zflux_lo = fourth * (Omega(i, j, k  ) + Omega(i, j-1, k  )) * (v(i,j,k-1) + v(i,j,k)) * az(i,j,k  );
 
-            Real x_src = AdvectionSrcForOpenBC_Tangent(i, j, k, 0, dir, v, rho_u, dxInv, do_lo);
+            Real mfsq = mf_vx(i,j,0) * mf_vy(i,j,0);
+
+            // Average x-momenta to y-vel location
+            bool avg_x = false;
+            bool avg_y = true;
+            bool avg_z = false;
+
+            Real x_src = AdvectionSrcForOpenBC_Tangent(i, j, k, 0, dir, v, rho_u, mf_uy, dxInv, do_lo, avg_x, avg_y, avg_z);
             Real y_src = (yflux_hi - yflux_lo) * dyInv;
             Real z_src = (zflux_hi - zflux_lo) * dzInv;
-            Real advectionSrc = x_src + y_src + z_src;
+            Real advectionSrc = (x_src + y_src) * mfsq + z_src;
 
             rho_v_rhs(i, j, k) = -advectionSrc / (myhalf * (detJ(i,j,k) + detJ(i,j-1,k)));
         } else {
@@ -170,6 +207,10 @@ AdvectionSrcForOpenBC_Tangent_Ymom (const Box& bxy,
  * @param[in] ay area fraction of y-faces
  * @param[in] az area fraction of z-faces
  * @param[in] detJ Jacobian of the metric transformation
+ * @param[in] mf_mx x map factor at cell centers
+ * @param[in] mf_my y map factor at cell centers
+ * @param[in] mf_uy y map factor at x-faces
+ * @param[in] mf_vx x map factor at y-faces
  * @param[in] cellSizeInv inverse grid spacing
  * @param[in] domhi_z maximum cell-centered k-index in the domain
  */
@@ -186,6 +227,10 @@ AdvectionSrcForOpenBC_Tangent_Zmom (const Box& bxz,
                                     const Array4<const Real>& ay,
                                     const Array4<const Real>& az,
                                     const Array4<const Real>& detJ,
+                                    const Array4<const Real>& mf_mx,
+                                    const Array4<const Real>& mf_my,
+                                    const Array4<const Real>& mf_uy,
+                                    const Array4<const Real>& mf_vx,
                                     const GpuArray<Real, AMREX_SPACEDIM>& cellSizeInv,
                                     const int domhi_z)
 {
@@ -202,16 +247,17 @@ AdvectionSrcForOpenBC_Tangent_Zmom (const Box& bxz,
     ParallelFor(bxz, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
         if (az(i,j,k) > zero) {
-            Real xflux_hi = fourth*(rho_u(i+1,j  ,k) + rho_u(i+1, j, k-1)) * (w(i+1,j,k) + w(i,j,k)) *
+            // The x-face mass flux is rho u / m_y and the y-face mass flux is rho v / m_x
+            Real xflux_hi = fourth*(rho_u(i+1,j  ,k) + rho_u(i+1, j, k-1)) / mf_uy(i+1,j,0) * (w(i+1,j,k) + w(i,j,k)) *
                             myhalf *(ax(i+1,j,k) + ax(i+1,j,k-1));
 
-            Real xflux_lo = fourth*(rho_u(i  ,j  ,k) + rho_u(i  , j, k-1)) * (w(i-1,j,k) + w(i,j,k)) *
+            Real xflux_lo = fourth*(rho_u(i  ,j  ,k) + rho_u(i  , j, k-1)) / mf_uy(i  ,j,0) * (w(i-1,j,k) + w(i,j,k)) *
                             myhalf *(ax(i,j,k) + ax(i,j,k-1));
 
-            Real yflux_hi = fourth*(rho_v(i  ,j+1,k) + rho_v(i, j+1, k-1)) * (w(i,j+1,k) + w(i,j,k)) *
+            Real yflux_hi = fourth*(rho_v(i  ,j+1,k) + rho_v(i, j+1, k-1)) / mf_vx(i,j+1,0) * (w(i,j+1,k) + w(i,j,k)) *
                             myhalf *(ay(i,j+1,k) + ay(i,j+1,k-1));
 
-            Real yflux_lo = fourth*(rho_v(i  ,j  ,k) + rho_v(i, j  , k-1)) * (w(i,j-1,k) + w(i,j,k)) *
+            Real yflux_lo = fourth*(rho_v(i  ,j  ,k) + rho_v(i, j  , k-1)) / mf_vx(i,j  ,0) * (w(i,j-1,k) + w(i,j,k)) *
                             myhalf *(ay(i,j,k) + ay(i,j,k-1));
 
             Real zflux_lo = fourth * (Omega(i,j,k) + Omega(i,j,k-1)) * (w(i,j,k) + w(i,j,k-1)) *
@@ -221,12 +267,19 @@ AdvectionSrcForOpenBC_Tangent_Zmom (const Box& bxz,
                                                fourth * (Omega(i,j,k) + Omega(i,j,k+1)) * (w(i,j,k) + w(i,j,k+1)) *
                                                myhalf  * (az(i,j,k) + az(i,j,k+1));
 
-            Real x_src = (xopen) ? AdvectionSrcForOpenBC_Tangent(i, j, k, 0, 0, w, rho_u, dxInv, x_do_lo) :
+            Real mfsq = mf_mx(i,j,0) * mf_my(i,j,0);
+
+            // Average x/y-momenta to w-vel location
+            bool avg_x = false;
+            bool avg_y = false;
+            bool avg_z = true;
+
+            Real x_src = (xopen) ? AdvectionSrcForOpenBC_Tangent(i, j, k, 0, 0, w, rho_u, mf_uy, dxInv, x_do_lo, avg_x, avg_y, avg_z) :
                                    (xflux_hi - xflux_lo) * dxInv;
-            Real y_src = (yopen) ? AdvectionSrcForOpenBC_Tangent(i, j, k, 0, 1, w, rho_v, dyInv, y_do_lo) :
+            Real y_src = (yopen) ? AdvectionSrcForOpenBC_Tangent(i, j, k, 0, 1, w, rho_v, mf_vx, dyInv, y_do_lo, avg_x, avg_y, avg_z) :
                                    (yflux_hi - yflux_lo) * dyInv;
             Real z_src = (zflux_hi - zflux_lo) * dzInv;
-            Real advectionSrc = x_src + y_src + z_src;
+            Real advectionSrc = (x_src + y_src) * mfsq + z_src;
 
             rho_w_rhs(i, j, k) = -advectionSrc / (myhalf*(detJ(i,j,k) + detJ(i,j,k-1)));
         } else {
@@ -246,10 +299,12 @@ AdvectionSrcForOpenBC_Tangent_Zmom (const Box& bxz,
  * @param[in] ncomp number of components to update
  * @param[out] cell_rhs tendency view
  * @param[in] cell_prim supplied scalar view
- * @param[in] avg_xmom x-component of time-averaged mass flux
- * @param[in] avg_ymom y-component of time-averaged mass flux
- * @param[in] avg_zmom z-component of time-averaged mass flux
+ * @param[in] avg_xmom x-component of time-averaged mass flux (already carries 1/m_y)
+ * @param[in] avg_ymom y-component of time-averaged mass flux (already carries 1/m_x)
+ * @param[in] avg_zmom z-component of time-averaged mass flux (already carries 1/(m_x m_y))
  * @param[in] detJ Jacobian of the metric transformation
+ * @param[in] mf_mx x map factor at cell centers
+ * @param[in] mf_my y map factor at cell centers
  * @param[in] cellSizeInv inverse grid spacing
  */
 void
@@ -265,6 +320,8 @@ AdvectionSrcForOpenBC_Tangent_Scalars (const Box& bx,
                                        const Array4<const Real>& avg_ymom,
                                        const Array4<const Real>& avg_zmom,
                                        const Array4<const Real>& detJ,
+                                       const Array4<const Real>& mf_mx,
+                                       const Array4<const Real>& mf_my,
                                        const GpuArray<Real, AMREX_SPACEDIM>& cellSizeInv)
 {
     // At a corner both sides are set, and neither x nor y may be differenced across
@@ -297,16 +354,26 @@ AdvectionSrcForOpenBC_Tangent_Scalars (const Box& bx,
             Real zflux_lo = avg_zmom(i,j,k  ) * prim_zlo;
             Real zflux_hi = avg_zmom(i,j,k+1) * prim_zhi;
 
+            // No averaging needed for CC scalars
+            bool avg_x = false;
+            bool avg_y = false;
+            bool avg_z = false;
+
             Real x_src = (xopen) ? AdvectionSrcForOpenBC_Tangent(i, j, k,
                                                                  scalar_comp, 0, cell_prim,
-                                                                 avg_xmom, dxInv, x_do_lo) :
+                                                                 avg_xmom, Array4<const Real>{},
+                                                                 dxInv, x_do_lo, avg_x, avg_y, avg_z) :
                                    (xflux_hi - xflux_lo) * dxInv;
             Real y_src = (yopen) ? AdvectionSrcForOpenBC_Tangent(i, j, k,
                                                                  scalar_comp, 1, cell_prim,
-                                                                 avg_ymom, dyInv, y_do_lo) :
+                                                                 avg_ymom, Array4<const Real>{},
+                                                                 dyInv, y_do_lo, avg_x, avg_y, avg_z) :
                                    (yflux_hi - yflux_lo) * dyInv;
             Real z_src = (zflux_hi - zflux_lo) * dzInv;
-            Real advectionSrc = x_src + y_src + z_src;
+            // As in ApplyScalarAdvectionFluxDivergence: the averaged fluxes carry the map
+            // factors, so the whole divergence (vertical included) takes the m_x m_y prefactor
+            Real mfsq = mf_mx(i,j,0) * mf_my(i,j,0);
+            Real advectionSrc = (x_src + y_src + z_src) * mfsq;
             cell_rhs(i,j,k,rhs_comp) = -advectionSrc / detJ(i,j,k);
         }
     });
@@ -327,6 +394,8 @@ AdvectionSrcForOpenBC_Tangent_Cons (const Box& bx,
                                     const Array4<const Real>& avg_ymom,
                                     const Array4<const Real>& avg_zmom,
                                     const Array4<const Real>& detJ,
+                                    const Array4<const Real>& mf_mx,
+                                    const Array4<const Real>& mf_my,
                                     const GpuArray<Real, AMREX_SPACEDIM>& cellSizeInv)
 {
     AMREX_ALWAYS_ASSERT(icomp > 0);
@@ -334,7 +403,7 @@ AdvectionSrcForOpenBC_Tangent_Cons (const Box& bx,
                                           icomp - 1, icomp, ncomp,
                                           cell_rhs, cell_prim,
                                           avg_xmom, avg_ymom, avg_zmom,
-                                          detJ, cellSizeInv);
+                                          detJ, mf_mx, mf_my, cellSizeInv);
 }
 
 
@@ -348,8 +417,13 @@ AdvectionSrcForOpenBC_Tangent_Cons (const Box& bx,
  * @param[in] dir coordinate direction normal to the open boundary
  * @param[in] prim_tang_arr primitive variable tangent to the open boundary
  * @param[in] mom_norm_arr momentum component normal to the open boundary
+ * @param[in] mf_norm map factor that turns mom_norm_arr into a mass flux (m_y at x-faces,
+ *            m_x at y-faces); empty when mom_norm_arr is already a mass flux
  * @param[in] dxInv inverse grid spacing in the open-boundary normal direction
  * @param[in] do_lo flag for a low-side open boundary
+ * @param[in] avg_x average mom_norm_arr over i and i-1 (x-momentum location)
+ * @param[in] avg_y average mom_norm_arr over j and j-1 (y-momentum location)
+ * @param[in] avg_z average mom_norm_arr over k and k-1 (z-momentum location)
  * @return source contribution before the wrapper applies its sign convention
  */
 AMREX_FORCE_INLINE
@@ -362,8 +436,12 @@ AdvectionSrcForOpenBC_Tangent (const int& i,
                                const int& dir,
                                const Array4<const Real>& prim_tang_arr,
                                const Array4<const Real>& mom_norm_arr,
+                               const Array4<const Real>& mf_norm,
                                const Real& dxInv,
-                               const bool do_lo)
+                               const bool do_lo,
+                               const bool avg_x,
+                               const bool avg_y,
+                               const bool avg_z)
 {
     // NOTE: Klemp, J. B., and R. Wilhelmson, 1978: The simulation of three-dimensional
     //       convective storm dynamics, J. Atmos. Sci., 35, 1070-Real(1096.)
@@ -380,18 +458,49 @@ AdvectionSrcForOpenBC_Tangent (const int& i,
     //       the low face at a low open bndry. Averaging and differencing that same pair
     //       of faces therefore yields the cell centered momentum and its exact cell
     //       centered gradient on both sides, so no sgn dependence is needed here.
+    //       When the primitive is face centered in a tangential direction (avg_x/y/z),
+    //       the same pair of faces offset by -1 in that direction is averaged in too,
+    //       matching the interior flux kernels.
     IntVect ivm1(i,j,k); ivm1[dir] += 1; // Mom on the high face of cell (i,j,k)
     IntVect ivm2(i,j,k);                 // Mom on the low  face of cell (i,j,k)
 
     IntVect ivs1(i,j,k); if ( do_lo) { ivs1[dir] -= sgn; } // Scalar indexed into domain for do_lo
     IntVect ivs2(i,j,k); if (!do_lo) { ivs2[dir] -= sgn; } // Scalar indexed into domain for do_hi
 
-    Real mom_at_cc = myhalf * (mom_norm_arr(ivm1) + mom_norm_arr(ivm2));
-    Real mom_star  = Real(sgn) * max( Real(sgn)*mom_at_cc, zero );
-    Real mom_grad  = ( mom_norm_arr(ivm1) - mom_norm_arr(ivm2) ) * dxInv;
-    Real prim_grad = ( prim_tang_arr(ivs1,nprim) - prim_tang_arr(ivs2,nprim) ) * dxInv;
+    IntVect ivm3 = ivm1;
+    IntVect ivm4 = ivm2;
+    if (avg_x) {
+        ivm3[0] -= 1;
+        ivm4[0] -= 1;
+    }
+    if (avg_y) {
+        ivm3[1] -= 1;
+        ivm4[1] -= 1;
+    }
+    if (avg_z) {
+        ivm3[2] -= 1;
+        ivm4[2] -= 1;
+    }
+
+    // Mass flux through the two faces (rho u / m_y at x-faces, rho v / m_x at y-faces);
+    //    the caller multiplies the result by the m_x m_y prefactor of the variable
+    Real mom1 = mom_norm_arr(ivm1);
+    Real mom2 = mom_norm_arr(ivm2);
+    Real mom3 = mom_norm_arr(ivm3);
+    Real mom4 = mom_norm_arr(ivm4);
+    if (mf_norm) {
+        mom1 /= mf_norm(ivm1[0],ivm1[1],0);
+        mom2 /= mf_norm(ivm2[0],ivm2[1],0);
+        mom3 /= mf_norm(ivm3[0],ivm3[1],0);
+        mom4 /= mf_norm(ivm4[0],ivm4[1],0);
+    }
+
+    Real mom_at_prim = fourth * (mom1 + mom2 + mom3 + mom4);
+    Real mom_star    = Real(sgn) * max( Real(sgn)*mom_at_prim, zero );
+    Real mom_grad    = myhalf * ( mom1 - mom2 + mom3 - mom4 ) * dxInv;
+    Real prim_grad   = ( prim_tang_arr(ivs1,nprim) - prim_tang_arr(ivs2,nprim) ) * dxInv;
 
     // NOTE: Negative sign taken care of by wrapper function
-    Real src       = ( mom_star*prim_grad + prim_tang_arr(i,j,k,nprim)*mom_grad );
+    Real src         = ( mom_star*prim_grad + prim_tang_arr(i,j,k,nprim)*mom_grad );
     return src;
 }
