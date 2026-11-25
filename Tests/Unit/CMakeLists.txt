@@ -545,6 +545,15 @@ if(ERF_ENABLE_NOAHMP)
     ${CMAKE_CURRENT_SOURCE_DIR}/LandSurfaceModel/Noah-MP/ERF_GTestNoahMPCheckpointLayout.cpp
   )
 endif()
+if(ERF_ENABLE_FIRE OR ERF_ENABLE_FLOOD)
+  # Motivation: the surface-coupling layer the fire and the flood couplings share must coarsen
+  # a level-0 surface field to the bits of amrex::average_down() (the fire coupling's level-0
+  # answers before the layer), and refuse unpaired grids, a nodal ghost fill, a grid ratio
+  # below 1 and a duplicate or empty engine name with the coupling's own names.
+  target_sources(${erf_exe_name} PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/SurfaceCoupling/ERF_GTestSurfaceCoupling.cpp
+  )
+endif()
 if(ERF_ENABLE_FIRE)
   # Motivation: with a roughness field per atmospheric column, the fire wind sampler must use
   # each column's own roughness in the log profile below the first cell center and in the
