@@ -134,6 +134,10 @@ target_sources(${erf_exe_name}
     # Motivation: the MOST reference height must use the true stretched cell
     # centers, and a query on a mesh face must be found rather than abort.
     ${CMAKE_CURRENT_SOURCE_DIR}/BoundaryConditions/ERF_GTestMOSTAverageZref.cpp
+    # Motivation: on terrain with a uniform map factor m, the MOST normal-vector reference
+    # cell and point, the rotated velocities and the subgrid velocity scale must match a
+    # mesh m times finer with m = 1.
+    ${CMAKE_CURRENT_SOURCE_DIR}/BoundaryConditions/ERF_GTestMOSTAverageMapFactors.cpp
     # Motivation: a BTF fine level's mesh must not depend on how its grids are split in z.
     ${CMAKE_CURRENT_SOURCE_DIR}/Utils/ERF_GTestTerrainFineColumns.cpp
     # Motivation: the input sponge's per-height reduction read every k from every box, so a
