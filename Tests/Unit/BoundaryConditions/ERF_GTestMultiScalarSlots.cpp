@@ -192,8 +192,9 @@ TEST(MultiScalarSlots, AppendedInflowDoesNotInheritWaterVaporExternalValue)
     Array<Array<Real,6>, AMREX_SPACEDIM+NBCVAR_max> external{}, gradients{};
     external[BCVars::RhoQ1_bc_comp][0] = Real(0.123);
     std::unique_ptr<MultiFab> z;
+    Vector<std::unique_ptr<MultiFab>> mapfac(MapFacType::num);
     ERFPhysBCFunct_cons bc(0, geom, bcs, device_bcs, external, gradients,
-                           TerrainType::None, z, false, nullptr, {});
+                           TerrainType::None, mapfac, z, false, nullptr, {});
     FArrayBox state(grow(domain, 1), NVAR_max);
     FArrayBox u(surroundingNodes(grow(domain, 1), 0), 1);
     FArrayBox v(surroundingNodes(grow(domain, 1), 1), 1);

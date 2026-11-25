@@ -210,6 +210,8 @@ void ERFPhysBCFunct_u::impose_lateral_xvel_bcs (const Array4<Real>& dest_arr,
  * @param[in]     bx        the box associated with this data
  * @param[in]     domain    the computational domain
  * @param[in]     z_phys_nd height coordinate at nodes
+ * @param[in]     mf_x      map factor m_x at the x faces
+ * @param[in]     mf_y      map factor m_y at the x faces
  * @param[in]     dxInv     inverse cell size array
  * @param[in]     bccomp    index into m_domain_bcs_type
  * @param[in]     time      time at which the data should be filled
@@ -217,6 +219,8 @@ void ERFPhysBCFunct_u::impose_lateral_xvel_bcs (const Array4<Real>& dest_arr,
 void ERFPhysBCFunct_u::impose_vertical_xvel_bcs (const Array4<Real>& dest_arr,
                                                  const Box& bx, const Box& domain,
                                                  const Array4<Real const>& z_phys_nd,
+                                                 const Array4<Real const>& mf_x,
+                                                 const Array4<Real const>& mf_y,
                                                  const GpuArray<Real,AMREX_SPACEDIM> dxInv,
                                                  int bccomp,
 #ifdef ERF_USE_TERRAIN_VELOCITY
@@ -307,6 +311,9 @@ void ERFPhysBCFunct_u::impose_vertical_xvel_bcs (const Array4<Real>& dest_arr,
         const auto& zphys_lo = lbound(Box(z_phys_nd));
         const auto& zphys_hi = ubound(Box(z_phys_nd));
 
+        const auto& mf_lo = lbound(Box(mf_x));
+        const auto& mf_hi = ubound(Box(mf_x));
+
         // Neumann conditions (d<var>/dn = 0) must be aware of the surface normal with terrain.
         // An additional source term arises from d<var>/dx & d<var>/dy & met_h_xi/eta/zeta.
         //=====================================================================================
@@ -337,6 +344,14 @@ void ERFPhysBCFunct_u::impose_vertical_xvel_bcs (const Array4<Real>& dest_arr,
                 Real met_h_eta  = Compute_h_eta_AtIface (ii, jj, k0, dxInv, z_phys_nd);
                 Real met_h_zeta = Compute_h_zeta_AtIface(ii, jj, k0, dxInv, z_phys_nd);
 
+                // Map factors at the face, clamped to the (2D) map-factor box
+                int im = amrex::min(amrex::max(ii,mf_lo.x),mf_hi.x);
+                int jm = amrex::min(amrex::max(jj,mf_lo.y),mf_hi.y);
+                Real mfx = (mf_x) ? mf_x(im,jm,0) : one;
+                Real mfy = (mf_y) ? mf_y(im,jm,0) : one;
+                Real slope_x = mfx * met_h_xi;
+                Real slope_y = mfy * met_h_eta;
+
                 // GradX at IJK location inside domain -- this relies on the assumption that we have
                 // used foextrap for quantities outside the domain to define the gradient as zero
                 Real GradVarx, GradVary;
@@ -362,11 +377,11 @@ void ERFPhysBCFunct_u::impose_vertical_xvel_bcs (const Array4<Real>& dest_arr,
                     GradVary = myhalf * dxInv[1] * (dest_arr(i,j+1,k0) - dest_arr(i,j-1,k0));
                 }
 
-                // Prefactor
-                Real met_fac =  met_h_zeta / ( met_h_xi*met_h_xi + met_h_eta*met_h_eta + one );
+                // Prefactor, with the physical slopes m_x h_xi and m_y h_eta
+                Real met_fac =  met_h_zeta / ( slope_x*slope_x + slope_y*slope_y + one );
 
                 // Accumulate in bottom ghost cell (EXTRAP already populated)
-                dest_arr(i,j,k) -= dz * met_fac * ( met_h_xi * GradVarx + met_h_eta * GradVary );
+                dest_arr(i,j,k) -= dz * met_fac * ( mfx * slope_x * GradVarx + mfy * slope_y * GradVary );
             });
         } // foextrap
     } //m_z_phys_nd
