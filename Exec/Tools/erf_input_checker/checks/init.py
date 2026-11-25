@@ -1,5 +1,7 @@
 """Initialisation checks: one class for idealised set-ups, one for real data."""
 
+import re
+
 from ..checker import Checker, register
 
 INIT_TYPES = {"none", "input_sounding", "ncfile", "wrfinput", "metgrid", "uniform",
@@ -105,6 +107,19 @@ class RealInitChecker(InitChecker):
                 self.error("start_datetime", "%r is not YYYY-MM-DD HH:MM[:SS] (quote it, the value has a space)" % s)
         if d.has("amr.restart") and self.bool_("erf.write_erfbdy", False):
             self.error("erf.write_erfbdy", "cannot be true on a restart; ERF stops")
+        top = c.max_level if c.max_level is not None else 0
+        for key in d.keys():
+            m = re.fullmatch(r"erf\.nc_init_file_(0|[1-9]\d*)", key)
+            if m and int(m.group(1)) > top:
+                self.warn(key, "level %s is above amr.max_level = %d; ERF does not read this file" % (m.group(1), top),
+                          "Raise amr.max_level or remove the key.")
+        if t == "metgrid" and top > 0:
+            ts = self.int_("erf.terrain_smoothing", 0)
+            if ts is not None and ts != 0:
+                self.error("erf.terrain_smoothing", "= %d with Metgrid and refined levels; ERF stops on level 1 ('terrain_smoothing = %d "
+                           "on level > 0 requires ...'): the Metgrid path builds each level's mesh from its "
+                           "own met_em file and does not use erf.amr_terrain_refinement" % (ts, ts),
+                           "Set erf.terrain_smoothing = 0.")
         if c.max_level and c.max_level > 0:
             has_fine_file = any(d.has("erf.nc_init_file_%d" % lev) for lev in range(1, c.nlev))
             if not has_fine_file:

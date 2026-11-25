@@ -1067,6 +1067,18 @@ if(ERF_TEST_PYTHON)
       TIMEOUT 120
       PROCESSORS 1
       LABELS "unit")
+  # The HRRR domain advisor (Exec/Tools/erfdomainadvisor.py). Plain Python, offline, no ERF
+  # run: HRRR grid corners, the level chain and vertical grid against closed forms, the box
+  # ERF builds from a met_em nest, the fire grid, the slope of a Gaussian hill, a PNG round
+  # trip, and the written deck through the checker above.  Without numpy only the tests
+  # that do not need it run.
+  add_test(NAME DomainAdvisor_SelfTest
+      COMMAND ${ERF_TEST_PYTHON} ${PROJECT_SOURCE_DIR}/Exec/Tools/erfdomainadvisor.py --self-test)
+  set_tests_properties(DomainAdvisor_SelfTest
+      PROPERTIES
+      TIMEOUT 120
+      PROCESSORS 1
+      LABELS "unit")
   # The schema generator's unit tests (Exec/Tools/erf_inputs_schema): a synthetic source tree, git-archive mode
   # (needs git on PATH), the checker's --schema path.
   add_test(NAME InputsSchema_UnitTests

@@ -112,3 +112,57 @@ inside the repository, where it finds the documentation tables and the ``Source`
 used by the misspelled-key check. ``Exec/Tools/erf_input_checker/README.md`` lists every
 check and the options. A quick alternative after a run is the "Unused ParmParse Variables"
 table AMReX prints at exit with ``amr.v = 1``, which lists every key nothing read.
+
+Choosing a domain for a case driven by HRRR
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+``Exec/Tools/erfdomainadvisor.py`` suggests a domain for a run initialised from HRRR
+through WPS ``metgrid`` (``erf.init_type = Metgrid``). It takes a point of interest and a
+phenomenon, and returns the outer domain size, the base cell size, the number of refined
+levels and the box of each level. Every value is a best guess from common
+mesoscale-to-LES downscaling practice, not a value taken from a paper; ``--list`` prints
+the phenomena and their guesses, and every guess can be replaced on the command line.
+
+::
+
+    python3 Exec/Tools/erfdomainadvisor.py --list
+    python3 Exec/Tools/erfdomainadvisor.py --lat 34.07 --lon -118.55 --phenomenon wildfire \
+        --wind-from 45 --start 2025-01-07_12 --outdir pal --plot
+    python3 Exec/Tools/erfdomainadvisor.py --self-test
+
+The tool checks that:
+
+* the outer domain, with its relaxation zone and a buffer, lies inside the HRRR grid;
+* the outer domain is at least as large as the phenomenon needs, and the finest box with
+  its upwind fetch (``--wind-from``) fits in its parent with a margin;
+* the terrain slope on each level stays below a caution value (a note) and a limit (a
+  warning) for a terrain-following grid. Elevations come from the AWS Terrain Tiles by
+  default (``--dem``), or from an ESRI ASCII grid; ``--dem none`` skips this check. The
+  slope is taken from one-cell drops, as the grid sees it, and ERF's terrain slope factor
+  (which ERF reports in its log when ``erf.diffusive_dt_check = true``) is computed for the
+  first cell over the highest ground, with ``erf.implicit_terrain_metric`` suggested above 1;
+* the model top leaves room for the boundary layer and the damping layer above the highest
+  ground;
+* the vertical grid is one that ERF's stretching solve (Newton's method, at most 50 steps)
+  converges on;
+* the fixed time step stays below the limit ERF applies to it (``fixed_dt_cfl_limit``);
+* the level with a cell size in the boundary-layer gray zone is reported.
+
+With ``--outdir`` it writes ``report.txt`` (the plan, its warnings and a cost estimate),
+``namelist.wps`` (one WPS domain per level, so ``metgrid`` writes one ``met_em`` file per
+level for ``erf.nc_init_file_<lev>``), ``inputs`` (an ERF deck the user edits; values the
+tool cannot know are marked ``USER:``) and ``plan.json``. ``--plot`` adds ``domain.png``
+(the boxes over the terrain) and ``slopes.png`` (the slope on each level).
+
+``--fire`` (on by default for ``wildfire``; ``--no-fire`` turns it off) adds an
+``erf.fire.*`` block. The fire grid is placed on the finest level with
+``erf.fire.grid_ratio`` set so that the fire cell is at most ``--fire-dx``, and the finest
+level is sized so that every box length in x and y divides by that ratio. Ignition, fuel
+map and fuel moisture are keys of the fire engine and are left to the user.
+
+The deck sets ``erf.terrain_smoothing = 0``, the only value the Metgrid path accepts on
+refined levels, and writes ``geometry.prob_hi`` so that each cell matches the ``met_em``
+grid spacing that ERF checks. It passes ``check_erf_inputs.py`` apart from the ``met_em``
+files that WPS has not yet written; the checker reads the deck only, so a clean report does
+not mean that ERF has run it. ``Exec/Tools/erf_domain_advisor/README.md`` lists the options, the rules
+behind each guess, the tests, and the data sources with their acknowledgements.

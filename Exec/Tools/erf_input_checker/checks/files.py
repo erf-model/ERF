@@ -33,8 +33,6 @@ from ..checker import Checker, register
 # key -> (what it is, several files allowed)
 FILE_KEYS = {
     "erf.nc_init_file_0": ("wrfinput / met_em / NetCDF initial file", True),
-    "erf.nc_init_file_1": ("fine-level initial file", True),
-    "erf.nc_init_file_2": ("fine-level initial file", True),
     "erf.nc_bdy_file": ("wrfbdy lateral boundary file", False),
     "erf.nc_low_file": ("wrflow lower boundary file", False),
     "erf.input_sounding_file": ("input sounding", True),
@@ -58,6 +56,8 @@ FILE_KEYS = {
     "erf.fire.ignition.polygon_file": ("ignition polygon", True),
     "erf.fire.ignition.ignition_schedule_file": ("ignition schedule", False),
 }
+# one initial file per refined level, erf.nc_init_file_1, _2, ... ("and so on" in Inputs.rst)
+FILE_KEYS.update({"erf.nc_init_file_%d" % lev: ("fine-level initial file", True) for lev in range(1, 10)})
 FACE_FILE_KEYS = (".dirichlet_file", ".inflow_profile_file")
 
 

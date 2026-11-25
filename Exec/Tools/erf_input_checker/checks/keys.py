@@ -321,6 +321,10 @@ class UnknownKeys(Checker):
             stem = re.sub(r"_\d+$", "", kl)
             if stem in known_l:
                 continue
+            # one initial file per level, documented as erf.nc_init_file_0 "and so on";
+            # the init checker warns when the level is above amr.max_level
+            if re.fullmatch(r"erf\.nc_init_file_(0|[1-9]\d*)", key):
+                continue
             # a documented key under another prefix or with a letter wrong comes first,
             # so that amr.fixed_dt is reported as erf.fixed_dt and not excused by the
             # bare-name fallback below
