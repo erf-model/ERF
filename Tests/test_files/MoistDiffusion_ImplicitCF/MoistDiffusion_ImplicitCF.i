@@ -15,6 +15,7 @@ erf.prob_name = "ABL"
 
 max_step = 200
 erf.fixed_dt = 0.005         # coarse; the fine level takes two steps of 0.025
+erf.fixed_dt_cfl_limit = false  # keep the fixed dt the test was set up with (erf-model/ERF#5238)
 
 amrex.fpe_trap_invalid = 1
 

@@ -201,8 +201,8 @@ bit-for-bit.
 Selecting SHOC
 ~~~~~~~~~~~~~~
 
-Native SHOC is part of the ERF source tree and does not require EAMxx, EKAT, or
-Kokkos setup.
+Native SHOC is part of the ERF source tree and does not require EAMxx or Kokkos
+setup.
 
 ERF recognizes the following SHOC-family PBL selections:
 

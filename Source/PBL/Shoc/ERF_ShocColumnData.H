@@ -85,8 +85,11 @@ define_shoc_column_data (ShocColumnData& col,
     make2(col.theta_tend); make2(col.qv_tend); make2(col.qc_tend); make2(col.qi_tend); make2(col.u_tend);
     make2(col.v_tend); make2(col.tke_tend);
     make1(col.surf_sens_flux); make1(col.surf_lat_flux); make1(col.surf_tau_u); make1(col.surf_tau_v);
+    make1(col.mf_area);
 
     reset_shoc_column_data(col, init_run_on);
+    // Unit map factors unless the driver fills them
+    shoc::set_fab_val(col.mf_area, amrex::Real(1.0), init_run_on);
 }
 
 inline bool

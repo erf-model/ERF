@@ -45,8 +45,8 @@ jobs:
         # The particles-ON leg also builds the actuator core and the structure coupling
         # (ERF_ENABLE_MOVING_BODIES) with the example structure model directory
         # (Tests/StructureModelExample, from ERF_STRUCTURE_MODEL_DIRS) and runs its
-        # tests. ERF's CI builds neither the fire nor the dust coupling: their tests
-        # live with the engines and models that use them (erf-model/FLARE).
+        # tests. ERF's CI builds none of the fire, dust and flood couplings: their tests
+        # live with the engines and models that use them (erf-model/FLARE, erf-model/FLUME).
         particles: [OFF, ON]
         include:
         - os: ubuntu-22.04

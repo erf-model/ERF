@@ -33,6 +33,18 @@ SBMPhysicalBoundaryConfig::periodic_in (const int dir) const noexcept
                AdvectionFaceKind::Periodic;
 }
 
+bool
+SBMPhysicalBoundaryConfig::has_inflow_or_outflow_face () const noexcept
+{
+    for (const auto face_kind : kind) {
+        if (face_kind != AdvectionFaceKind::Periodic &&
+            face_kind != AdvectionFaceKind::ImpermeableWall) {
+            return true;
+        }
+    }
+    return false;
+}
+
 std::string
 SBMPhysicalBoundaryConfig::identity () const
 {
@@ -72,6 +84,30 @@ face_kind_name (const AdvectionFaceKind kind) noexcept
     case AdvectionFaceKind::PrescribedInflow: return "inflow";
     }
     return "unknown";
+}
+
+const char*
+diffusion_face_kind_name (const erf_auxiliary::DiffusionFaceKind kind) noexcept
+{
+    switch (kind) {
+    case erf_auxiliary::DiffusionFaceKind::Closed: return "closed";
+    case erf_auxiliary::DiffusionFaceKind::Dirichlet: return "dirichlet";
+    case erf_auxiliary::DiffusionFaceKind::DirichletWhereInward: return "dirichlet-where-inward";
+    }
+    return "unknown";
+}
+
+erf_auxiliary::DiffusionFaceKind
+map_erf_diffusion (const ERF_BC bc) noexcept
+{
+    // ERF diffuses its scalars against an ext_dir ghost at an inflow face and an
+    // ext_dir_upwind one at an inflow_outflow face; every other face SBM accepts
+    // carries no particle mixing.
+    if (bc == ERF_BC::inflow) { return erf_auxiliary::DiffusionFaceKind::Dirichlet; }
+    if (bc == ERF_BC::inflow_outflow) {
+        return erf_auxiliary::DiffusionFaceKind::DirichletWhereInward;
+    }
+    return erf_auxiliary::DiffusionFaceKind::Closed;
 }
 
 bool

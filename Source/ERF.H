@@ -80,6 +80,9 @@
 #ifdef ERF_USE_FIRE
 #include "ERF_FireCoupler.H"
 #endif
+#ifdef ERF_USE_FLOOD
+#include "ERF_FloodCoupler.H"
+#endif
 #ifdef ERF_USE_DUST
 #include "ERF_DustModel.H"
 #endif
@@ -817,8 +820,45 @@ public:
     void MakeNewLevelFromScratch (int lev, amrex::Real time, const amrex::BoxArray& ba,
                                   const amrex::DistributionMapping& dm) override;
 
-    // compute dt from CFL considerations
-    double estTimeStep (int lev, long& dt_fast_ratio) const;
+    // What estTimeStep finds on a level besides the dt it returns
+    struct DtEstimateInfo {
+        // inverse dt at a Courant number of one behind the adaptive dt (compressible or
+        // anelastic, terrain aware); zero if the level does not constrain dt
+        double cfl_rate = 0.0;
+        // compressible dt estimate at erf.cfl, for the substep ratio (ComputeSubstepRatio)
+        double estdt_acoustic = 0.0;
+        // limits a fixed dt must respect whatever erf.cfl, checked by ComputeDt after the CFL
+        // limit of the fixed dt (CheckFixedDtHardLimits): the largest SBM donor outgoing rate
+        // (zero without SBM) and whether it includes particle mixing, and the cloud-chamber
+        // wall-transfer dt and rate
+        amrex::Real sbm_rate   = amrex::Real(0.0);
+        bool        sbm_mixing = false;
+        double      wall_dt    = std::numeric_limits<double>::infinity();
+        amrex::Real wall_rate  = amrex::Real(0.0);
+    };
+
+    // compute dt from CFL considerations; with cfl_rate_only, return after info.cfl_rate is set;
+    //    sbm_mixing_density is required when SBM mixes particles (fill_sbm_mixing_density)
+    //    unless cfl_rate_only
+    double estTimeStep (int lev, long& dt_fast_ratio, DtEstimateInfo& info,
+                        const amrex::MultiFab* sbm_mixing_density,
+                        bool cfl_rate_only = false) const;
+
+    // CFL limit of a fixed dt on the levels lev_min to finest_level that have a new set of grids,
+    // and a warning, once per set of grids, on a level whose fixed dt exceeds erf.cfl; returns
+    // whether the fixed dt was lowered (ComputeDt, and CheckFixedDtCFLLimitAfterRegrid)
+    bool CheckFixedDtCFLLimit (const amrex::Vector<double>& cfl_rate, int lev_min, bool after_regrid);
+
+    // CFL limit of a fixed dt on the levels a regrid of level lev just made or remade (timeStep)
+    void CheckFixedDtCFLLimitAfterRegrid (int lev);
+
+    // abort if the fixed dt of level lev exceeds the SBM donor-positivity or cloud-chamber
+    // wall-transfer limit found by estTimeStep (ComputeDt, after the CFL limit of the fixed dt)
+    void CheckFixedDtHardLimits (int lev, const DtEstimateInfo& info) const;
+
+    // ratio of slow to fast dt on a level with implicit acoustic substepping, from the
+    // compressible dt estimate of estTimeStep
+    void ComputeSubstepRatio (int lev, double estdt_comp_T, long& dt_fast_ratio) const;
 
     // largest explicit diffusion rates (eddy and molecular, 1/s) on level lev, momentum and scalars, for the
     // diffusive time-step check (erf.diffusive_dt_check / erf.diffusive_dt_limit)
@@ -1324,6 +1364,8 @@ public:
     void init_zphys            (int lev, double elapsed_time);
     void remake_zphys          (int lev, amrex::Real time, std::unique_ptr<amrex::MultiFab>& temp_zphys_nd);
     void update_terrain_arrays (int lev);
+    bool metrics_from_finest   (int lev);
+    void make_metrics_from_finest (int lev);
     void update_zsfc_nd        (int lev);
     void make_terrain_blanking (int lev);
 
@@ -1430,6 +1472,9 @@ private:
                            const amrex::DistributionMapping& dm);
     void sbm_synchronize_levels (int nstep);
     void configure_sbm_physical_boundaries ();
+    // Rho and RhoTheta of a level for the SBM particle-mixing timestep
+    //    estimate, Rho's ghost cell filled as ERF fills a stage's state
+    void fill_sbm_mixing_density (int lev, amrex::MultiFab& density);
 
     void Construct_ERFFillPatchers (int lev);
 
@@ -1471,6 +1516,9 @@ private:
     // Initialize the fire coupling and its engine (erf.fire.enable)
     void initializeFire (const int&);
 
+    // Initialize the flood coupling and its engine (erf.flood.enable)
+    void initializeFlood (const int&);
+
 #ifdef ERF_USE_WINDFARM
     // Initialize the windfarm object
     void initializeWindFarm (const int&);
@@ -1497,7 +1545,11 @@ private:
                              const amrex::Vector<amrex::MultiFab*>& mfs_vel,
                              const amrex::Vector<amrex::MultiFab*>& mfs_mom,
                              bool fillset=true, bool cons_only=false,
-                             bool allow_perturbational=true);
+                             bool allow_perturbational=true, bool volume_weighted=false);
+
+    // Whether the fills that make a level's grids (regrid, new level) interpolate the
+    //    conserved state weighted by detJ: on a terrain-fitted VariableDz mesh
+    bool volume_weighted_interp () const;
 
     // FillPatchTwoLevels for the cell-centered conserved state, perturbational in
     //    Rho_comp, RhoTheta_comp and RhoQ1_comp when perturbational_interp and perturbational
@@ -1508,12 +1560,12 @@ private:
                                  const amrex::Vector<amrex::MultiFab*>& fmf,
                                  const amrex::Vector<amrex::Real>& ftime,
                                  int scomp, int dcomp, int ncomp, int bccomp,
-                                 bool perturbational = true);
+                                 bool perturbational = true, bool volume_weighted = false);
 
     // InterpFromCoarseLevel for the whole cell-centered conserved state of a level made from
     //    the coarser one, perturbational in Rho_comp, RhoTheta_comp and RhoQ1_comp when perturbational_interp
     void InterpFromCoarseLevelCons (int lev, amrex::MultiFab& mf, const amrex::IntVect& nghost,
-                                    const amrex::MultiFab& cmf);
+                                    const amrex::MultiFab& cmf, bool volume_weighted = false);
 
 
     // Compute new multifabs by copying data from valid region and filling ghost cells.
@@ -2152,6 +2204,9 @@ private:
 #ifdef ERF_USE_FIRE
     static double last_fire_plot_time;   // double: writeNow() takes double&, as for the other plot times
 #endif
+#ifdef ERF_USE_FLOOD
+    static double last_flood_plot_time;  // double: writeNow() takes double&, as for the other plot times
+#endif
 
     amrex::Vector<int> last_subvol_step;
     amrex::Vector<double> last_subvol_time;
@@ -2207,6 +2262,10 @@ private:
     // reported, per level (WarnSteepTerrainAtOpenFaces)
     amrex::Vector<amrex::BoxArray> openface_grids;
     amrex::Vector<amrex::Array<bool,4>> openface_warned;
+    // grids on which the CFL limit of a fixed dt was last checked, per level, and whether the
+    // fixed dt was since reported above erf.cfl on them (CheckFixedDtCFLLimit)
+    amrex::Vector<amrex::BoxArray> fixed_dt_check_grids;
+    amrex::Vector<int> fixed_dt_cfl_warned;
     // grids on which the stability of the constant beta_s was last checked, per level
     // (CheckVariableBetaS)
     amrex::Vector<amrex::BoxArray> beta_s_check_grids;
@@ -2215,7 +2274,14 @@ private:
     // Fixed dt at each level (only used if positive)
     amrex::Vector<double> fixed_dt;
     amrex::Vector<double> fixed_fast_dt;
+    // The fixed dt and fixed fast dt at each level as the inputs give them, before the CFL limit
+    // lowers them (written to the checkpoint with the lowered values)
+    amrex::Vector<double> fixed_dt_input;
+    amrex::Vector<double> fixed_fast_dt_input;
     static int fixed_mri_dt_ratio;
+    // Lower a fixed dt that exceeds the CFL limit erf.cfl to the Courant number min(erf.cfl, 0.8)
+    // (erf.fixed_dt_cfl_limit, default true; ComputeDt)
+    static bool fixed_dt_cfl_limit;
 
     // how often each level regrids the higher levels of refinement
     // (after a level advances that many time steps)
@@ -2606,6 +2672,15 @@ private:
     amrex::Real m_fire_plot_per  = -1.0;
 #endif
 
+#ifdef ERF_USE_FLOOD
+    /// The flood coupling (atmosphere side) and the engine it owns (erf.flood.engine)
+    std::unique_ptr<FloodCoupler> m_flood_coupler = nullptr;
+    FloodCouplingParams           m_flood_params;
+    std::string m_flood_plot_file {"plt_flood_"};
+    int         m_flood_plot_int  = -1;
+    amrex::Real m_flood_plot_per  = -1.0;
+#endif
+
 #ifdef ERF_USE_DUST
     /// The dust model erf.dust.model selects (ERF_DustModel.H); nullptr unless erf.dust.enable = true
     std::unique_ptr<DustModel> m_dust_model = nullptr;
@@ -2623,6 +2698,9 @@ private:
 
     /// Hand the structure model the mesh and the initial (or restart) state, once, in InitData_post
     void initialize_structure_model ();
+
+    /// The structure model has been initialized (initialize_structure_model)
+    bool m_structure_model_initialized = false;
 
     /// Advance the structure model over this step of level lev, then check its support() against level lev+1
     void advance_structure_model (int lev, double time, double dt_lev,

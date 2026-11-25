@@ -77,13 +77,10 @@ function(build_erf_lib erf_lib_name)
       PROPERTIES COMPILE_OPTIONS "-fdefault-real-8;-fdefault-double-8")
   endif()
 
-  # NOTE: EKAT provides KOKKOS
-  if(ERF_ENABLE_EKAT)
+  if(ERF_ENABLE_KOKKOS)
     target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_KOKKOS)
     target_include_directories(${erf_lib_name} PUBLIC
                                $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Source/PhysicsInterfaces>
-                               $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Submodules/ekat/src/pack>
-                               $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Submodules/ekat/src/algorithm>
                               )
   endif()
 
@@ -325,6 +322,41 @@ function(build_erf_lib erf_lib_name)
     endforeach()
   elseif(ERF_FIRE_ENGINE_DIRS)
     message(FATAL_ERROR "ERF_FIRE_ENGINE_DIRS is set but ERF_ENABLE_FIRE is OFF")
+  endif()
+
+  if(ERF_ENABLE_FLOOD)
+    # The flood coupling, atmosphere side, shared by every flood engine
+    target_sources(${erf_lib_name} PRIVATE
+      ${SRC_DIR}/FloodCoupling/ERF_FloodCoupler.cpp
+      ${SRC_DIR}/FloodCoupling/ERF_FloodCouplingParams.cpp
+      ${SRC_DIR}/FloodCoupling/ERF_FloodEngineRegistry.cpp
+      ${SRC_DIR}/FloodCoupling/ERF_FloodGrid.cpp
+      ${SRC_DIR}/FloodCoupling/ERF_FloodPrerequisites.cpp
+    )
+    target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Source/FloodCoupling>)
+    target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_FLOOD)
+
+    # Flood engines live outside ERF, each in a directory that provides
+    # ERFFloodEngine.cmake defining erf_flood_engine_add(target), called right
+    # after its file is included; ERF_FLOOD_ENGINE_DIR holds the engine's
+    # directory during the call.
+    foreach(_flood_dir IN LISTS ERF_FLOOD_ENGINE_DIRS)
+      get_filename_component(_flood_dir "${_flood_dir}" ABSOLUTE)
+      if(NOT EXISTS "${_flood_dir}/ERFFloodEngine.cmake")
+        message(FATAL_ERROR "ERF_FLOOD_ENGINE_DIRS: ${_flood_dir} has no ERFFloodEngine.cmake")
+      endif()
+      set(ERF_FLOOD_ENGINE_DIR "${_flood_dir}")
+      # A file that does not define erf_flood_engine_add would otherwise call
+      # the one of the directory before it; this definition stops the configure.
+      function(erf_flood_engine_add target)
+        message(FATAL_ERROR "${ERF_FLOOD_ENGINE_DIR}/ERFFloodEngine.cmake does not define erf_flood_engine_add(target)")
+      endfunction()
+      include("${_flood_dir}/ERFFloodEngine.cmake")
+      erf_flood_engine_add(${erf_lib_name})
+      message(STATUS "ERF flood engine directory: ${_flood_dir}")
+    endforeach()
+  elseif(ERF_FLOOD_ENGINE_DIRS)
+    message(FATAL_ERROR "ERF_FLOOD_ENGINE_DIRS is set but ERF_ENABLE_FLOOD is OFF")
   endif()
 
   if(ERF_ENABLE_DUST)
@@ -708,23 +740,9 @@ function(build_erf_lib erf_lib_name)
     endif()
   endif()
 
-  if(ERF_ENABLE_EKAT)
-    target_link_libraries(${erf_lib_name} PUBLIC ekat::AllLibs spdlog::spdlog Kokkos::kokkos)
+  if(ERF_ENABLE_KOKKOS)
+    target_link_libraries(${erf_lib_name} PUBLIC Kokkos::kokkos)
   endif()
-#  if(ERF_ENABLE_EKAT)
-#    # Link privately to avoid duplicate link flags, but propagate includes
-#    target_link_libraries(${erf_lib_name} PRIVATE ekat::AllLibs spdlog::spdlog Kokkos::kokkos)
-
-#    # Manually propagate include directories (but not link options)
-#    foreach(lib IN ITEMS ekat::AllLibs spdlog::spdlog Kokkos::kokkos)
-#        if(TARGET ${lib})
-#            get_target_property(inc_dirs ${lib} INTERFACE_INCLUDE_DIRECTORIES)
-#            if(inc_dirs)
-#                target_include_directories(${erf_lib_name} PUBLIC ${inc_dirs})
-#            endif()
-#        endif()
-#    endforeach()
-#  endif()
 
   if(ERF_ENABLE_MPI)
     target_link_libraries(${erf_lib_name} PUBLIC $<$<BOOL:${MPI_CXX_FOUND}>:MPI::MPI_CXX>)
@@ -833,23 +851,19 @@ function(build_erf_exe erf_exe_name)
   include(${ERF_SOURCE_DIR}/CMake/SetERFCompileFlags.cmake)
   set_erf_compile_flags(${erf_exe_name})
 
-  if(ERF_ENABLE_EKAT)
+  if(ERF_ENABLE_KOKKOS)
     # Link privately to avoid duplicate link flags, but propagate includes
-    target_link_libraries(${erf_exe_name} PRIVATE ekat::AllLibs spdlog::spdlog Kokkos::kokkos)
+    target_link_libraries(${erf_exe_name} PRIVATE Kokkos::kokkos)
 
     # Manually propagate include directories (but not link options)
-    foreach(lib IN ITEMS ekat::AllLibs spdlog::spdlog Kokkos::kokkos)
-        if(TARGET ${lib})
-            get_target_property(inc_dirs ${lib} INTERFACE_INCLUDE_DIRECTORIES)
-            if(inc_dirs)
-                target_include_directories(${erf_exe_name} PUBLIC ${inc_dirs})
-            endif()
-        endif()
-    endforeach()
+    get_target_property(inc_dirs Kokkos::kokkos INTERFACE_INCLUDE_DIRECTORIES)
+    if(inc_dirs)
+        target_include_directories(${erf_exe_name} PUBLIC ${inc_dirs})
+    endif()
   endif()
 
   # Remove duplicate HIP link flags from executable
-  if(ERF_ENABLE_HIP AND ERF_ENABLE_EKAT)
+  if(ERF_ENABLE_HIP AND ERF_ENABLE_KOKKOS)
       get_target_property(exe_link_opts ${erf_exe_name} LINK_OPTIONS)
       if(exe_link_opts)
           # Deduplicate by converting to list and back

@@ -9,6 +9,7 @@
 #include <AMReX_MultiFab.H>
 #include <AMReX_REAL.H>
 
+#include <array>
 #include <string>
 #include <vector>
 
@@ -57,17 +58,21 @@ struct ParticleMixingConfig
 /**
  * The ERF configuration a policy is qualified with: no molecular, PBL or RANS
  * diffusion; ERF turbulence only as the same Smagorinsky or Deardorff LES on
- * every level, and only with HostPassiveScalar, which requires it; one level;
- * and a constant- or stretched-dz mesh.
+ * every level, and only with HostPassiveScalar, which requires it; and a
+ * constant- or stretched-dz mesh. SBM's own AMR envelope (two levels, a
+ * constant-dz mesh) bounds the levels.
  */
 [[nodiscard]] bool validate_particle_mixing_host (const ParticleMixingConfig& config,
                                                   const std::vector<TurbChoice>& turbulence,
                                                   MolecDiffType molecular,
                                                   MeshType mesh,
-                                                  int max_level,
                                                   std::string& reason);
 
-/** Mixing is qualified with periodic and wall faces only. */
+/**
+ * Mixing accepts periodic, wall, outflow and inflow faces. An inflow_outflow
+ * z face is rejected: ERF's own vertical scalar diffusion has no inward-only
+ * rule there to follow, and ERF accepts inflow_outflow on x and y faces only.
+ */
 [[nodiscard]] bool validate_particle_mixing_boundaries (
     const ParticleMixingConfig& config,
     const SBMPhysicalBoundaryConfig& boundaries,
@@ -75,6 +80,13 @@ struct ParticleMixingConfig
 
 /** Restart-schema lines of a mixing policy; empty for None. */
 [[nodiscard]] std::string particle_mixing_schema (const ParticleMixingConfig& config);
+
+/**
+ * As above, followed with a line of the diffusive semantics of every face
+ * that is neither periodic nor a wall, when there is one.
+ */
+[[nodiscard]] std::string particle_mixing_schema (const ParticleMixingConfig& config,
+                                                  const SBMPhysicalBoundaryConfig& boundaries);
 
 /** The host coefficient semantics of a mixing policy other than None. */
 [[nodiscard]] bool particle_mixing_coefficients (
@@ -101,6 +113,23 @@ struct ParticleMixingConfig
     const amrex::MultiFab* eddy_diffusivity,
     erf_auxiliary::MappedFaceTransmissibility& transmissibility,
     std::string& diagnostic);
+
+/** As above, with the diffusive faces of `boundary` open. */
+[[nodiscard]] bool build_particle_mixing_transmissibility (
+    const ParticleMixingConfig& config,
+    const amrex::Geometry& geom,
+    const erf_auxiliary::MappedDiffusionMetrics& metrics,
+    const amrex::MultiFab& density,
+    int density_component,
+    const amrex::MultiFab* eddy_diffusivity,
+    const erf_auxiliary::MappedDiffusionBoundary& boundary,
+    erf_auxiliary::MappedFaceTransmissibility& transmissibility,
+    std::string& diagnostic);
+
+/** The diffusive faces of a boundary configuration, with the dry-air carrier of each direction. */
+[[nodiscard]] erf_auxiliary::MappedDiffusionBoundary particle_mixing_boundary (
+    const SBMPhysicalBoundaryConfig& boundaries,
+    const std::array<const amrex::MultiFab*, AMREX_SPACEDIM>& carrier);
 
 } // namespace erf_sbm
 

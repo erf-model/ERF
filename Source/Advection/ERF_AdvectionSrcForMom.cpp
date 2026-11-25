@@ -109,26 +109,8 @@ AdvectionSrcForMom (const MFIter& mfi,
 
     AMREX_ALWAYS_ASSERT(bxz.smallEnd(2) > 0);
 
-    // compute mapfactor inverses
-    Box box2d_u(bxx);   box2d_u.setRange(2,0);   box2d_u.grow({3,3,0});
-    Box box2d_v(bxy);   box2d_v.setRange(2,0);   box2d_v.grow({3,3,0});
-    FArrayBox mf_u_invFAB(box2d_u,1,The_Async_Arena());
-    FArrayBox mf_v_invFAB(box2d_v,1,The_Async_Arena());
-    const Array4<Real>& mf_u_inv = mf_u_invFAB.array();
-    const Array4<Real>& mf_v_inv = mf_v_invFAB.array();
-
     const bool use_terrain_fitted_coords = ( terrain_type == TerrainType::StaticFittedMesh ||
                                              terrain_type == TerrainType::MovingFittedMesh);
-
-    ParallelFor(box2d_u, box2d_v,
-    [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept
-    {
-        mf_u_inv(i,j,0) = one / mf_ux(i,j,0);
-    },
-    [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept
-    {
-        mf_v_inv(i,j,0) = one / mf_vy(i,j,0);
-    });
 
     if (mesh_type == MeshType::ConstantDz && terrain_type != TerrainType::EB)
     {
