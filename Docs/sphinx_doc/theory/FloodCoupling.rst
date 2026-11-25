@@ -102,8 +102,8 @@ input to change:
   refinement box must reach the domain top);
 * the boxes cover one rectangle;
 * above level 0, the level keeps its boxes for the whole run
-  (:cpp:`erf.regrid_int` at most 0; the default is -1), since the flood grid
-  is built once.
+  (:cpp:`erf.regrid_int` at most 0, or the block's own ``<block>.regrid_int``
+  under MultiBlock; the default is -1), since the flood grid is built once.
 
 A refinement level over part of the flood grid is allowed: the flood then
 reads the precipitation and wind of its own level, and a note is printed.
