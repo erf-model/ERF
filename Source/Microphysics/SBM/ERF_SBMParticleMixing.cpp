@@ -348,6 +348,22 @@ build_particle_mixing_transmissibility (
     return true;
 }
 
+namespace {
+
+// The unclamped drop of cell (i,j,k) in cell thicknesses, or infinity where
+// the thickness is not positive or the drop not finite.
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE amrex::Real
+terrain_cell_drop (const amrex::Array4<const amrex::Real>& z,
+                   const int i, const int j, const int k) noexcept
+{
+    const TerrainCellDrops d = ComputeTerrainCellDrops(i, j, k, z);
+    const amrex::Real drop = std::sqrt(d.dx_drop * d.dx_drop + d.dy_drop * d.dy_drop) / d.dz;
+    return (amrex::Math::isfinite(drop) && d.dz > amrex::Real(0.0))
+               ? drop : std::numeric_limits<amrex::Real>::infinity();
+}
+
+} // namespace
+
 bool
 admit_terrain_mixing_geometry (const amrex::MultiFab& z_nd,
                                const amrex::BoxArray& cells,
@@ -364,20 +380,13 @@ admit_terrain_mixing_geometry (const amrex::MultiFab& z_nd,
     const amrex::Box domain = cells.minimalBox();
     const auto lo = amrex::lbound(domain);
     const auto len = amrex::length(domain);
-    const auto drop_of = [] AMREX_GPU_DEVICE (const amrex::Array4<const amrex::Real>& z,
-                                              int i, int j, int k) noexcept {
-        const TerrainCellDrops d = ComputeTerrainCellDrops(i, j, k, z);
-        const amrex::Real drop = std::sqrt(d.dx_drop * d.dx_drop + d.dy_drop * d.dy_drop) / d.dz;
-        return (amrex::Math::isfinite(drop) && d.dz > amrex::Real(0.0))
-                   ? drop : std::numeric_limits<amrex::Real>::infinity();
-    };
     amrex::ReduceOps<amrex::ReduceOpMax> max_op;
     amrex::ReduceData<amrex::Real> max_data(max_op);
     for (amrex::MFIter mfi(z_nd, false); mfi.isValid(); ++mfi) {
         const auto z = z_nd.const_array(mfi);
         max_op.eval(amrex::enclosedCells(mfi.validbox()), max_data,
             [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept -> amrex::GpuTuple<amrex::Real> {
-                return {drop_of(z, i, j, k)};
+                return {terrain_cell_drop(z, i, j, k)};
             });
     }
     amrex::Real worst = amrex::get<0>(max_data.value(max_op));
@@ -390,7 +399,7 @@ admit_terrain_mixing_geometry (const amrex::MultiFab& z_nd,
         const auto z = z_nd.const_array(mfi);
         min_op.eval(amrex::enclosedCells(mfi.validbox()), min_data,
             [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept -> amrex::GpuTuple<amrex::Long> {
-                const amrex::Real drop = drop_of(z, i, j, k);
+                const amrex::Real drop = terrain_cell_drop(z, i, j, k);
                 const amrex::Long index = (i - lo.x) + amrex::Long(len.x) *
                                           ((j - lo.y) + amrex::Long(len.y) * (k - lo.z));
                 return {drop >= worst ? index : std::numeric_limits<amrex::Long>::max()};
