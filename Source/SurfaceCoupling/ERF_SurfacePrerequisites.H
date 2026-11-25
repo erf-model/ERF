@@ -38,13 +38,26 @@ void verify_surface_precip_source (const std::string& engine_name,
  *        inputs to change
  *
  * 1. The level exists (0 to the finest level).
- * 2. Above level 0, the level keeps its boxes (erf.regrid_int <= 0): the grid
- *    is built once.
+ * 2. Above level 0, the level keeps its boxes (regrid_int <= 0, read with
+ *    ERF's own ParmParse prefix): the grid is built once
+ *    (verify_surface_static_refinement).
  * 3. Every box spans the level's full height: the grid pairs one surface slab
  *    with each box, and reads whole columns.
  * 4. The boxes cover one rectangle: the grid treats its edges as domain edges.
  * 5. The level's domain starts at index 0 (the map i / C + atm_lo assumes it).
  */
 void verify_surface_grid_level (const ERF& erf, int lev, const SurfaceCouplingNames& names);
+
+/**
+ * @brief Check 2 of verify_surface_grid_level: above level 0 the level must
+ *        keep its boxes
+ *
+ * @param[in] lev        The level the surface grid refines
+ * @param[in] pp_prefix  The ParmParse prefix ERF reads regrid_int with
+ *                       (ERF::pp_prefix: "erf", or a MultiBlock block's own)
+ * @param[in] names      The coupling's names, for the message
+ */
+void verify_surface_static_refinement (int lev, const std::string& pp_prefix,
+                                       const SurfaceCouplingNames& names);
 
 #endif

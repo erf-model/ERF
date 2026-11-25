@@ -11,6 +11,7 @@
 #include <AMReX_VisMF.H>
 #include <AMReX_PlotFileUtil.H>
 #include <AMReX_Utility.H>
+#include <algorithm>
 #include <sstream>
 #include <type_traits>
 #include <utility>
@@ -142,9 +143,11 @@ FireCoupler::advance (double time_d, double dt_d,
                       const Geometry& geom,
                       const SurfacePrecipAccumulationSources& precip_sources)
 {
-    // ERF keeps its time and step in double; the engine takes them in Real
-    const Real time = static_cast<Real>(time_d);
-    const Real dt   = static_cast<Real>(dt_d);
+    // ERF keeps its time and step in double. The engine gets the time in
+    // double too, as the flood engine does (in single precision a float time
+    // stops resolving a 0.5 s step after about 48 days), and the step in Real
+    const double time = time_d;
+    const Real dt     = static_cast<Real>(dt_d);
 
     // Air temperature and RH at k=0 (an engine may drive a fuel moisture
     // model with them), derived from the pre-dycore state. This is used in both lagged and synchronous
@@ -374,9 +377,20 @@ void
 FireCoupler::read_checkpoint (const std::string& restart_chkfile, int max_level, int step)
 {
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(m_Q_atm_prev, "[FIRE] FireCoupler: set_fire_grid() before the checkpoint");
+    // Every level the checkpoint holds is searched, not only those of this
+    // run's amr.max_level, so a restart onto fewer levels stops on the
+    // mismatch instead of starting the fire without its state. The number of
+    // levels is found on the I/O rank and broadcast.
+    int chk_finest = -1;
+    if (ParallelDescriptor::IOProcessor()) {
+        while (amrex::FileExists(restart_chkfile + "/Level_" + std::to_string(chk_finest + 1))) { ++chk_finest; }
+    }
+    ParallelDescriptor::Bcast(&chk_finest, 1, ParallelDescriptor::IOProcessorNumber());
+    const int search_level = std::max(max_level, chk_finest);
+
     // The engine first: it may check, naming its own fields, that the
     // checkpoint's fire grid sits on this level and region
-    m_engine->read_checkpoint(restart_chkfile, max_level, step);
+    m_engine->read_checkpoint(restart_chkfile, search_level, step);
 
     // The lagged fluxes, on the level of the fire grid. A checkpoint without them
     // (written with no fire running): the buffers keep their zero, said once.
@@ -384,7 +398,7 @@ FireCoupler::read_checkpoint (const std::string& restart_chkfile, int max_level,
     // into the collective reads below
     int chk_lev = -1;
     if (ParallelDescriptor::IOProcessor()) {
-        for (int l = 0; l <= max_level; ++l) {
+        for (int l = 0; l <= search_level; ++l) {
             if (amrex::FileExists(restart_chkfile + "/Level_" + std::to_string(l) + "/FireQAtmPrev_H")) {
                 chk_lev = l;
                 break;
