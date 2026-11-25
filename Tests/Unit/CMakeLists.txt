@@ -563,8 +563,12 @@ if(ERF_ENABLE_FIRE)
   # each column's own roughness in the log profile below the first cell center and in the
   # resampling from a higher sampling height (an engine input), give the scalar answer
   # without the field, and refuse a roughness the log profiles cannot take.
+  # The fire coupling must hand its engine the start of the step in double, as ERF keeps it,
+  # and on a restart search every level the checkpoint holds for the lagged fire fluxes, so a
+  # restart onto fewer levels stops on the mismatch instead of starting with none.
   target_sources(${erf_exe_name} PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/FireCoupling/ERF_GTestFireWindColumnZ0.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/FireCoupling/ERF_GTestFireCouplerRestart.cpp
   )
 endif()
 if(ERF_ENABLE_FLOOD)
