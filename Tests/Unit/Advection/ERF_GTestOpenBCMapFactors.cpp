@@ -28,8 +28,9 @@ using amrex::Real;
 //    map factor m what it gives with no map factors and dx/m, dy/m.
 //  - With map factors that vary, and the mass fluxes (rho u/m_y, rho v/m_x, and the
 //    averaged fluxes of the scalars) held fixed, the tendency divided by the prefactor of
-//    its variable (m_x m_y at the location of the variable; m_x or m_y for the normal
-//    momentum, whose gradient is m d/dxi) does not depend on the map factors.
+//    its variable (m_x m_y at the location of the variable; m_x or m_y at the first
+//    interior cell for the normal momentum, whose gradient is m d/dxi) does not depend
+//    on the map factors.
 
 namespace {
 
@@ -196,7 +197,7 @@ std::vector<Case> cases ()
         c.push_back({"Normal_xlo", Loc::x_face, b,
             [] (const Box& bx, const Array4<Real>& r, const State& s, const MapFactors& m, const auto& dxi) {
                 AdvectionSrcForOpenBC_Normal(bx, 0, r, s.u.const_array(), s.cell.const_array(),
-                                             m.ux.const_array(), dxi, true);
+                                             m.mx.const_array(), dxi, true);
             }});
     }
     {
@@ -204,7 +205,7 @@ std::vector<Case> cases ()
         c.push_back({"Normal_yhi", Loc::y_face, b,
             [] (const Box& bx, const Array4<Real>& r, const State& s, const MapFactors& m, const auto& dxi) {
                 AdvectionSrcForOpenBC_Normal(bx, 1, r, s.v.const_array(), s.cell.const_array(),
-                                             m.vy.const_array(), dxi, false);
+                                             m.my.const_array(), dxi, false);
             }});
     }
     // Tangential momenta: v on an x-lo boundary, u on a y-hi boundary
@@ -314,7 +315,8 @@ TEST(OpenBCMapFactors, UniformMapFactorIsAFinerMesh)
 // the prefactor m_x m_y (at the variable) times the divergence of the mass fluxes, rho u/m_y
 // and rho v/m_x, and of the averaged scalar fluxes, which carry their map factors already.
 // With those held fixed and the map factors changed, the tendency over the prefactor stays
-// the same (the normal momentum's radiation gradient is m_x d/dxi, so there it is m_x).
+// the same (the normal momentum's radiation gradient is m_x d/dxi, so there it is m_x at the
+// first interior cell center).
 // Without map factors the kernels advected rho u and rho v as if they were mass fluxes, and
 // the scalar kernel left the vertical term without m_x m_y.  Omega is zero so that the
 // vertical momentum fluxes, which have no prefactor, drop out.
@@ -339,7 +341,9 @@ TEST(OpenBCMapFactors, VaryingMapFactorsScaleTheMassFluxDivergence)
         const bool normal = (c.name.rfind("Normal", 0) == 0);
         auto pref = [&] (const MapFactors& m, int i, int j) {
             if (!normal) { return prefactor(c.loc, m, i, j); }
-            return (c.loc == Loc::x_face) ? m.ux.const_array()(i,j,0) : m.vy.const_array()(i,j,0);
+            // The radiation gradient is centered at the first interior cell: cell i at
+            // x-lo, cell j-1 at y-hi
+            return (c.loc == Loc::x_face) ? m.mx.const_array()(i,j,0) : m.my.const_array()(i,j-1,0);
         };
         Real scale = 0;
         amrex::Loop(c.bx, [&] (int i, int j, int k) {

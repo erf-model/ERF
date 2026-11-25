@@ -479,7 +479,10 @@ AdvectionSrcForOpenBC_Tangent (const int& i,
                                const amrex::Array4<const amrex::Real>& mom_norm_arr,
                                const amrex::Array4<const amrex::Real>& mf_norm,
                                const amrex::Real& dxInv,
-                               const bool do_lo=false);
+                               const bool do_lo,
+                               const bool avg_x,
+                               const bool avg_y,
+                               const bool avg_z);
 
 /** Return the effective advection type used for the requested Runge-Kutta stage. */
 AMREX_GPU_HOST_DEVICE
