@@ -2929,8 +2929,8 @@ fill_sloped_heights (FArrayBox& z_nd, FArrayBox& z_cc, const Real dx,
 // half a cell from the edge-cell center. For a linear profile the constant-dz,
 // stretched-dz and terrain builders must then all give the interior flux on
 // that face; a two-point difference against the ghost gives half of it. Faces
-// where ext_dir_upwind flows out keep the two-point difference against a
-// ghost that continues the profile.
+// where ext_dir_upwind flows out keep the two-point difference; the test fills
+// their ghosts to continue the profile (ERF's own fill there is foextrap).
 ERF_GPU_TEST(ScalarDiffusionPrimitives, OpenLateralFacesTakeOneSidedStencilOnEveryGrid)
 {
   const Box domain(IntVect(0, 0, 0), IntVect(3, 3, 3));
@@ -3121,6 +3121,105 @@ ERF_GPU_TEST(ScalarDiffusionPrimitives, TerrainOpenFaceCrossTermUsesFaceTrace)
       EXPECT_NEAR(x4(0, j, k), lo, tolerance(lo)) << "xlo face j " << j << " k " << k;
       EXPECT_NEAR(x4(4, j, k), hi, tolerance(hi)) << "xhi face j " << j << " k " << k;
     }
+  }
+}
+
+
+// erf-model/ERF#5388 review: a linear field chi = a x + c z over terrain whose
+// column depth varies in x (Gal-Chen levels over a ramp), with the ghosts at
+// the open x faces holding chi at each row's face height. The terrain flux
+// -alpha (d chi/d xi - h_xi d chi/dz) is then -alpha a on every x face,
+// the open faces included: the one-sided x derivative is exact along a
+// level, and the face trace's vertical derivative, over the face's own height
+// spacing, is exactly c. The y faces carry no flux.
+ERF_GPU_TEST(ScalarDiffusionPrimitives, TerrainOpenFaceLinearFieldOverVaryingColumnDepth)
+{
+  const Box domain(IntVect(0, 0, 0), IntVect(3, 3, 3));
+  const Box data_box = grow_box(domain, 2);
+  const Box xfaces = surroundingNodes(domain, 0);
+  const Box yfaces = surroundingNodes(domain, 1);
+  const Box zfaces = surroundingNodes(domain, 2);
+  constexpr Real dx = Real(0.5), dy = Real(0.5), dz = Real(0.4);
+  constexpr Real slope = Real(0.2), ztop = Real(4.0) * dz;
+  constexpr Real a = Real(1.3), c = Real(0.7), alpha = Real(0.3);
+  const GpuArray<Real, AMREX_SPACEDIM> inv{{Real(1.0) / dx, Real(1.0) / dy, Real(1.0) / dz}};
+
+  FArrayBox z_nd(terrain_node_box(data_box), 1), z_cc(data_box, 1);
+  const auto zn = z_nd.array();
+  ParallelFor(z_nd.box(), [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+    const Real h = slope * Real(i) * dx;
+    zn(i, j, k) = h + Real(k) * dz * (Real(1.0) - h / ztop);
+  });
+  const auto zc = z_cc.array();
+  ParallelFor(data_box, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+    Real sum = Real(0.0);
+    for (int dk = 0; dk < 2; ++dk) {
+      for (int dj = 0; dj < 2; ++dj) {
+        for (int di = 0; di < 2; ++di) {
+          sum += zn(i + di, j + dj, k + dk);
+        }
+      }
+    }
+    zc(i, j, k) = Real(0.125) * sum;
+  });
+  FArrayBox scalar(data_box, 1), rho(data_box, 1), mu(data_box, EddyDiff::NumDiffs);
+  const auto s4 = scalar.array();
+  ParallelFor(data_box, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+    // The ghost beyond each open x face holds chi at that row's face point.
+    const int face = i < 0 ? 0 : (i > 3 ? 4 : -1);
+    if (face >= 0) {
+      const Real zf = Real(0.25) * (zn(face, j, k) + zn(face, j + 1, k) +
+                                    zn(face, j, k + 1) + zn(face, j + 1, k + 1));
+      s4(i, j, k) = a * Real(face) * dx + c * zf;
+    } else {
+      s4(i, j, k) = a * (Real(i) + Real(0.5)) * dx + c * zc(i, j, k);
+    }
+  });
+  rho.setVal<RunOn::Device>(Real(1.0));
+  mu.setVal<RunOn::Device>(Real(0.0));
+  FArrayBox one_x(surroundingNodes(grow_box(Box(IntVect(0, 0, 0), IntVect(3, 3, 0)), 1), 0), 1);
+  FArrayBox one_y(surroundingNodes(grow_box(Box(IntVect(0, 0, 0), IntVect(3, 3, 0)), 1), 1), 1);
+  one_x.setVal<RunOn::Device>(Real(1.0));
+  one_y.setVal<RunOn::Device>(Real(1.0));
+
+  BCRec bc;
+  for (int d = 0; d < AMREX_SPACEDIM; ++d) {
+    bc.setLo(d, d == 0 ? ERFBCType::ext_dir : ERFBCType::foextrap);
+    bc.setHi(d, d == 0 ? ERFBCType::ext_dir : ERFBCType::foextrap);
+  }
+  Gpu::DeviceVector<BCRec> bc_dev(1);
+  Gpu::copy(Gpu::hostToDevice, &bc, &bc + 1, bc_dev.begin());
+
+  FArrayBox fx(xfaces, 1), fy(yfaces, 1), fz(zfaces, 1);
+  ScalarDiffusionFieldViews field;
+  field.scalar = scalar.const_array();
+  field.density = rho.const_array();
+  field.mu_turb = mu.const_array();
+  field.xflux = fx.array();
+  field.yflux = fy.array();
+  field.zflux = fz.array();
+  ScalarDiffusionFluxPolicy policy;
+  policy.coefficients = {alpha, EddyDiff::Scalar_h, EddyDiff::Scalar_v};
+  policy.coefficient_mode = {false, false};
+  Gpu::streamSynchronize();
+  BuildScalarDiffusionFluxes_T(
+    domain, domain, field, policy, false, z_nd.const_array(), z_cc.const_array(),
+    inv, Array4<const Real>{}, Array4<const Real>{}, one_x.const_array(),
+    one_y.const_array(), bc_dev.data(), 0);
+  Gpu::streamSynchronize();
+
+  FArrayBox hx(xfaces, 1, The_Pinned_Arena()), hy(yfaces, 1, The_Pinned_Arena());
+  copy_to_host(fx, hx);
+  copy_to_host(fy, hy);
+  const auto x4 = hx.const_array();
+  const auto y4 = hy.const_array();
+  for (BoxIterator it(xfaces); it.ok(); ++it) {
+    const IntVect p = it();
+    EXPECT_NEAR(x4(p), -alpha * a, tolerance(alpha * a)) << "x face " << p;
+  }
+  for (BoxIterator it(yfaces); it.ok(); ++it) {
+    const IntVect p = it();
+    EXPECT_NEAR(y4(p), Real(0.0), tolerance(alpha * a)) << "y face " << p;
   }
 }
 

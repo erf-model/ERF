@@ -160,6 +160,13 @@ StretchedDiffusionDirichletWeights (
  * first, so `vel` is read only on a domain face with ext_dir_upwind (a box away
  * from the domain face holds no velocity there, and a caller whose BCs never
  * use ext_dir_upwind may pass an empty array).
+ *
+ * The stencil this selects assumes the ghost cell holds the scalar at the face
+ * point of the same cell row: on a terrain-fitted grid, at that row's height
+ * on the face. A ghost filled at another height (for example a profile
+ * interpolated to flat-grid levels while the boundary terrain is raised) gives
+ * a flux error at the face of order one that does not shrink with dx, about
+ * 8/3 times the error of the two-point difference (erf-model/ERF#5391).
  */
 template <int Direction>
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE void
@@ -178,16 +185,25 @@ ScalarDiffusionLateralExtDir (
   const int n = Direction == 0 ? i : j;
   const int face_lo = Direction == 0 ? dom_lo.x : dom_lo.y;
   const int face_hi = (Direction == 0 ? dom_hi.x : dom_hi.y) + 1;
-  ext_lo = n == face_lo &&
-    ((bc.lo(Direction) == ERFBCType::ext_dir) ||
-     (bc.lo(Direction) == ERFBCType::ext_dir_prim) ||
-     (bc.lo(Direction) == ERFBCType::ext_dir_upwind &&
-      vel(i, j, k) >= amrex::Real(0.0)));
-  ext_hi = n == face_hi &&
-    ((bc.hi(Direction) == ERFBCType::ext_dir) ||
-     (bc.hi(Direction) == ERFBCType::ext_dir_prim) ||
-     (bc.hi(Direction) == ERFBCType::ext_dir_upwind &&
-      vel(i, j, k) <= amrex::Real(0.0)));
+  ext_lo = false;
+  ext_hi = false;
+  if (n == face_lo) {
+    const int type = bc.lo(Direction);
+    if (type == ERFBCType::ext_dir || type == ERFBCType::ext_dir_prim) {
+      ext_lo = true;
+    } else if (type == ERFBCType::ext_dir_upwind) {
+      AMREX_ASSERT(vel.dataPtr() != nullptr);
+      ext_lo = vel(i, j, k) >= amrex::Real(0.0);
+    }
+  } else if (n == face_hi) {
+    const int type = bc.hi(Direction);
+    if (type == ERFBCType::ext_dir || type == ERFBCType::ext_dir_prim) {
+      ext_hi = true;
+    } else if (type == ERFBCType::ext_dir_upwind) {
+      AMREX_ASSERT(vel.dataPtr() != nullptr);
+      ext_hi = vel(i, j, k) <= amrex::Real(0.0);
+    }
+  }
 }
 
 /**
@@ -366,13 +382,40 @@ ScalarDiffusionFlux_Ty (
 }
 
 /**
+ * 1 / (z(k+1) - z(k-1)) on an x (Direction 0) or y (Direction 1) face, with
+ * z(kk) the height of the face center in cell row kk: the mean of the face's
+ * four nodes. The vertical derivative of the face trace at an open domain
+ * face is taken over this spacing, not over the ghost column's, which sits
+ * half a cell outside the face.
+ */
+template <int Direction>
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE amrex::Real
+TerrainFaceHeightSpacingInv (
+  const amrex::Array4<const amrex::Real>& z_nd,
+  const int i,
+  const int j,
+  const int k) noexcept
+{
+  static_assert(Direction == 0 || Direction == 1);
+  constexpr int di = Direction == 1 ? 1 : 0;
+  constexpr int dj = Direction == 0 ? 1 : 0;
+  const auto z_face = [&] (const int kk) {
+    return amrex::Real(0.25) *
+           (z_nd(i, j, kk) + z_nd(i + di, j + dj, kk) +
+            z_nd(i, j, kk + 1) + z_nd(i + di, j + dj, kk + 1));
+  };
+  return amrex::Real(1.0) / (z_face(k + 1) - z_face(k - 1));
+}
+
+/**
  * Terrain x-face raw diffusion flux, including ERF's x-face map factor.
  * `coeff` is the already selected effective face coefficient. Prescribed
  * surface flux replacement is boundary policy and is intentionally outside
  * this geometry primitive. At an open domain face (ext_dir_lo / ext_dir_hi,
  * from ScalarDiffusionLateralExtDir) the ghost column holds the face trace:
  * the x derivative takes the one-sided stencil against it, and the vertical
- * derivative in the cross term is the trace's own.
+ * derivative in the cross term is the trace's own, over the face's own height
+ * spacing (TerrainFaceHeightSpacingInv).
  */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE amrex::Real
 TerrainScalarDiffusionFluxAtIFace (
@@ -395,15 +438,17 @@ TerrainScalarDiffusionFluxAtIFace (
   const amrex::Real idz_lo =
     amrex::Real(1.0) / (z_cc(i - 1, j, k + 1) - z_cc(i - 1, j, k - 1));
   // At an open domain face the ghost column holds the face trace, so the
-  // vertical derivative along the face is that column's own; elsewhere it is
-  // the average of the two columns.
+  // vertical derivative along the face is that trace's own, over the face's
+  // height spacing; elsewhere it is the average of the two columns.
   amrex::Real grad_z;
   if (ext_dir_lo) {
     grad_z = (scalar(i - 1, j, k + 1, scalar_comp) -
-              scalar(i - 1, j, k - 1, scalar_comp)) * idz_lo;
+              scalar(i - 1, j, k - 1, scalar_comp)) *
+             TerrainFaceHeightSpacingInv<0>(z_nd, i, j, k);
   } else if (ext_dir_hi) {
     grad_z = (scalar(i, j, k + 1, scalar_comp) -
-              scalar(i, j, k - 1, scalar_comp)) * idz_hi;
+              scalar(i, j, k - 1, scalar_comp)) *
+             TerrainFaceHeightSpacingInv<0>(z_nd, i, j, k);
   } else {
     grad_z =
       amrex::Real(0.5) * (scalar(i, j, k + 1, scalar_comp) * idz_hi +
@@ -440,15 +485,17 @@ TerrainScalarDiffusionFluxAtJFace (
   const amrex::Real idz_lo =
     amrex::Real(1.0) / (z_cc(i, j - 1, k + 1) - z_cc(i, j - 1, k - 1));
   // At an open domain face the ghost column holds the face trace, so the
-  // vertical derivative along the face is that column's own; elsewhere it is
-  // the average of the two columns.
+  // vertical derivative along the face is that trace's own, over the face's
+  // height spacing; elsewhere it is the average of the two columns.
   amrex::Real grad_z;
   if (ext_dir_lo) {
     grad_z = (scalar(i, j - 1, k + 1, scalar_comp) -
-              scalar(i, j - 1, k - 1, scalar_comp)) * idz_lo;
+              scalar(i, j - 1, k - 1, scalar_comp)) *
+             TerrainFaceHeightSpacingInv<1>(z_nd, i, j, k);
   } else if (ext_dir_hi) {
     grad_z = (scalar(i, j, k + 1, scalar_comp) -
-              scalar(i, j, k - 1, scalar_comp)) * idz_hi;
+              scalar(i, j, k - 1, scalar_comp)) *
+             TerrainFaceHeightSpacingInv<1>(z_nd, i, j, k);
   } else {
     grad_z =
       amrex::Real(0.5) * (scalar(i, j, k + 1, scalar_comp) * idz_hi +
