@@ -285,6 +285,18 @@ function(build_erf_lib erf_lib_name)
     target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_WINDFARM)
   endif()
 
+  if(ERF_ENABLE_FIRE OR ERF_ENABLE_FLOOD)
+    # The surface-coupling layer the fire and the flood couplings share: the 2D
+    # grid over one level, its maps to the columns, the engine registry, the
+    # common inputs and start-up checks
+    target_sources(${erf_lib_name} PRIVATE
+      ${SRC_DIR}/SurfaceCoupling/ERF_SurfaceCouplingParams.cpp
+      ${SRC_DIR}/SurfaceCoupling/ERF_SurfaceGrid.cpp
+      ${SRC_DIR}/SurfaceCoupling/ERF_SurfacePrerequisites.cpp
+    )
+    target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Source/SurfaceCoupling>)
+  endif()
+
   if(ERF_ENABLE_FIRE)
     # The fire coupling, atmosphere side, shared by every fire engine
     target_sources(${erf_lib_name} PRIVATE

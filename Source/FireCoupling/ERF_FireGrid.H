@@ -1,9 +1,12 @@
 #ifndef ERF_FIRE_GRID_H
 #define ERF_FIRE_GRID_H
 
+#include <ERF_SurfaceGrid.H>
+
 #include <AMReX_BoxArray.H>
 #include <AMReX_DistributionMapping.H>
 #include <AMReX_Geometry.H>
+#include <AMReX_MultiFab.H>
 
 /**
  * @file ERF_FireGrid.H
@@ -13,30 +16,30 @@
  * factor C relative to one atmospheric AMR level (erf.fire.anchor_level, the
  * finest level by default). The fire grid covers that level's boxes, keeps their
  * x-y decomposition and their MPI owners, and its index space starts at zero at
- * the lower corner of the region they cover.
+ * the lower corner of the region they cover. It is the surface grid of the
+ * surface-coupling layer (ERF_SurfaceGrid.H) under the fire coupling's name;
+ * the functions below call that layer with the fire coupling's names.
  */
+
+/// The fire coupling's names: erf.fire.<key>, "[FIRE]", "fire grid"
+inline const SurfaceCouplingNames& fire_coupling_names ()
+{
+    static const SurfaceCouplingNames names{"fire", "Fire", "FIRE"};
+    return names;
+}
 
 /**
  * @struct FireGrid
  * @brief 2D horizontal fire computational grid
  *
  * Represents a 2D slab (kmax=1) with dimensions C*nx × C*ny × 1, where C is the
- * refinement factor and (nx, ny) is the size of the region the atmospheric
- * level's boxes cover: the whole domain on level 0, the refined region on a
- * finer level.
+ * refinement factor (erf.fire.grid_ratio) and (nx, ny) is the size of the
+ * region the atmospheric level's boxes cover: the whole domain on level 0, the
+ * refined region on a finer level. The members (ba, dm, geom, C, atm_lo, lev)
+ * are those of SurfaceGrid.
  */
-struct FireGrid
+struct FireGrid : SurfaceGrid
 {
-    amrex::BoxArray              ba;   ///< 2D BoxArray (C*nx × C*ny × 1)
-    amrex::DistributionMapping   dm;   ///< Distribution map (x-y decomposition aligned with atm)
-    amrex::Geometry              geom; ///< 2D Geometry in physical coordinates [m]
-    int                          C;    ///< Refinement factor
-    /// Index, on the atmospheric level the grid refines, of the lower corner of
-    /// the region the fire grid covers. The fire grid's own index space starts at
-    /// zero at that corner, as every AMReX Geometry does, so fire cell (i, j) lies
-    /// in atmospheric cell (i / C + atm_lo[0], j / C + atm_lo[1]). Zero on level 0.
-    amrex::IntVect               atm_lo {0, 0, 0};
-    int                          lev = 0; ///< The atmospheric level (erf.fire.anchor_level, resolved)
 };
 
 /**
@@ -48,29 +51,17 @@ struct FireGrid
  * @param[in] C            Refinement factor (erf.fire.grid_ratio)
  *
  * @return FireGrid over the region the boxes cover; its lev is left at 0 for
- *         the caller to set.
- *
- * Algorithm:
- * 1. Take the k = 0 slab of each box in ba_atm, keeping the box order.
- * 2. The region is their bounding rectangle, which must be covered exactly
- *    (aborts otherwise); atm_lo is its lower corner.
- * 3. Shift the slabs by -atm_lo and refine by {C, C, 1}; box n keeps the owner
- *    of atmospheric box n, so dm_atm is reused.
- * 4. The Geometry spans the region: index space 0 to C * size - 1, the
- *    physical extent of the region (the domain's own bounds where the region
- *    spans the domain), periodic only in a direction the region spans.
+ *         the caller to set. See create_surface_grid() for the algorithm.
  */
 FireGrid create_fire_grid(const amrex::BoxArray& ba_atm,
                           const amrex::DistributionMapping& dm_atm,
                           const amrex::Geometry& geom_atm,
                           int C);
 
-#include <AMReX_MultiFab.H>
-#include <AMReX_MFIter.H>
-
 /**
  * Exchange the ghost cells of a fire-grid MultiFab and fill the ones outside a
- * non-periodic face of the domain by copying the nearest interior value.
+ * non-periodic face of the domain by copying the nearest interior value
+ * (surface_fill_boundary).
  *
  * FillBoundary alone leaves those cells untouched, so with an inflow-outflow
  * atmosphere (the fire grid inherits its periodicity) the gradient stencil of
@@ -81,51 +72,19 @@ FireGrid create_fire_grid(const amrex::BoxArray& ba_atm,
  */
 inline void fire_fill_boundary (amrex::MultiFab& mf, const amrex::Geometry& geom)
 {
-    mf.FillBoundary(geom.periodicity());
-    const auto ng = mf.nGrowVect();
-    const bool px = geom.isPeriodic(0) || ng[0] == 0;
-    const bool py = geom.isPeriodic(1) || ng[1] == 0;
-    const bool pz = geom.isPeriodic(2) || ng[2] == 0;
-    if (px && py && pz) { return; }   // nothing outside a non-periodic face to fill
-    const amrex::Box& dom = geom.Domain();
-    const auto dlo = dom.smallEnd();
-    const auto dhi = dom.bigEnd();
-    const int ncomp = mf.nComp();
-    for (amrex::MFIter mfi(mf); mfi.isValid(); ++mfi) {
-        const amrex::Box& gbx = mfi.fabbox();
-        if (dom.contains(gbx)) { continue; }
-        auto a = mf.array(mfi);
-        amrex::ParallelFor(gbx, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
-        {
-            int ic = i, jc = j, kc = k;
-            if (!px) { ic = amrex::min(amrex::max(i, dlo[0]), dhi[0]); }
-            if (!py) { jc = amrex::min(amrex::max(j, dlo[1]), dhi[1]); }
-            if (!pz) { kc = amrex::min(amrex::max(k, dlo[2]), dhi[2]); }
-            if (ic != i || jc != j || kc != k) { a(i, j, k, n) = a(ic, jc, kc, n); }
-        });
-    }
+    surface_fill_boundary(mf, geom, fire_coupling_names());
 }
 
 /**
  * Copy a k = 0 atmospheric field onto the fire grid: every fire cell takes the
- * value of the atmospheric column it lies in, (i / C + atm_lo[0], j / C + atm_lo[1]).
- * Box n of the fire grid refines box n of the atmospheric level and has the
- * same owner, so one MFIter serves both MultiFabs.
+ * value of the atmospheric column it lies in, (i / C + atm_lo[0], j / C + atm_lo[1])
+ * (surface_fill_from_atm_k0). Box n of the fire grid refines box n of the
+ * atmospheric level and has the same owner, so one MFIter serves both MultiFabs.
  */
 inline void fill_fire_from_atm_k0 (amrex::MultiFab& fire_mf, const amrex::MultiFab& atm_k0,
                                    const FireGrid& fg)
 {
-    const int C    = fg.C;
-    const int lo_x = fg.atm_lo[0];
-    const int lo_y = fg.atm_lo[1];
-    for (amrex::MFIter mfi(fire_mf, false); mfi.isValid(); ++mfi) {
-        auto f = fire_mf.array(mfi);
-        auto a = atm_k0.const_array(mfi);
-        amrex::ParallelFor(mfi.tilebox(), [=] AMREX_GPU_DEVICE (const amrex::IntVect& iv) noexcept
-        {
-            f(iv[0], iv[1], 0) = a(iv[0] / C + lo_x, iv[1] / C + lo_y, 0);
-        });
-    }
+    surface_fill_from_atm_k0(fire_mf, atm_k0, fg, fire_coupling_names());
 }
 
 #endif

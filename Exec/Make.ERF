@@ -372,6 +372,14 @@ include $(ERF_MOISTURE_SUPERDROPLETSMOIST_DIR)/Make.package
 VPATH_LOCATIONS   += $(ERF_MOISTURE_SUPERDROPLETSMOIST_DIR)
 INCLUDE_LOCATIONS += $(ERF_MOISTURE_SUPERDROPLETSMOIST_DIR)
 
+# The surface-coupling layer the fire and the flood couplings share
+ifneq ($(filter TRUE,$(USE_FIRE) $(USE_FLOOD)),)
+    ERF_SURFACE_COUPLING_DIR = $(ERF_SOURCE_DIR)/SurfaceCoupling
+    include $(ERF_SURFACE_COUPLING_DIR)/Make.package
+    VPATH_LOCATIONS   += $(ERF_SURFACE_COUPLING_DIR)
+    INCLUDE_LOCATIONS += $(ERF_SURFACE_COUPLING_DIR)
+endif
+
 # The fire coupling (atmosphere side); fire engines plug into it. Each
 # directory in FIRE_HOME (one or more, space separated) is a fire engine
 # directory with its own Make.package; FIRE_ENGINE_DIR holds the directory

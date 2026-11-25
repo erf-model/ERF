@@ -215,7 +215,7 @@ FireCoupler::fill_plot_var (const std::string& name, MultiFab& dst, int dcomp, i
     col.setVal(0.0_rt);
     coarsen_fire_flux_to_atm(col, *fire_field, m_geom_atm, m_fg);
 
-    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(dst.boxArray().size() == col.boxArray().size() &&
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(surface_same_columns(dst.boxArray(), col.boxArray()) &&
                                      dst.DistributionMap() == col.DistributionMap(),
                                      "[FIRE] fill_plot_var: the plotfile MultiFab is not on the fire grid's level");
     const int k0 = m_geom_atm.Domain().smallEnd(2);

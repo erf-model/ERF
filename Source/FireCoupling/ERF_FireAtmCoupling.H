@@ -66,9 +66,11 @@
 //   - The engine's sensible and latent fluxes (FireFluxes) are on the fire grid
 //     (C*nx x C*ny x 1 over the fire region).
 //   - The coarsening from fire grid to atmospheric grid is the area average of
-//     average_down(), with the region's lower corner added (FireGrid::atm_lo).
+//     surface_coarsen_to_atm() (ERF_SurfaceGrid.H), with the region's lower
+//     corner added (FireGrid::atm_lo).
 //   - z_phys_cc is the cell-center terrain-following height MultiFab [m].
-//   - The atmospheric BoxArray is not split in z (max_grid_size_z = nz enforced).
+//   - The atmospheric BoxArray is not split in z (checked at start-up by
+//     verify_surface_grid_level(), ERF_SurfacePrerequisites.H).
 //   - Latent heat injection into RhoQ1_comp is skipped when moisture is inactive.
 //   - fire_atm_feedback multiplier (equivalent to WRF-Fire's fire_atm_feedback)
 //     scales both sensible and latent flux. Set to 0 for one-way coupling only
@@ -104,51 +106,22 @@ constexpr amrex::Real FIRE_ATM_ALFG_DEFAULT = amrex::Real(45.0);
 //
 // Q_atm_out lives on the k = 0 slabs of that level's boxes, in their order and
 // with their owners; Q_fire on the fire grid, whose index space starts at the
-// region's corner. On level 0 the corner is the origin and this is
-// amrex::average_down() with ratio (C, C, 1), as it always was. Elsewhere the
-// same average is taken with the corner added: fire cells (i - lo_x) C + r,
-// (j - lo_y) C + q for r, q in [0, C) average into atmospheric cell (i, j).
-// average_down() itself would place the result at the fire grid's own indices.
+// region's corner: fire cells (i - lo_x) C + r, (j - lo_y) C + q for r, q in
+// [0, C) average into atmospheric cell (i, j). This is surface_coarsen_to_atm()
+// (ERF_SurfaceGrid.H), which sums in the order of amrex::average_down() with
+// ratio (C, C, 1), so on level 0 it gives the same bits as average_down().
+// Unlike average_down(), which accepts any layout of the output, it stops the
+// run unless Q_fire and Q_atm_out pair box for box with the same owners: an
+// engine must return its fluxes on fg.ba / fg.dm (ERF_FireEngine.H).
+// geom_atm is not used; it stays in the signature for the engines that call
+// this function.
 inline void coarsen_fire_flux_to_atm(
     amrex::MultiFab& Q_atm_out,
     const amrex::MultiFab& Q_fire,
-    const amrex::Geometry& geom_atm,
+    const amrex::Geometry& /*geom_atm*/,
     const FireGrid& fg)
 {
-    const int C = fg.C;
-    if (fg.atm_lo == amrex::IntVect::TheZeroVector()) {
-        amrex::average_down(Q_fire, Q_atm_out, fg.geom, geom_atm, 0, Q_fire.nComp(),
-                            amrex::IntVect(C, C, 1));
-        return;
-    }
-
-    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
-        Q_fire.boxArray().size() == Q_atm_out.boxArray().size() &&
-        Q_fire.DistributionMap() == Q_atm_out.DistributionMap(),
-        "[FIRE] coarsen_fire_flux_to_atm: the fire grid and the atmospheric slabs must pair box for box");
-    AMREX_ALWAYS_ASSERT(Q_atm_out.nComp() >= Q_fire.nComp());
-
-    const int lo_x  = fg.atm_lo[0];
-    const int lo_y  = fg.atm_lo[1];
-    const int ncomp = Q_fire.nComp();
-    const amrex::Real volfrac = amrex::Real(1.0) / amrex::Real(C * C);
-    for (amrex::MFIter mfi(Q_atm_out); mfi.isValid(); ++mfi) {
-        const amrex::Box& bx = mfi.validbox();
-        auto crse = Q_atm_out.array(mfi);
-        auto fine = Q_fire.const_array(mfi);
-        amrex::ParallelFor(bx, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
-        {
-            const int ii = (i - lo_x) * C;
-            const int jj = (j - lo_y) * C;
-            amrex::Real c = amrex::Real(0.0);
-            for (int q = 0; q < C; ++q) {
-                for (int r = 0; r < C; ++r) {
-                    c += fine(ii + r, jj + q, 0, n);
-                }
-            }
-            crse(i, j, k, n) = volfrac * c;
-        });
-    }
+    surface_coarsen_to_atm(Q_atm_out, Q_fire, fg, fire_coupling_names());
 }
 
 // Height of the lower (upper = 0) or upper (upper = 1) face of cell (i, j, k):
