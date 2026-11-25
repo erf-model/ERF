@@ -110,6 +110,9 @@ constexpr amrex::Real FIRE_ATM_ALFG_DEFAULT = amrex::Real(45.0);
 // [0, C) average into atmospheric cell (i, j). This is surface_coarsen_to_atm()
 // (ERF_SurfaceGrid.H), which sums in the order of amrex::average_down() with
 // ratio (C, C, 1), so on level 0 it gives the same bits as average_down().
+// Unlike average_down(), which accepts any layout of the output, it stops the
+// run unless Q_fire and Q_atm_out pair box for box with the same owners: an
+// engine must return its fluxes on fg.ba / fg.dm (ERF_FireEngine.H).
 // geom_atm is not used; it stays in the signature for the engines that call
 // this function.
 inline void coarsen_fire_flux_to_atm(

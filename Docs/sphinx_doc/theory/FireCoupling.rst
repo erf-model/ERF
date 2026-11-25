@@ -122,7 +122,7 @@ coupled to ERF the same way.
   first step as an uninterrupted one. It also provides helpers a fire engine
   may use: a wind sampler (``ERF_FireWindExtract.H``) and the ground height
   of each atmospheric column (``ERF_FireSurfaceHeight.H``). The fire grid,
-  the engine registry, the common inputs and the mesh checks are thin
+  the engine registry, the common inputs and the start-up checks are thin
   wrappers over a layer the fire and the flood couplings share
   (``Source/SurfaceCoupling``), which is compiled into any build with either
   coupling.
@@ -139,7 +139,8 @@ in x and y. Each fire box is an atmospheric box refined by the ratio, owned
 by the same rank, and every x and y box length on that level must be
 divisible by the ratio; the run stops at start-up naming the first box that
 is not, with the inputs to change. The level must keep its boxes for the whole
-run (on a level above 0, :cpp:`erf.regrid_int` must be off), its boxes must
+run (on a level above 0, :cpp:`erf.regrid_int` at most 0; the default is
+-1), its boxes must
 form one rectangle, no box may be split in z, and the bottom boundary must be
 a surface layer unless the engine says it reads nothing from one
 (``FireEngine::needs_surface_layer``; the example engine and LSFIRE do not).
