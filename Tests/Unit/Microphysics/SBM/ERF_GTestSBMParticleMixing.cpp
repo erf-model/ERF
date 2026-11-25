@@ -1660,6 +1660,112 @@ void run_terrain_low_order_bound ()
     EXPECT_LT(value_at(*beyond, 0, pulse), Real(0.0));
 }
 
+// Max interior error of ERF's native terrain diffusion, horizontal and
+// vertical eddy coefficients mapped once, against the physical-space
+// divergence d_x(mu_h q_x) + d_y(mu_h q_y) + d_z(mu_v q_z), on the curved
+// terrain z = zeta + (1 - zeta) h (sin 2 pi xi + cos(2 pi eta) / 2) with map
+// factors 1.1 in x and 0.9 in y. Cells two or more from a wall are measured.
+Real curved_manufactured_error (const int n)
+{
+    TerrainOptions options;
+    options.cells = IntVect(n);
+    options.max_grid = n / 2;
+    options.periodic = {1, 1, 0};
+    options.variable_maps = false;
+    options.map_x = Real(1.1);
+    options.map_y = Real(0.9);
+    auto g = make_terrain_grid(options);
+    const Real hill = Real(0.06);
+    const Real nn = Real(n);
+    for (amrex::MFIter mfi(g->z_nd); mfi.isValid(); ++mfi) {
+        const auto a = g->z_nd.array(mfi);
+        amrex::ParallelFor(mfi.fabbox(), [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+            const Real xi = Real(i) / nn;
+            const Real eta = Real(j) / nn;
+            const Real zeta = Real(k) / nn;
+            a(i, j, k, 0) = zeta + (Real(1.0) - zeta) * hill *
+                                       (std::sin(two_pi * xi) + Real(0.5) * std::cos(two_pi * eta));
+        });
+    }
+    make_zcc(g->geom, g->z_nd, g->z_cc);
+    make_J(g->geom, g->z_nd, g->detj);
+    MultiFab az(amrex::convert(g->ba, IntVect(0, 0, 1)), g->dm, 1, 0);
+    make_areas(g->geom, g->z_nd, g->ax, g->ay, az);
+    std::string diagnostic;
+    EXPECT_TRUE(BuildMappedCellMeasure(g->omega, g->detj, g->mf_mx, g->mf_my, diagnostic))
+        << diagnostic;
+
+    // Physical x = xi / m_x and y = eta / m_y, so one period in each.
+    const Real kx = two_pi * options.map_x;
+    const Real ky = two_pi * options.map_y;
+    const Real kz = Real(0.5) * two_pi;
+    auto f = make_uniform_terrain_fields(*g, Real(1.0));
+    for (amrex::MFIter mfi(f->z); mfi.isValid(); ++mfi) {
+        const auto q = f->z.array(mfi);
+        const auto mu = f->eddy.array(mfi);
+        const auto zc = g->z_cc.const_array(mfi);
+        amrex::ParallelFor(mfi.fabbox(), [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+            const Real x = (Real(i) + Real(0.5)) / nn / Real(1.1);
+            const Real y = (Real(j) + Real(0.5)) / nn / Real(0.9);
+            const Real z = zc(i, j, k);
+            q(i, j, k, 0) = std::sin(kx * x) * std::cos(ky * y) * std::cos(kz * z) +
+                            Real(0.5) * z * z;
+            mu(i, j, k, EddyDiff::Scalar_h) = Real(1.0) + Real(0.3) * std::cos(kx * x) +
+                                              Real(0.2) * z;
+            mu(i, j, k, EddyDiff::Scalar_v) = Real(0.5) + Real(0.2) * std::sin(ky * y) +
+                                              Real(0.1) * z;
+        });
+    }
+    ScalarDiffusionFluxPolicy policy;
+    policy.coefficients = {Real(0.0), EddyDiff::Scalar_h, EddyDiff::Scalar_v};
+    policy.coefficient_mode = {false, true};
+    const auto high = terrain_fluxes(*g, *f, policy, &policy.coefficients);
+    MultiFab tendency(g->ba, g->dm, 1, 0);
+    ApplyMappedFluxTendency(high->mapped, 0, g->omega, 0, tendency, 0, g->dx_inv());
+
+    MultiFab error(g->ba, g->dm, 1, 0);
+    error.setVal(Real(0.0));
+    for (amrex::MFIter mfi(error); mfi.isValid(); ++mfi) {
+        const auto out = error.array(mfi);
+        const auto got = tendency.const_array(mfi);
+        const auto zc = g->z_cc.const_array(mfi);
+        amrex::ParallelFor(mfi.validbox(), [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+            if (k < 2 || k > n - 3) return;
+            const Real x = (Real(i) + Real(0.5)) / nn / Real(1.1);
+            const Real y = (Real(j) + Real(0.5)) / nn / Real(0.9);
+            const Real z = zc(i, j, k);
+            const Real sx = std::sin(kx * x), cx = std::cos(kx * x);
+            const Real sy = std::sin(ky * y), cy = std::cos(ky * y);
+            const Real sz = std::sin(kz * z), cz = std::cos(kz * z);
+            const Real wave = sx * cy * cz;
+            const Real mu_h = Real(1.0) + Real(0.3) * cx + Real(0.2) * z;
+            const Real mu_v = Real(0.5) + Real(0.2) * sy + Real(0.1) * z;
+            const Real q_x = kx * cx * cy * cz;
+            const Real q_z = -kz * sx * cy * sz + z;
+            const Real d_x = -Real(0.3) * kx * sx * q_x - mu_h * kx * kx * wave;
+            const Real d_y = -mu_h * ky * ky * wave;
+            const Real d_z = Real(0.1) * q_z + mu_v * (-kz * kz * wave + Real(1.0));
+            out(i, j, k, 0) = std::abs(got(i, j, k, 0) - (d_x + d_y + d_z));
+        });
+    }
+    return error.norm0(0);
+}
+
+// The native terrain operator, the high-order candidate, converges at second
+// order on the curved interior with distinct horizontal and vertical
+// coefficients and nonunit maps: the design's gate is order 1.8 or better.
+void run_curved_manufactured_order ()
+{
+    const Real e16 = curved_manufactured_error(16);
+    const Real e32 = curved_manufactured_error(32);
+    const Real e64 = curved_manufactured_error(64);
+    const Real coarse = std::log2(e16 / e32);
+    const Real fine = std::log2(e32 / e64);
+    amrex::Print() << "SBM_M6B_CURVED_MANUFACTURED e16=" << e16 << " e32=" << e32 << " e64=" << e64
+                   << " order=" << coarse << "," << fine << '\n';
+    EXPECT_GE(fine, Real(1.8));
+}
+
 // Terrain conductances fail closed on missing or unusable metrics and on
 // vertical faces they do not support.
 void run_terrain_validation ()
@@ -2416,6 +2522,10 @@ TEST(AuxiliaryDiffusion, TerrainLowOrderPulseStaysNonnegativeUpToTheBound)
     run_terrain_low_order_bound();
 }
 TEST(AuxiliaryDiffusion, TerrainMetricsFailClosed) { run_terrain_validation(); }
+TEST(AuxiliaryDiffusion, TerrainNativeOperatorConvergesOnCurvedTerrain)
+{
+    run_curved_manufactured_order();
+}
 
 TEST(SBMParticleMixing, PolicyNamesAndIdentity) { run_policy_names(); }
 TEST(SBMParticleMixing, HostPassiveScalarUsesScalarChannelsAsGiven) { run_host_channels(); }

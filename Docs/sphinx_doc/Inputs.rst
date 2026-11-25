@@ -5458,6 +5458,11 @@ execution restrictions.
        ``ConstantReference``; any other policy rejects a nonzero value.
      - Real :math:`\ge 0`
      - ``0``
+   * - ``erf.sbm_particle_mixing_terrain_qualification``
+     - Qualification only: allow particle mixing on a single-level static
+       terrain-fitted mesh, whose operator has not passed its release gates.
+     - Boolean
+     - ``false``
    * - ``erf.sbm_budget_check``
      - After every coarse step, check that the composite spectral inventory
        changed only by that step's accepted transfer through the physical

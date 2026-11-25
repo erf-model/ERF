@@ -19,6 +19,7 @@
 
 #include <algorithm>
 #include <array>
+#include <chrono>
 #include <cmath>
 #include <limits>
 #include <memory>
@@ -45,19 +46,32 @@ using erf_auxiliary::HostIntegrator;
 using erf_sbm::ParticleMixingPolicy;
 
 constexpr Real two_pi = Real(6.283185307179586476925286766559);
-constexpr int nx = 8;
-constexpr int ny = 4;
 
 Real eps () { return std::numeric_limits<Real>::epsilon(); }
 
+// Bin edge b of nbins geometric bins from 0.1 to 1; two bins have the edges
+// 0.1, 0.5, 1 instead.
+Real bin_edge (const int b, const int nbins)
+{
+    if (nbins == 2) { return b == 0 ? Real(0.1) : (b == 1 ? Real(0.5) : Real(1.0)); }
+    return Real(0.1) * std::pow(Real(10.0), Real(b) / Real(nbins));
+}
+
 erf_sbm::SBMLayout
-make_layout (const erf_sbm::MomentMode mode, const bool with_property)
+make_layout (const erf_sbm::MomentMode mode, const bool with_property, const int nbins = 2)
 {
     erf_sbm::SpectralGridSpec grid;
     grid.coordinate_kind = erf_sbm::CoordinateKind::Mass;
     grid.coordinate_units = "kg particle^-1";
-    grid.edges = {Real(0.1), Real(0.5), Real(1.0)};
-    grid.pivots = {Real(0.3), Real(0.75)};
+    if (nbins == 2) {
+        grid.edges = {Real(0.1), Real(0.5), Real(1.0)};
+        grid.pivots = {Real(0.3), Real(0.75)};
+    } else {
+        for (int b = 0; b <= nbins; ++b) { grid.edges.push_back(bin_edge(b, nbins)); }
+        for (int b = 0; b < nbins; ++b) {
+            grid.pivots.push_back(std::sqrt(bin_edge(b, nbins) * bin_edge(b + 1, nbins)));
+        }
+    }
 
     erf_sbm::SpectralPopulationSpec population;
     population.population_id = 0;
@@ -89,20 +103,40 @@ make_layout (const erf_sbm::MomentMode mode, const bool with_property)
 // physical height one half. DryEndpoint: in the last 2M bin, endpoint
 // numbers of physical height alone, the low one empty over half of each
 // wavelength and the high one wet everywhere, under one group limiter.
-enum class Profile { Smooth, Step, Uniform, Empty, DryEndpoint };
+// Stripe: in the last 2M bin, a dry low endpoint max(cos 2 pi z, 0)^8 and a
+// wet high endpoint 1 + cos(2 pi z) / 5, both of physical height alone with
+// zero gradient at flat walls z = 0, 1.
+enum class Profile { Smooth, Step, Uniform, Empty, DryEndpoint, Stripe };
+
+// Hill: a terrain-following hill decaying to a flat top. Wave: flat bottom
+// and top walls with interior coordinate surfaces displaced by
+// hill sin(2 pi x / lx) sin(pi zeta), so a field of height alone satisfies
+// the walls' zero normal flux. Witness: the numerical analysis's curved grid,
+// zeta + hill sin(2 pi xi) (1 - zeta) + plane sin(2 pi zeta).
+enum class Terrain { Hill, Wave, Witness };
 
 struct Options
 {
+    int nx{8};
+    int ny{4};
+    // Physical extents in x and y; the computational zeta runs over [0, 1].
+    Real lx{1};
+    Real ly{1};
+    Terrain terrain{Terrain::Hill};
     erf_sbm::MomentMode mode{erf_sbm::MomentMode::OneMoment};
+    // Bins of the single population; two have the fixed edges 0.1, 0.5, 1.
+    int nbins{2};
     bool attached_property{false};
     ParticleMixingPolicy policy{ParticleMixingPolicy::HostPassiveScalar};
     Real kh{0};
     Real kv{0};
     Real eddy_scale{1};
     int nz{8};
-    // Boxes are at most 4 x 4 x max_grid_z cells.
+    // Boxes are at most max_grid_xy x max_grid_xy x max_grid_z cells.
+    int max_grid_xy{4};
     int max_grid_z{8};
-    // Terrain z = zeta + (1 - zeta) hill (sin 2 pi xi + cos(2 pi eta) / 2) + plane xi.
+    // Hill terrain z = zeta + (1 - zeta) hill (sin 2 pi xi + cos(2 pi eta) / 2) + plane xi,
+    // with xi = x / lx and eta = y / ly.
     Real hill{Real(0.1)};
     Real plane{Real(0.0)};
     bool varying_density{false};
@@ -146,20 +180,34 @@ void fill_heights (MultiFab& z_nd, const Options& options)
 {
     const Real hill = options.hill;
     const Real plane = options.plane;
+    const bool wave = options.terrain == Terrain::Wave;
+    const bool witness = options.terrain == Terrain::Witness;
+    const Real nx = Real(options.nx);
+    const Real ny = Real(options.ny);
     const Real nz = Real(options.nz);
     for (amrex::MFIter mfi(z_nd); mfi.isValid(); ++mfi) {
         const auto a = z_nd.array(mfi);
         amrex::ParallelFor(mfi.fabbox(), [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-            const Real xi = Real(i) / Real(nx);
-            const Real eta = Real(j) / Real(ny);
+            const Real xi = Real(i) / nx;
+            const Real eta = Real(j) / ny;
             const Real zeta = Real(k) / nz;
+            if (wave) {
+                a(i, j, k, 0) = zeta + hill * std::sin(two_pi * xi) *
+                                           std::sin(Real(0.5) * two_pi * zeta);
+                return;
+            }
+            if (witness) {
+                a(i, j, k, 0) = zeta + hill * std::sin(two_pi * xi) * (Real(1.0) - zeta) +
+                                plane * std::sin(two_pi * zeta);
+                return;
+            }
             const Real surface = hill * (std::sin(two_pi * xi) + Real(0.5) * std::cos(two_pi * eta));
             a(i, j, k, 0) = zeta + (Real(1.0) - zeta) * surface + plane * xi;
         });
     }
 }
 
-void fill_density (MultiFab& rho, const bool varying)
+void fill_density (MultiFab& rho, const bool varying, const int nx, const int ny)
 {
     rho.setVal(Real(0.0));
     for (amrex::MFIter mfi(rho); mfi.isValid(); ++mfi) {
@@ -175,7 +223,7 @@ void fill_density (MultiFab& rho, const bool varying)
 
 // Anisotropic eddy diffusivities; every other channel holds a distinct value
 // that a wrong channel would pick up.
-void fill_eddy (MultiFab& eddy, const Real scale)
+void fill_eddy (MultiFab& eddy, const Real scale, const int nx, const int ny)
 {
     for (amrex::MFIter mfi(eddy); mfi.isValid(); ++mfi) {
         const auto a = eddy.array(mfi);
@@ -197,13 +245,15 @@ void fill_eddy (MultiFab& eddy, const Real scale)
 // mean mass per region, 1M bins their pivot, and attached properties a
 // fraction of the number.
 void fill_spectrum (MultiFab& spectrum, const MultiFab& rho, const MultiFab& z_cc,
-                    const erf_sbm::SBMLayout& layout, const Profile profile)
+                    const erf_sbm::SBMLayout& layout, const Profile profile,
+                    const int nx, const int ny)
 {
     const auto& population = layout.populations().front();
     const bool two_moment = population.moment_mode == erf_sbm::MomentMode::TwoMoment;
+    const int nbins = population.grid.nbins();
     const int mass0 = population.mass_offset;
     const int number0 = two_moment ? population.number_offset : -1;
-    const int property0 = layout.ncomp() > (two_moment ? 4 : 2) ? layout.property_offset(0) : -1;
+    const int property0 = layout.attached_properties().empty() ? -1 : layout.property_offset(0);
     for (amrex::MFIter mfi(spectrum); mfi.isValid(); ++mfi) {
         const auto u = spectrum.array(mfi);
         const auto r = rho.const_array(mfi);
@@ -213,7 +263,7 @@ void fill_spectrum (MultiFab& spectrum, const MultiFab& rho, const MultiFab& z_c
             const Real y = (Real(j) + Real(0.5)) / Real(ny);
             const Real z = height(i, j, k);
             const Real density = r(i, j, k, Rho_comp);
-            for (int bin = 0; bin < 2; ++bin) {
+            for (int bin = 0; bin < nbins; ++bin) {
                 Real factor = Real(1.0);
                 bool upper = false;
                 if (profile == Profile::Smooth) {
@@ -224,19 +274,25 @@ void fill_spectrum (MultiFab& spectrum, const MultiFab& rho, const MultiFab& z_c
                     factor = upper ? Real(0.1) : Real(1.0);
                 } else if (profile == Profile::Empty) {
                     factor = Real(0.0);
-                } else if (profile == Profile::DryEndpoint && two_moment && bin == 1) {
+                } else if ((profile == Profile::DryEndpoint || profile == Profile::Stripe) &&
+                           two_moment && bin == 1) {
                     // The endpoint numbers at the bin edges 0.5 and 1.
                     const Real c = std::cos(two_pi * z);
-                    const Real low = Real(0.01) * (c > Real(0.0) ? c * c * c * c : Real(0.0));
-                    const Real high =
-                        Real(0.01) * (Real(1.0) + Real(0.2) * std::sin(two_pi * z + Real(0.7)));
+                    const Real c2 = c * c;
+                    const Real dry = profile == Profile::Stripe ? c2 * c2 * c2 * c2 : c2 * c2;
+                    const Real low = Real(0.01) * (c > Real(0.0) ? dry : Real(0.0));
+                    const Real high = Real(0.01) * (Real(1.0) + Real(0.2) *
+                        (profile == Profile::Stripe ? c : std::sin(two_pi * z + Real(0.7))));
                     u(i, j, k, mass0 + bin) = density * (Real(0.5) * low + high);
                     u(i, j, k, number0 + bin) = density * (low + high);
                     continue;
                 }
                 const Real number = factor * Real(0.01) * (Real(1.0) + Real(0.5) * Real(bin));
-                // A 1M bin's particles sit at its pivot.
-                const Real mean = !two_moment ? (bin == 0 ? Real(0.3) : Real(0.75))
+                // A 1M bin's particles sit at its pivot, as do those of more
+                // than two bins.
+                const Real pivot = nbins == 2 ? (bin == 0 ? Real(0.3) : Real(0.75))
+                    : std::sqrt(Real(0.01) * std::pow(Real(10.0), Real(2 * bin + 1) / Real(nbins)));
+                const Real mean = !two_moment || nbins != 2 ? pivot
                                 : bin == 0 ? (upper ? Real(0.4) : Real(0.2)) : Real(0.75);
                 u(i, j, k, mass0 + bin) = density * number * mean;
                 if (number0 >= 0) { u(i, j, k, number0 + bin) = density * number; }
@@ -272,18 +328,21 @@ make_run (const Options& options)
     auto run = std::make_unique<Run>();
     run->options = options;
     const int nz = options.nz;
+    const int nx = options.nx;
+    const int ny = options.ny;
     const Box domain(IntVect(0), IntVect(nx - 1, ny - 1, nz - 1));
-    const amrex::RealBox real_box({0.0, 0.0, 0.0}, {1.0, 1.0, 1.0});
+    const amrex::RealBox real_box({0.0, 0.0, 0.0},
+                                  {double(options.lx), double(options.ly), 1.0});
     const int periodic[AMREX_SPACEDIM] = {options.inflow_x ? 0 : 1, 1, 0};
     run->geom = Geometry(domain, &real_box, amrex::CoordSys::cartesian, periodic);
     run->ba = BoxArray(domain);
-    run->ba.maxSize(IntVect(4, 4, options.max_grid_z));
+    run->ba.maxSize(IntVect(options.max_grid_xy, options.max_grid_xy, options.max_grid_z));
     run->dm = DistributionMapping(run->ba);
     const auto& ba = run->ba;
     const auto& dm = run->dm;
 
     run->state = std::make_unique<erf_sbm::SBMStateManager>(
-        make_layout(options.mode, options.attached_property), 1);
+        make_layout(options.mode, options.attached_property, options.nbins), 1);
     run->state->define(0, ba, dm, 0.0);
     run->transport = std::make_unique<erf_sbm::SBMTransport>(run->state->layout(), 1, 16);
     run->transport->define(0, ba, dm);
@@ -320,8 +379,17 @@ make_run (const Options& options)
 
     run->z_nd.define(amrex::convert(ba, IntVect(1)), dm, 1, 2);
     fill_heights(run->z_nd, options);
+    // ERF's cell-centre heights, averaged from the analytic nodes in every
+    // ghost cell too: the tilted slab is translation invariant but not
+    // periodic, so its periodic ghost columns must not take the images'.
     run->z_cc.define(ba, dm, 1, 2);
-    make_zcc(run->geom, run->z_nd, run->z_cc);
+    for (amrex::MFIter mfi(run->z_cc); mfi.isValid(); ++mfi) {
+        const auto zc = run->z_cc.array(mfi);
+        const auto zn = run->z_nd.const_array(mfi);
+        amrex::ParallelFor(mfi.fabbox(), [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+            zc(i, j, k) = Compute_Z_AtCellCenter(i, j, k, zn);
+        });
+    }
     run->detj.define(ba, dm, 1, 0);
     make_J(run->geom, run->z_nd, run->detj);
     run->ax.define(amrex::convert(ba, IntVect(1, 0, 0)), dm, 1, 0);
@@ -334,12 +402,12 @@ make_run (const Options& options)
         << diagnostic;
 
     run->rho.define(ba, dm, 3, 2);
-    fill_density(run->rho, options.varying_density);
+    fill_density(run->rho, options.varying_density, nx, ny);
     run->rho.FillBoundary(run->geom.periodicity());
     run->target.define(ba, dm, 3, 2);
     MultiFab::Copy(run->target, run->rho, 0, 0, 3, 2);
     run->eddy.define(ba, dm, EddyDiff::NumDiffs, 2);
-    fill_eddy(run->eddy, options.eddy_scale);
+    fill_eddy(run->eddy, options.eddy_scale, nx, ny);
     run->eddy.FillBoundary(run->geom.periodicity());
 
     run->xmom.define(amrex::convert(ba, IntVect(1, 0, 0)), dm, 1, 0);
@@ -359,7 +427,7 @@ make_run (const Options& options)
     run->zmom.setVal(Real(0.0));
 
     fill_spectrum(run->state->new_state_for_initialization(0), run->rho, run->z_cc,
-                  run->state->layout(), options.profile);
+                  run->state->layout(), options.profile, nx, ny);
     run->inputs = erf_sbm::make_stage_mixing_inputs(*run->transport, &run->eddy, run->mapfac,
                                                     &run->ax, &run->ay, nullptr, &run->z_nd,
                                                     &run->z_cc);
@@ -723,12 +791,14 @@ void run_inflow_face_trace ()
     for (int n = 0; n < ncomp; ++n) {
         // Raw face flux; unit maps, density, Jacobian and side areas.
         host[static_cast<std::size_t>(n)] = (Real(8.0) / Real(3.0)) * options.kh *
-                                            run->inflow_z[static_cast<std::size_t>(n)] * Real(nx);
+                                            run->inflow_z[static_cast<std::size_t>(n)] *
+                                            Real(options.nx);
     }
     amrex::Gpu::DeviceVector<Real> face_flux(host.size());
     amrex::Gpu::copy(amrex::Gpu::hostToDevice, host.begin(), host.end(), face_flux.begin());
     const Real* flux = face_flux.data();
     const Real s = options.plane;
+    const int nx = options.nx;
     MultiFab expected(run->ba, run->dm, ncomp, 0);
     for (amrex::MFIter mfi(expected); mfi.isValid(); ++mfi) {
         const auto a = expected.array(mfi);
@@ -775,7 +845,7 @@ void run_inflow_ledger ()
     const auto& ledger = run->transport->boundary_ledger();
     const int ncomp = initial->nComp();
     // The ledger holds physical amounts: the inventory with the cell volume.
-    const Real volume = Real(1.0) / Real(nx * ny * run->nz());
+    const Real volume = Real(1.0) / Real(options.nx * options.ny * run->nz());
     for (int n = 0; n < ncomp; ++n) {
         const Real before =
             volume * mapped_inventory(*initial, run->transport->static_measure(0), n);
@@ -941,6 +1011,544 @@ void run_dry_endpoint ()
     EXPECT_GT(wet_error[1], Real(0.1));
 }
 
+// Errors of a stripe run against physical vertical diffusion with K_v at
+// flat, no-flux walls: the wet endpoint's peak error over its initial
+// amplitude, the dry endpoint's L1 error over its initial inventory, and the
+// vertical diffusivity ratio r_hat inferred from the wet fundamental.
+struct StripeErrors
+{
+    Real wet_peak{0};
+    Real dry_l1{0};
+    Real r_hat{0};
+};
+
+StripeErrors
+stripe_errors (const Run& run, const MultiFab& initial, const Real kh, const Real kv,
+               const Real time)
+{
+    // The dry endpoint's cosine series on [0, 1] with zero end gradients,
+    // each mode decaying as exp(-K_v (n pi)^2 t).
+    constexpr int modes = 128;
+    constexpr int samples = 32768;
+    std::vector<Real> coefficient(modes, Real(0.0));
+    for (int q = 0; q < samples; ++q) {
+        const Real z = (Real(q) + Real(0.5)) / Real(samples);
+        const Real c = std::cos(two_pi * z);
+        const Real c2 = c * c;
+        const Real dry = c > Real(0.0) ? c2 * c2 * c2 * c2 : Real(0.0);
+        for (int n = 0; n < modes; ++n) {
+            coefficient[static_cast<std::size_t>(n)] +=
+                (n == 0 ? Real(1.0) : Real(2.0)) * dry *
+                std::cos(Real(0.5) * two_pi * Real(n) * z) / Real(samples);
+        }
+    }
+    for (int n = 0; n < modes; ++n) {
+        const Real wave = Real(0.5) * two_pi * Real(n);
+        coefficient[static_cast<std::size_t>(n)] *= std::exp(-kv * wave * wave * time);
+    }
+    amrex::Gpu::DeviceVector<Real> series(coefficient.size());
+    amrex::Gpu::copy(amrex::Gpu::hostToDevice, coefficient.begin(), coefficient.end(),
+                     series.begin());
+    const Real* c_dry = series.data();
+    const Real wet_decay = std::exp(-kv * two_pi * two_pi * time);
+
+    MultiFab before(run.ba, run.dm, 2, 0);
+    MultiFab after(run.ba, run.dm, 2, 0);
+    bin1_endpoints(run, initial, before);
+    bin1_endpoints(run, run.spectrum(), after);
+    // Per cell, with the measure omega: |dry - exact| omega, dry_0 omega,
+    // |wet - exact|, and the wet fundamental's projections at t and 0.
+    MultiFab terms(run.ba, run.dm, 6, 0);
+    const MultiFab& measure = run.transport->static_measure(0);
+    for (amrex::MFIter mfi(terms); mfi.isValid(); ++mfi) {
+        const auto out = terms.array(mfi);
+        const auto e0 = before.const_array(mfi);
+        const auto e1 = after.const_array(mfi);
+        const auto omega = measure.const_array(mfi);
+        const auto height = run.z_cc.const_array(mfi);
+        amrex::ParallelFor(mfi.validbox(), [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+            const Real z = height(i, j, k);
+            Real dry = Real(0.0);
+            for (int n = 0; n < modes; ++n) {
+                dry += c_dry[n] * std::cos(Real(0.5) * two_pi * Real(n) * z);
+            }
+            const Real basis = std::cos(two_pi * z);
+            const Real wet = Real(0.01) * (Real(1.0) + Real(0.2) * wet_decay * basis);
+            const Real w = omega(i, j, k, 0);
+            out(i, j, k, 0) = std::abs(e1(i, j, k, 0) - Real(0.01) * dry) * w;
+            out(i, j, k, 1) = e0(i, j, k, 0) * w;
+            out(i, j, k, 2) = std::abs(e1(i, j, k, 1) - wet);
+            out(i, j, k, 3) = (e1(i, j, k, 1) - Real(0.01)) * basis * w;
+            out(i, j, k, 4) = (e0(i, j, k, 1) - Real(0.01)) * basis * w;
+            out(i, j, k, 5) = Real(0.0);
+        });
+    }
+    StripeErrors errors;
+    errors.dry_l1 = terms.sum(0) / terms.sum(1);
+    errors.wet_peak = terms.norm0(2) / (Real(0.2) * Real(0.01));
+    const Real star = two_pi * two_pi * kh * time;
+    errors.r_hat = -std::log(std::abs(terms.sum(3)) / std::abs(terms.sum(4))) / star;
+    return errors;
+}
+
+// A stripe run on the flat-walled wave terrain with A = Delta_x / Delta_Z = 10,
+// cells_per_wave cells per vertical wavelength, a worst cell drop just under
+// one thickness, K_h = 1 and K_v = r, to (2 pi / L)^2 K_h t = 2 at 0.8 of
+// the combined bound.
+StripeErrors run_stripe (const int cells_per_wave, const Real r, const bool match)
+{
+    Options options;
+    options.terrain = Terrain::Wave;
+    options.nz = cells_per_wave;
+    options.max_grid_z = cells_per_wave;
+    options.nx = 16;
+    options.ny = 2;
+    const Real dx = Real(10.0) / Real(cells_per_wave);
+    options.lx = Real(options.nx) * dx;
+    options.ly = Real(options.ny) * dx;
+    // The worst drop is near hill 2 pi (nz / nx) / (1 - pi hill) thickness.
+    options.hill = Real(0.85) * Real(options.nx) / (two_pi * Real(cells_per_wave));
+    options.policy = ParticleMixingPolicy::ConstantReference;
+    options.kh = Real(1.0);
+    options.kv = r;
+    options.mode = erf_sbm::MomentMode::TwoMoment;
+    options.profile = Profile::Stripe;
+    options.match = match;
+    auto run = make_run(options);
+    std::string diagnostic;
+    EXPECT_TRUE(erf_sbm::admit_terrain_mixing_geometry(run->z_nd, run->ba, Real(1.0), diagnostic))
+        << diagnostic;
+    const auto initial = copy_of(run->spectrum());
+    erf_auxiliary::MappedFaceTransmissibility t;
+    t.define(run->ba, run->dm, 1, 0);
+    EXPECT_TRUE(erf_sbm::build_particle_mixing_transmissibility(
+        run->transport->particle_mixing(), run->geom, run->inputs.metrics, run->rho, Rho_comp,
+        nullptr, t, diagnostic)) << diagnostic;
+    erf_auxiliary::MappedFaceFluxRate at_rest;
+    at_rest.define(run->ba, run->dm, 1, 0);
+    at_rest.setVal(Real(0.0));
+    Real rate = Real(0.0);
+    EXPECT_TRUE(erf_auxiliary::ComputeMaxMappedCombinedOutgoingRate(
+        at_rest, t, run->transport->static_measure(0), run->rho, Rho_comp,
+        run->geom.InvCellSizeArray(), rate, diagnostic)) << diagnostic;
+    const Real time = Real(2.0) / (two_pi * two_pi * options.kh);
+    const int steps = static_cast<int>(std::ceil(time * rate / Real(0.8)));
+    advance(*run, HostIntegrator::CompressibleRK3, time / Real(steps), steps);
+    EXPECT_TRUE(erf_sbm::authoritative_state_admissible(run->spectrum(), run->state->layout(), 0,
+                                                        &diagnostic)) << diagnostic;
+    const auto errors = stripe_errors(*run, *initial, options.kh, options.kv, time);
+    amrex::Print() << "SBM_M6B_STRIPE cells_per_wave=" << cells_per_wave << " r=" << r
+                   << " matched=" << match << " steps=" << steps
+                   << " wet_peak=" << errors.wet_peak << " dry_l1=" << errors.dry_l1
+                   << " r_hat=" << errors.r_hat << '\n';
+    return errors;
+}
+
+// The design's accuracy gate on moderate terrain, at 64 cells per vertical
+// wavelength: wet endpoint peak error below 2% of its amplitude, dry-cohort
+// L1 error below 2% of its inventory, and |r_hat - r| <= max(0.002, r / 10),
+// for the closures' ratios r = 0 (K_v = 0), 0.01 (anisotropic Smagorinsky at
+// A = 10) and 1 (isotropic).
+void run_stripe_gate ()
+{
+    for (const Real r : {Real(0.0), Real(0.01), Real(1.0)}) {
+        const auto errors = run_stripe(64, r, true);
+        EXPECT_LT(errors.wet_peak, Real(0.02)) << "r = " << r;
+        EXPECT_LT(errors.dry_l1, Real(0.02)) << "r = " << r;
+        EXPECT_LE(std::abs(errors.r_hat - r), std::max(Real(0.002), Real(0.1) * r)) << "r = " << r;
+    }
+}
+
+// Max and mean errors after a stage-integrated run on the tilted slab z = s x + w
+// between walls w = 0 and 1: q = 1 + cos(a x + b w) / 2 with b = s a / (r + s^2)
+// has zero mapped transfer through every w surface, the walls included, and
+// decays as exp(-a^2 K_h r t / (r + s^2)). Next to a wall the native side
+// stencil reads the quadratic extension in height, so the wall rule sets the
+// error there.
+struct SlabErrors
+{
+    Real max{0};
+    Real mean{0};
+};
+
+SlabErrors tilted_slab_errors (const int n)
+{
+    const Real s = Real(0.5);
+    const Real r = Real(0.1);
+    const Real a = two_pi;
+    const Real b = s * a / (r + s * s);
+    Options options;
+    options.nx = n;
+    options.ny = 2;
+    options.ly = Real(2.0) / Real(n);
+    options.nz = n;
+    options.max_grid_z = n / 2;
+    options.hill = Real(0.0);
+    options.plane = s;
+    options.policy = ParticleMixingPolicy::ConstantReference;
+    options.kh = Real(1.0);
+    options.kv = r;
+    options.profile = Profile::Uniform;
+    auto run = make_run(options);
+    const int ncomp = run->spectrum().nComp();
+    const Real nx = Real(n);
+    const auto fill = [&] (MultiFab& u, const Real amplitude) {
+        for (amrex::MFIter mfi(u); mfi.isValid(); ++mfi) {
+            const auto out = u.array(mfi);
+            const auto height = run->z_cc.const_array(mfi);
+            amrex::ParallelFor(mfi.validbox(), ncomp,
+                [=] AMREX_GPU_DEVICE(int i, int j, int k, int c) noexcept {
+                    const Real x = (Real(i) + Real(0.5)) / nx;
+                    const Real w = height(i, j, k) - s * x;
+                    out(i, j, k, c) = Real(0.01) * Real(c + 1) *
+                        (Real(1.0) + amplitude * std::cos(a * x + b * w));
+                });
+        }
+    };
+    fill(run->state->new_state_for_initialization(0), Real(0.5));
+    const Real decay = a * a * options.kh * r / (r + s * s);
+    const Real time = Real(0.5) / decay;
+    erf_auxiliary::MappedFaceTransmissibility t;
+    t.define(run->ba, run->dm, 1, 0);
+    std::string diagnostic;
+    EXPECT_TRUE(erf_sbm::build_particle_mixing_transmissibility(
+        run->transport->particle_mixing(), run->geom, run->inputs.metrics, run->rho, Rho_comp,
+        nullptr, t, diagnostic)) << diagnostic;
+    erf_auxiliary::MappedFaceFluxRate at_rest;
+    at_rest.define(run->ba, run->dm, 1, 0);
+    at_rest.setVal(Real(0.0));
+    Real rate = Real(0.0);
+    EXPECT_TRUE(erf_auxiliary::ComputeMaxMappedCombinedOutgoingRate(
+        at_rest, t, run->transport->static_measure(0), run->rho, Rho_comp,
+        run->geom.InvCellSizeArray(), rate, diagnostic)) << diagnostic;
+    const int steps = static_cast<int>(std::ceil(time * rate / Real(0.8)));
+    advance(*run, HostIntegrator::CompressibleRK3, time / Real(steps), steps);
+    MultiFab exact(run->ba, run->dm, ncomp, 0);
+    fill(exact, Real(0.5) * std::exp(-decay * time));
+    // Relative to each component's amplitude 0.005 (c + 1).
+    MultiFab::Subtract(exact, run->spectrum(), 0, 0, ncomp, 0);
+    SlabErrors errors;
+    const Real cells = Real(exact.boxArray().numPts());
+    for (int c = 0; c < ncomp; ++c) {
+        const Real amplitude = Real(0.005) * Real(c + 1);
+        errors.max = std::max(errors.max, exact.norm0(c) / amplitude);
+        errors.mean = std::max(errors.mean, exact.norm1(c) / (amplitude * cells));
+    }
+    return errors;
+}
+
+// The wall rule converges on the tilted slab. The interior error halves twice
+// per refinement; the wall cells, whose first interior k face carries an
+// O(h^2) error that the suppressed wall face does not balance, approach that
+// rate more slowly (max-norm orders 2.0, 1.73, 1.86 from 16 to 128 cells per
+// direction; mean-error orders 1.91, 1.92, 1.96).
+void run_tilted_slab ()
+{
+    const auto e16 = tilted_slab_errors(16);
+    const auto e32 = tilted_slab_errors(32);
+    const auto e64 = tilted_slab_errors(64);
+    amrex::Print() << "SBM_M6B_TILTED_SLAB max=" << e16.max << "," << e32.max << "," << e64.max
+                   << " mean=" << e16.mean << "," << e32.mean << "," << e64.mean
+                   << " mean_order=" << std::log2(e16.mean / e32.mean) << ","
+                   << std::log2(e32.mean / e64.mean) << '\n';
+    EXPECT_GE(std::log2(e32.mean / e64.mean), Real(1.8));
+    EXPECT_GT(e32.max / e64.max, Real(3.0));
+}
+
+// Weighted, mean-free amplitude sqrt(sum C (q - qbar_C)^2), C = omega rho, of
+// component 0 of a state.
+Real weighted_amplitude (const Run& run, const MultiFab& u)
+{
+    const MultiFab& omega = run.transport->static_measure(0);
+    MultiFab c(run.ba, run.dm, 1, 0);
+    MultiFab::Copy(c, omega, 0, 0, 1, 0);
+    MultiFab::Multiply(c, run.rho, Rho_comp, 0, 1, 0);
+    MultiFab q(run.ba, run.dm, 1, 0);
+    MultiFab::Copy(q, u, 0, 0, 1, 0);
+    MultiFab::Divide(q, run.rho, Rho_comp, 0, 1, 0);
+    const Real mean = MultiFab::Dot(c, 0, q, 0, 1, 0) / c.sum(0);
+    q.plus(-mean, 0, 1, 0);
+    MultiFab cq(run.ba, run.dm, 1, 0);
+    MultiFab::Copy(cq, q, 0, 0, 1, 0);
+    MultiFab::Multiply(cq, c, 0, 0, 1, 0);
+    return std::sqrt(MultiFab::Dot(cq, 0, q, 0, 1, 0));
+}
+
+// The least eigenvector of the symmetric part of the C-weighted native
+// operator, restricted to cells three or more layers from the walls, as an
+// intensive field (zero outside the restriction): the numerical analysis's
+// witness for instantaneous variance growth. Host-side; the grid is
+// y-invariant and the vector is taken y-invariant too.
+std::vector<Real> damping_witness (Run& run, Real& least_eigenvalue)
+{
+    const int nx = run.options.nx;
+    const int nz = run.nz();
+    std::vector<IntVect> cells;
+    for (int k = 3; k <= nz - 4; ++k) {
+        for (int i = 0; i < nx; ++i) { cells.emplace_back(i, 0, k); }
+    }
+    const int m = static_cast<int>(cells.size());
+    std::vector<Real> weight(static_cast<std::size_t>(m));
+    const MultiFab& omega = run.transport->static_measure(0);
+    auto host_value = [&] (const MultiFab& mf, const int comp, const IntVect& cell) {
+        Real value = Real(0.0);
+        for (amrex::MFIter mfi(mf); mfi.isValid(); ++mfi) {
+            if (mfi.validbox().contains(cell)) { value = mf.const_array(mfi)(cell, comp); }
+        }
+        amrex::ParallelAllReduce::Sum(value, amrex::ParallelContext::CommunicatorSub());
+        return value;
+    };
+    for (int a = 0; a < m; ++a) {
+        weight[static_cast<std::size_t>(a)] =
+            host_value(omega, 0, cells[static_cast<std::size_t>(a)]) *
+            host_value(run.rho, Rho_comp, cells[static_cast<std::size_t>(a)]);
+    }
+    // A = C^{-1/2} K C^{-1/2}, where K_ab = -omega_a T(e_b)_a and T(e_b) is the
+    // tendency of U = rho e_b, so that the weighted variance changes by -q^T K q.
+    std::vector<Real> matrix(static_cast<std::size_t>(m * m), Real(0.0));
+    MultiFab u(run.ba, run.dm, run.spectrum().nComp(), 0);
+    MultiFab tendency(run.ba, run.dm, run.spectrum().nComp(), 0);
+    for (int b = 0; b < m; ++b) {
+        const IntVect column = cells[static_cast<std::size_t>(b)];
+        u.setVal(Real(0.0));
+        for (amrex::MFIter mfi(u); mfi.isValid(); ++mfi) {
+            const auto out = u.array(mfi);
+            const auto r = run.rho.const_array(mfi);
+            amrex::ParallelFor(mfi.validbox(), [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                if (i == column[0] && k == column[2]) { out(i, j, k, 0) = r(i, j, k, Rho_comp); }
+            });
+        }
+        tendency.setVal(Real(0.0));
+        native_tendency(run, u, tendency);
+        for (int a = 0; a < m; ++a) {
+            const Real value = host_value(tendency, 0, cells[static_cast<std::size_t>(a)]);
+            matrix[static_cast<std::size_t>(a * m + b)] =
+                -host_value(omega, 0, cells[static_cast<std::size_t>(a)]) * value /
+                std::sqrt(weight[static_cast<std::size_t>(a)] * weight[static_cast<std::size_t>(b)]);
+        }
+    }
+    // Its symmetric part S = (A + A^T) / 2, and a bound on its spectrum.
+    std::vector<Real> sym(static_cast<std::size_t>(m * m));
+    Real bound = Real(0.0);
+    for (int a = 0; a < m; ++a) {
+        Real row = Real(0.0);
+        for (int b = 0; b < m; ++b) {
+            const Real value = Real(0.5) * (matrix[static_cast<std::size_t>(a * m + b)] +
+                                            matrix[static_cast<std::size_t>(b * m + a)]);
+            sym[static_cast<std::size_t>(a * m + b)] = value;
+            row += std::abs(value);
+        }
+        bound = std::max(bound, row);
+    }
+    // Power iteration on bound I - S for the least eigenvector of S.
+    std::vector<Real> v(static_cast<std::size_t>(m)), w(static_cast<std::size_t>(m));
+    for (int a = 0; a < m; ++a) {
+        v[static_cast<std::size_t>(a)] = Real(1.0) + Real(0.1) * std::sin(Real(1.7) * Real(a));
+    }
+    Real eigen = Real(0.0);
+    for (int iteration = 0; iteration < 200000; ++iteration) {
+        Real norm = Real(0.0);
+        for (int a = 0; a < m; ++a) {
+            Real value = bound * v[static_cast<std::size_t>(a)];
+            for (int b = 0; b < m; ++b) {
+                value -= sym[static_cast<std::size_t>(a * m + b)] * v[static_cast<std::size_t>(b)];
+            }
+            w[static_cast<std::size_t>(a)] = value;
+            norm += value * value;
+        }
+        norm = std::sqrt(norm);
+        Real change = Real(0.0);
+        for (int a = 0; a < m; ++a) {
+            const Real next = w[static_cast<std::size_t>(a)] / norm;
+            change = std::max(change, std::abs(next - v[static_cast<std::size_t>(a)]));
+            v[static_cast<std::size_t>(a)] = next;
+        }
+        eigen = bound - norm;
+        if (change < Real(1.0e-13)) { break; }
+    }
+    least_eigenvalue = eigen;
+    std::vector<Real> field(static_cast<std::size_t>(nx * nz), Real(0.0));
+    for (int a = 0; a < m; ++a) {
+        const IntVect cell = cells[static_cast<std::size_t>(a)];
+        field[static_cast<std::size_t>(cell[2] * nx + cell[0])] =
+            v[static_cast<std::size_t>(a)] / std::sqrt(weight[static_cast<std::size_t>(a)]);
+    }
+    return field;
+}
+
+// Mean-free weighted amplitudes of a matched-stage run from an initial field
+// 2 + f / max|f| (positive), at t K_h / L^2 = 0.001, 0.01, 0.1, 1, over the
+// initial amplitude.
+std::array<Real, 4> damping_trajectory (Run& run, const std::vector<Real>& f)
+{
+    const int nx = run.options.nx;
+    Real peak = Real(0.0);
+    for (const Real value : f) { peak = std::max(peak, std::abs(value)); }
+    amrex::Gpu::DeviceVector<Real> field(f.size());
+    amrex::Gpu::copy(amrex::Gpu::hostToDevice, f.begin(), f.end(), field.begin());
+    const Real* fp = field.data();
+    auto& u0 = run.state->new_state_for_initialization(0);
+    const int ncomp = u0.nComp();
+    for (amrex::MFIter mfi(u0); mfi.isValid(); ++mfi) {
+        const auto out = u0.array(mfi);
+        const auto r = run.rho.const_array(mfi);
+        amrex::ParallelFor(mfi.validbox(), ncomp,
+            [=] AMREX_GPU_DEVICE(int i, int j, int k, int n) noexcept {
+                out(i, j, k, n) = r(i, j, k, Rho_comp) * Real(0.01) *
+                                  (Real(2.0) + fp[k * nx + i] / peak);
+            });
+    }
+    const Real initial = weighted_amplitude(run, run.spectrum());
+    erf_auxiliary::MappedFaceTransmissibility t;
+    t.define(run.ba, run.dm, 1, 0);
+    std::string diagnostic;
+    EXPECT_TRUE(erf_sbm::build_particle_mixing_transmissibility(
+        run.transport->particle_mixing(), run.geom, run.inputs.metrics, run.rho, Rho_comp,
+        nullptr, t, diagnostic)) << diagnostic;
+    erf_auxiliary::MappedFaceFluxRate at_rest;
+    at_rest.define(run.ba, run.dm, 1, 0);
+    at_rest.setVal(Real(0.0));
+    Real rate = Real(0.0);
+    EXPECT_TRUE(erf_auxiliary::ComputeMaxMappedCombinedOutgoingRate(
+        at_rest, t, run.transport->static_measure(0), run.rho, Rho_comp,
+        run.geom.InvCellSizeArray(), rate, diagnostic)) << diagnostic;
+    std::array<Real, 4> amplitude{};
+    double now = 0.0;
+    const std::array<double, 4> marks{0.001, 0.01, 0.1, 1.0};
+    for (std::size_t s = 0; s < marks.size(); ++s) {
+        const double span = marks[s] / run.options.kh - now;
+        const int steps = static_cast<int>(std::ceil(span * rate / 0.8));
+        const double dt = span / steps;
+        for (int step = 0; step < steps; ++step) {
+            now = step_once(run, HostIntegrator::CompressibleRK3, now, dt);
+        }
+        amplitude[s] = weighted_amplitude(run, run.spectrum()) / initial;
+    }
+    return amplitude;
+}
+
+// The weak-damping gate: from the curved witness, at K_v / K_h = 0, 1e-5,
+// 0.01 and 1, the matched RK3 stage keeps the mean-free weighted amplitude
+// within 2% of its initial value, and an ordinary resolved mode decays.
+void run_weak_damping (const Real hill, const Real stretch, const int n,
+                       const std::vector<Real>& ratios)
+{
+    for (const Real r : ratios) {
+        Options options;
+        options.terrain = Terrain::Witness;
+        options.hill = hill;
+        options.plane = stretch;
+        options.nx = n;
+        options.ny = 2;
+        options.ly = Real(2.0) / Real(n);
+        options.nz = n;
+        options.max_grid_xy = n;
+        options.max_grid_z = n;
+        options.policy = ParticleMixingPolicy::ConstantReference;
+        options.kh = Real(1.0);
+        options.kv = r;
+        options.profile = Profile::Uniform;
+        auto run = make_run(options);
+        std::string reason;
+        const bool admitted =
+            erf_sbm::admit_terrain_mixing_geometry(run->z_nd, run->ba, Real(1.0), reason);
+        Real least = Real(0.0);
+        const auto witness = damping_witness(*run, least);
+        const auto amplitude = damping_trajectory(*run, witness);
+        // An ordinary mode, cos(2 pi xi) cos(pi zeta) over the same grid.
+        std::vector<Real> mode(static_cast<std::size_t>(n * n));
+        for (int k = 0; k < n; ++k) {
+            for (int i = 0; i < n; ++i) {
+                mode[static_cast<std::size_t>(k * n + i)] =
+                    std::cos(two_pi * (Real(i) + Real(0.5)) / Real(n)) *
+                    std::cos(Real(0.5) * two_pi * (Real(k) + Real(0.5)) / Real(n));
+            }
+        }
+        auto ordinary = make_run(options);
+        const auto decay = damping_trajectory(*ordinary, mode);
+        amrex::Print() << "SBM_M6B_WEAK_DAMPING n=" << n << " hill=" << hill
+                       << " stretch=" << stretch
+                       << " moderate=" << admitted << " r=" << r
+                       << " least_eigenvalue=" << least << " witness="
+                       << amplitude[0] << "," << amplitude[1] << "," << amplitude[2] << ","
+                       << amplitude[3] << " ordinary=" << decay[0] << "," << decay[1] << ","
+                       << decay[2] << "," << decay[3] << '\n';
+        for (const Real a : amplitude) { EXPECT_LE(a, Real(1.02)) << "r = " << r; }
+        EXPECT_LT(decay[3], decay[0]) << "r = " << r;
+    }
+}
+
+// Qualification tool, disabled by default: the cost of matching against the
+// unmatched comparator (theta = 1) on the same terrain stage, boundaries,
+// chunks and timestep, with an advecting carrier and HostPassiveScalar
+// diffusivities, for 2M populations of 32 and 128 bins on 16 boxes and on one.
+// Prints the median wall time of an RK3 step after a warm-up, the ratio, and
+// the terrain scratch bytes. Run it on one and several ranks and on a GPU.
+void run_matching_cost ()
+{
+    constexpr int timed_steps = 5;
+    for (const int nbins : {32, 128}) {
+        for (const int max_grid_xy : {4, 16}) {
+            Real median[2] = {};
+            std::size_t scratch_bytes = 0;
+            int ncomp = 0;
+            for (const bool match : {true, false}) {
+                Options options;
+                options.nbins = nbins;
+                options.mode = erf_sbm::MomentMode::TwoMoment;
+                options.nx = 16;
+                options.ny = 16;
+                options.nz = 32;
+                options.max_grid_xy = max_grid_xy;
+                options.max_grid_z = 32;
+                options.carrier_x = Real(0.5);
+                options.hill = Real(0.05);
+                options.match = match;
+                auto run = make_run(options);
+                ncomp = run->spectrum().nComp();
+                const double dt = 2.0e-4;
+                double t = 0.0;
+                t = step_once(*run, HostIntegrator::CompressibleRK3, t, dt);
+                std::vector<double> seconds;
+                for (int step = 0; step < timed_steps; ++step) {
+                    amrex::Gpu::streamSynchronize();
+                    amrex::ParallelDescriptor::Barrier();
+                    const auto start = std::chrono::steady_clock::now();
+                    t = step_once(*run, HostIntegrator::CompressibleRK3, t, dt);
+                    amrex::Gpu::streamSynchronize();
+                    amrex::ParallelDescriptor::Barrier();
+                    seconds.push_back(std::chrono::duration<double>(
+                        std::chrono::steady_clock::now() - start).count());
+                }
+                std::sort(seconds.begin(), seconds.end());
+                median[match ? 0 : 1] = Real(seconds[seconds.size() / 2]);
+                // Chunk-width terrain scratch: the stencil state with two ghost
+                // cells, the raw face fluxes (side faces with one z layer), and
+                // the two lateral open masks with one z layer.
+                const int chunk = run->transport->max_chunk_components();
+                scratch_bytes = 0;
+                for (int b = 0; b < run->ba.size(); ++b) {
+                    const IntVect len = run->ba[b].length();
+                    const std::size_t cells = std::size_t(len[0] + 4) * (len[1] + 4) * (len[2] + 4);
+                    const std::size_t faces =
+                        std::size_t(len[0] + 1) * len[1] * (len[2] + 2) +
+                        std::size_t(len[0]) * (len[1] + 1) * (len[2] + 2) +
+                        std::size_t(len[0]) * len[1] * (len[2] + 1);
+                    const std::size_t masks = std::size_t(len[0] + 1) * len[1] * (len[2] + 2) +
+                                              std::size_t(len[0]) * (len[1] + 1) * (len[2] + 2);
+                    scratch_bytes += sizeof(Real) * ((cells + faces) * chunk + masks);
+                }
+            }
+            amrex::Print() << "SBM_M6B_MATCHING_COST bins=" << nbins << " components=" << ncomp
+                           << " boxes=" << (max_grid_xy == 4 ? 16 : 1)
+                           << " ranks=" << amrex::ParallelDescriptor::NProcs()
+                           << " matched_step_s=" << median[0] << " unmatched_step_s=" << median[1]
+                           << " ratio=" << median[0] / median[1]
+                           << " terrain_scratch_bytes=" << scratch_bytes << '\n';
+        }
+    }
+}
+
 } // namespace
 
 TEST(SBMTerrainMixing, InactiveLimiterRecoversNativeTerrainDiffusion) { run_recovery(); }
@@ -962,4 +1570,24 @@ TEST(SBMTerrainMixing, StageRejectsUnqualifiedTerrainMixing) { run_terrain_envel
 TEST(SBMTerrainMixing, MatchingKeepsTheWetEndpointOfADryGroupStationary)
 {
     run_dry_endpoint();
+}
+TEST(SBMTerrainMixing, ModerateTerrainStripeAccuracyGate) { run_stripe_gate(); }
+TEST(SBMTerrainMixing, WallRuleConvergesOnATiltedSlab) { run_tilted_slab(); }
+TEST(SBMTerrainMixing, DISABLED_MatchingCost) { run_matching_cost(); }
+TEST(SBMTerrainMixing, DISABLED_WeakDampingWitness)
+{
+    // The numerical analysis's grid, then half its amplitudes, at 16^2; then
+    // the weakest damping on the analysis's grid refined to 32^2.
+    const std::vector<Real> all{Real(0.0), Real(1.0e-5), Real(0.01), Real(1.0)};
+    run_weak_damping(Real(0.75) / two_pi, Real(0.32) / two_pi, 16, all);
+    run_weak_damping(Real(0.375) / two_pi, Real(0.16) / two_pi, 16, all);
+    run_weak_damping(Real(0.75) / two_pi, Real(0.32) / two_pi, 32, {Real(0.0), Real(1.0e-5)});
+}
+TEST(SBMTerrainMixing, DISABLED_StripeQualification)
+{
+    for (const int cells : {64, 128}) {
+        for (const Real r : {Real(0.0), Real(0.01), Real(1.0)}) {
+            for (const bool match : {true, false}) { run_stripe(cells, r, match); }
+        }
+    }
 }
