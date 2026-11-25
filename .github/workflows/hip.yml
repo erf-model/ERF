@@ -159,7 +159,8 @@ jobs:
           -DCMAKE_CXX_COMPILER="$(which clang++)"         \
           -DCMAKE_Fortran_COMPILER="$(which flang)"       \
           -DCMAKE_CXX_STANDARD=17 \
-          ${{github.workspace}};
+          ${{github.workspace}} \
+          2>&1 | tee "${{runner.workspace}}/configure-hip-output.txt"
 
         echo "build_directory=${{runner.workspace}}/ERF/build-${{matrix.os}}" >> "$GITHUB_OUTPUT"
         echo "build_log=${{runner.workspace}}/build-${{matrix.os}}-output.txt" >> "$GITHUB_OUTPUT"
@@ -261,17 +262,16 @@ jobs:
     #     verbose: true # optional (default = false)
     #     directory: ${{runner.workspace}}/ERF
 
-    - name: Success artifacts
-      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-      if: success()
-      with:
-        name: build-and-test
-        path: |
-          ${{runner.workspace}}/ERF/regressioncov.xml
-    - name: Failing test artifacts
-      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+    - name: Upload failure diagnostics
       if: failure()
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
       with:
-        name: build-and-test
+        name: diagnostics-hip-${{ matrix.rocm_version }}-${{ matrix.mesh_precision }}-particles-${{ matrix.particles }}-${{ matrix.particles_precision }}
         path: |
-          ${{runner.workspace}}/ERF/regressioncov.xml
+          ${{ runner.workspace }}/configure-hip-output.txt
+          ${{ runner.workspace }}/build-${{matrix.os}}-output.txt
+          ${{ runner.workspace }}/build-${{matrix.os}}-output-warnings.txt
+          ${{ runner.workspace }}/ERF/build-${{matrix.os}}/CMakeCache.txt
+          ${{ runner.workspace }}/ERF/build-${{matrix.os}}/CMakeFiles/CMakeConfigureLog.yaml
+        if-no-files-found: ignore
+        retention-days: 7

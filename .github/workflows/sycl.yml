@@ -139,7 +139,8 @@ jobs:
           -DCMAKE_C_COMPILER="$(which icx)" \
           -DCMAKE_CXX_COMPILER="$(which icpx)" \
           -DCMAKE_CXX_STANDARD=17 \
-          -DAMReX_PARALLEL_LINK_JOBS=4
+          -DAMReX_PARALLEL_LINK_JOBS=4 \
+          2>&1 | tee "${{runner.workspace}}/configure-output.txt"
         # Check core diagnostics before the remaining compilation and linking.
         build_log="${{runner.workspace}}/build-output.txt"
         make -j 4 amrex_3d erf_srclib 2>&1 | tee -a "$build_log"
@@ -188,3 +189,17 @@ jobs:
         cat ${{runner.workspace}}/build-output-warnings.txt
         return=$(tail -n 1 ${{runner.workspace}}/build-output-warnings.txt | awk '{print $2}')
         test "${return}" -eq 0
+
+    - name: Upload failure diagnostics
+      if: failure()
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+      with:
+        name: diagnostics-sycl-${{ matrix.mesh_precision }}-particles-${{ matrix.particles }}-${{ matrix.particles_precision }}
+        path: |
+          ${{ runner.workspace }}/configure-output.txt
+          ${{ runner.workspace }}/build-output.txt
+          ${{ runner.workspace }}/build-output-warnings.txt
+          ${{ github.workspace }}/build-${{ matrix.mesh_precision }}-${{ matrix.particles }}-${{ matrix.particles_precision }}/CMakeCache.txt
+          ${{ github.workspace }}/build-${{ matrix.mesh_precision }}-${{ matrix.particles }}-${{ matrix.particles_precision }}/CMakeFiles/CMakeConfigureLog.yaml
+        if-no-files-found: ignore
+        retention-days: 7
