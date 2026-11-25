@@ -10,11 +10,13 @@
 #include <ERF_SurfaceCouplingNames.H>
 #include <ERF_SurfaceEngineRegistry.H>
 #include <ERF_SurfaceGrid.H>
+#include <ERF_SurfacePrerequisites.H>
 #include "../MovingBodies/ERF_GTestThrowOnAbort.H"
 
 #include <AMReX_MultiFab.H>
 #include <AMReX_MultiFabUtil.H>
 #include <AMReX_ParallelDescriptor.H>
+#include <AMReX_ParmParse.H>
 
 #include <gtest/gtest.h>
 
@@ -174,6 +176,24 @@ TEST(SurfaceGrid, ChecksNameTheCoupling)
     msg = erf_gtest::abort_message([&] { surface_fill_boundary(nodal, sg.geom, test_names()); });
     EXPECT_NE(msg.find("[FIRE] Filling the ghost cells of the fire grid: the MultiFab must be cell-centred"),
               std::string::npos) << msg;
+}
+
+// Above level 0 the surface grid needs static refinement, with regrid_int read
+// the way ERF reads it: with ERF's own ParmParse prefix, which a MultiBlock
+// block sets to its own name
+TEST(SurfaceGrid, StaticRefinementReadsERFsOwnPrefix)
+{
+    ParmParse pp("sc_block");
+    if (!pp.contains("regrid_int")) { pp.add("regrid_int", 2); }   // once under gtest_repeat
+
+    std::string msg = erf_gtest::abort_message([] { verify_surface_static_refinement(1, "sc_block", test_names()); });
+    EXPECT_NE(msg.find("[FIRE] The fire grid on level 1 is built once from that level's boxes"), std::string::npos) << msg;
+    EXPECT_NE(msg.find("sc_block.regrid_int = 2 regrids it"), std::string::npos) << msg;
+    EXPECT_NE(msg.find("set erf.fire.anchor_level = 0"), std::string::npos) << msg;
+
+    // Level 0 never regrids; another prefix's regrid_int is not this ERF's
+    EXPECT_EQ(erf_gtest::abort_message([] { verify_surface_static_refinement(0, "sc_block", test_names()); }), "");
+    EXPECT_EQ(erf_gtest::abort_message([] { verify_surface_static_refinement(1, "sc_other", test_names()); }), "");
 }
 
 // The registry behind the registration macros: sorted names, creation, and the

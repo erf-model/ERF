@@ -139,8 +139,8 @@ in x and y. Each fire box is an atmospheric box refined by the ratio, owned
 by the same rank, and every x and y box length on that level must be
 divisible by the ratio; the run stops at start-up naming the first box that
 is not, with the inputs to change. The level must keep its boxes for the whole
-run (on a level above 0, :cpp:`erf.regrid_int` at most 0; the default is
--1), its boxes must
+run (on a level above 0, :cpp:`erf.regrid_int` at most 0, or the block's own
+``<block>.regrid_int`` under MultiBlock; the default is -1), its boxes must
 form one rectangle, no box may be split in z, and the bottom boundary must be
 a surface layer unless the engine says it reads nothing from one
 (``FireEngine::needs_surface_layer``; the example engine and LSFIRE do not).
@@ -201,8 +201,9 @@ The engine contract
 **Fluxes.** ``fill_fluxes`` returns the sensible and latent heat flux into
 the air, per unit ground area [W/m²], positive upward, on the fire grid.
 Each is the time mean over exactly the interval of the last ``advance``,
-:math:`[t_n, t_{n+1}]` with :math:`t_n` = ``forcing.time`` and
-:math:`t_{n+1} - t_n` = ``forcing.dt``, however the engine steps inside it:
+:math:`[t_n, t_{n+1}]` with :math:`t_n` = ``forcing.time`` (a double, as
+ERF keeps its time) and :math:`t_{n+1} - t_n` = ``forcing.dt``, however
+the engine steps inside it:
 an engine that subcycles sums its substep fluxes times their steps and
 divides by ``forcing.dt``. The coupling then injects that mean, unchanged, at
 every Runge-Kutta stage of the next ERF step of the fire grid's level, over
@@ -401,6 +402,13 @@ A restart that re-makes the level-0 grids (with
 :cpp:`erf.regrid_level_0_on_restart`, or on more ranks than the checkpoint has
 level-0 boxes) is not supported with a fire running and stops before
 reading the checkpoint.
+
+On a restart the coupling looks for the held heat on every level the
+checkpoint holds, not only on the levels of this run's :cpp:`amr.max_level`,
+and passes the engine the same finest level to search. A checkpoint whose fire
+grid sat on another level or over other columns stops the run naming
+:cpp:`erf.fire.anchor_level`, also when the restart has fewer levels than the
+run that wrote it.
 
 Heat placement around buildings
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
