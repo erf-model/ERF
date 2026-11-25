@@ -535,6 +535,17 @@ compute_gradp_xy (const MultiFab& p,
 
             } // l_fitting
 
+            // Correct gradient with map factor, as in the non-EB branch
+            ParallelFor(tbx, tby,
+            [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+            {
+                gpx_arr(i,j,k) *= mf_ux_arr(i,j,0);
+            },
+            [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+            {
+                gpy_arr(i,j,k) *= mf_vy_arr(i,j,0);
+            });
+
         } // TerrainType::EB
 
     } // mfi

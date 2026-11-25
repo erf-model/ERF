@@ -65,7 +65,7 @@ class SurfaceLayer;
  */
 struct FireForcing
 {
-    amrex::Real            time;          ///< Start of the step [s]
+    double                 time;          ///< Start of the step [s], in double as ERF keeps it (cast to Real before capturing it in a kernel)
     amrex::Real            dt;            ///< Step of the fire grid's level [s]
     const amrex::MultiFab& xvel;          ///< x-velocity on x-faces [m/s]: before the dycore (passive, lagged) or after it (synchronous)
     const amrex::MultiFab& yvel;          ///< y-velocity on y-faces [m/s], the same time level as xvel
@@ -242,15 +242,20 @@ public:
      * @brief Restore the engine's state from a checkpoint on a restart
      *
      * @param[in] restart_chkfile  The checkpoint directory
-     * @param[in] max_level        ERF's max_level (the levels to look for the fire state on)
+     * @param[in] search_level     The finest checkpoint level to look for the fire state on:
+     *                             the larger of ERF's max_level and the checkpoint's finest
+     *                             level, so a restart onto fewer levels still finds it. It
+     *                             may exceed this run's finest level: use it only to look
+     *                             for the checkpoint's Level_<l> files, not to index ERF's
+     *                             per-level data
      * @param[in] step             The step count of the fire grid's level at the checkpoint
      *
      * The default stops the run: an engine that does not implement restart
      * says so instead of continuing from its initial state.
      */
-    virtual void read_checkpoint (const std::string& restart_chkfile, int max_level, int step)
+    virtual void read_checkpoint (const std::string& restart_chkfile, int search_level, int step)
     {
-        amrex::ignore_unused(restart_chkfile, max_level, step);
+        amrex::ignore_unused(restart_chkfile, search_level, step);
         amrex::Abort(std::string("[FIRE] fire engine \"") + name()
                      + "\" does not support restart from a checkpoint");
     }

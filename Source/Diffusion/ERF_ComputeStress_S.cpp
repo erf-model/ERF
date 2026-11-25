@@ -23,11 +23,9 @@ using namespace amrex;
  * @param[in,out] tau32 32 strain -> stress
  * @param[in]  er_arr expansion rate
  * @param[in]  mf_mx x map factor at cell centers
- * @param[in]  mf_ux x map factor at x-faces
  * @param[in]  mf_vx x map factor at y-faces
  * @param[in]  mf_my y map factor at cell centers
  * @param[in]  mf_uy y map factor at x-faces
- * @param[in]  mf_vy y map factor at y-faces
  * @param[in,out] tau13i contribution to stress from du/dz
  * @param[in,out] tau23i contribution to stress from dv/dz
  */
@@ -40,11 +38,9 @@ ComputeStressConsVisc_S (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
                          Array4<Real>& tau23, Array4<Real>& tau32,
                          const Array4<const Real>& er_arr,
                          const Array4<const Real>& mf_mx,
-                         const Array4<const Real>& mf_ux,
                          const Array4<const Real>& mf_vx,
                          const Array4<const Real>& mf_my,
                          const Array4<const Real>& mf_uy,
-                         const Array4<const Real>& mf_vy,
                          Array4<Real>& tau13i,
                          Array4<Real>& tau23i)
 {
@@ -98,8 +94,10 @@ ComputeStressConsVisc_S (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
     ParallelFor(tbxxy,tbxxz,tbxyz,
     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
-        Real mfx = myhalf * (mf_ux(i,j,0) + mf_ux(i,j-1,0));
-        Real mfy = myhalf * (mf_vy(i,j,0) + mf_vy(i-1,j,0));
+        // Edge map factors as in the strain kernels: m_x from the v-points and m_y from the
+        // u-points on either side of the edge
+        Real mfy = myhalf * (mf_uy(i,j,0) + mf_uy(i  ,j-1,0));
+        Real mfx = myhalf * (mf_vx(i,j,0) + mf_vx(i-1,j  ,0));
 
         Real mu_tot = fourth*( rhoAlpha(i-1, j  , k) + rhoAlpha(i, j  , k)
                            + rhoAlpha(i-1, j-1, k) + rhoAlpha(i, j-1, k) );
@@ -154,11 +152,9 @@ ComputeStressConsVisc_S (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
  * @param[in,out] tau32 32 strain -> stress
  * @param[in]  er_arr expansion rate
  * @param[in]  mf_mx x map factor at cell centers
- * @param[in]  mf_ux x map factor at x-faces
  * @param[in]  mf_vx x map factor at y-faces
  * @param[in]  mf_my y map factor at cell centers
  * @param[in]  mf_uy y map factor at x-faces
- * @param[in]  mf_vy y map factor at y-faces
  * @param[in,out] tau13i contribution to stress from du/dz
  * @param[in,out] tau23i contribution to stress from dv/dz
  */
@@ -172,11 +168,9 @@ ComputeStressVarVisc_S (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
                         Array4<Real>& tau23, Array4<Real>& tau32,
                         const Array4<const Real>& er_arr,
                         const Array4<const Real>& mf_mx,
-                        const Array4<const Real>& mf_ux,
                         const Array4<const Real>& mf_vx,
                         const Array4<const Real>& mf_my,
                         const Array4<const Real>& mf_uy,
-                        const Array4<const Real>& mf_vy,
                         Array4<Real>& tau13i,
                         Array4<Real>& tau23i)
 {
@@ -232,8 +226,10 @@ ComputeStressVarVisc_S (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
     ParallelFor(tbxxy,tbxxz,tbxyz,
     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
-        Real mfx = myhalf * (mf_ux(i,j,0) + mf_ux(i,j-1,0));
-        Real mfy = myhalf * (mf_vy(i,j,0) + mf_vy(i-1,j,0));
+        // Edge map factors as in the strain kernels: m_x from the v-points and m_y from the
+        // u-points on either side of the edge
+        Real mfy = myhalf * (mf_uy(i,j,0) + mf_uy(i  ,j-1,0));
+        Real mfx = myhalf * (mf_vx(i,j,0) + mf_vx(i-1,j  ,0));
 
         Real mu_bar = fourth*( mu_turb(i-1, j  , k, EddyDiff::Mom_h) + mu_turb(i, j  , k, EddyDiff::Mom_h)
                            + mu_turb(i-1, j-1, k, EddyDiff::Mom_h) + mu_turb(i, j-1, k, EddyDiff::Mom_h) );
