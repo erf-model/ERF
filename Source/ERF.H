@@ -1062,6 +1062,23 @@ public:
      */
     void build_base_state_from_input_sounding (int lev, amrex::MultiFab& base_state_mf);
 
+    // The input-sounding base state on the boxes of bs_g at the resolution of level lev
+    void build_base_state_from_input_sounding_on (int lev, amrex::MultiFab& bs_g,
+                                                  const amrex::MultiFab& z_nd_g,
+                                                  const amrex::MultiFab* z_cc_g);
+
+    /**
+     * Whether the base state of level lev is the average of the base state of the mesh at
+     * max_level resolution over its columns, with the cell-center heights placed so that it is
+     * in discrete hydrostatic balance (ERF_NestedBaseState.cpp).  The levels' base states then
+     * nest: the mass, (rho theta) and (rho qv) of the base state in a coarse cell are those of
+     * the fine cells it holds, as its volume is their volume (metrics_from_finest).
+     */
+    bool nested_base_state (int lev);
+
+    // Build the nested base state of level lev in bs (on lev's grids) and place z_phys_cc[lev]
+    void build_nested_base_state (int lev, amrex::MultiFab& bs);
+
     /**
      * Rebuild level lev's base state from the input sounding after a regrid made or
      * remade the level, replacing the interpolation from the coarser level that the

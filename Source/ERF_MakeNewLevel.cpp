@@ -1521,6 +1521,12 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
     //    swapped its base state in above, before its fill)
     if (lev == 0) { std::swap(temp_base_state, base_state[lev]); }
 
+    // update_terrain_arrays remade z_phys_cc from the nodes; a nested base state (copied above)
+    //    needs the heights that hold it in balance, which its rebuild places
+    if (lev == 0 && nested_base_state(lev)) {
+        build_nested_base_state(lev, base_state[lev]);
+    }
+
     // ********************************************************************************************
     // Copy from new into old just in case
     // ********************************************************************************************

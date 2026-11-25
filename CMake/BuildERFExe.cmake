@@ -534,6 +534,7 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/Initialization/ERF_InitGeowind.cpp
        ${SRC_DIR}/Initialization/ERF_InitRayleigh.cpp
        ${SRC_DIR}/Initialization/ERF_RebuildBaseState.cpp
+       ${SRC_DIR}/Initialization/ERF_NestedBaseState.cpp
        ${SRC_DIR}/Initialization/ERF_InitSponge.cpp
        ${SRC_DIR}/Initialization/ERF_Init1D.cpp
        ${SRC_DIR}/Initialization/ERF_InitTurbPert.cpp
