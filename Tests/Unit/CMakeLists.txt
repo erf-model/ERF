@@ -495,6 +495,7 @@ if(ERF_DIM STREQUAL "3")
     ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/SBM/ERF_GTestSBMBoundary.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/SBM/ERF_GTestSBMParticleMixing.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/SBM/ERF_GTestSBMMixingTransport.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/SBM/ERF_GTestSBMTerrainMixing.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/SBM/ERF_GTestSBMAMRTransfer.cpp)
 endif()
 if(ERF_ENABLE_NETCDF)
@@ -1572,6 +1573,8 @@ if(ERF_ENABLE_MPI)
       ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/SBM/ERF_GTestSBMParticleMixing.cpp
       # Mixing reads neighbors across box and rank boundaries in every stage
       ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/SBM/ERF_GTestSBMMixingTransport.cpp
+      # Terrain mixing reads one layer beyond each box and the face states with it
+      ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/SBM/ERF_GTestSBMTerrainMixing.cpp
     )
   endif()
   build_erf_exe(${erf_parallel_exe_name} NO_ERF_MAIN)

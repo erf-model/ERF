@@ -91,19 +91,24 @@ struct SBMAMRStageParent {
 /**
  * Host fields of a stage that mixes particles: ERF's eddy diffusivity as
  * prepared for the current step (HostPassiveScalar only) and the level's
- * metrics, whose mesh must be the one installed with the mixing policy.
+ * metrics, whose mesh must be the one installed with the mixing policy. A
+ * terrain-fitted (VariableDz) stage also reads ERF's cell-centre heights,
+ * with two ghost cells, which its native high-order stencil reads.
  */
 struct SBMStageMixingInputs {
     const amrex::MultiFab* eddy_diffusivity{nullptr};
     erf_auxiliary::MappedDiffusionMetrics metrics;
+    const amrex::MultiFab* z_cc{nullptr};
 };
 
 class SBMTransport;
 
 /**
  * Stage mixing inputs from ERF's level fields: map factors indexed by
- * MapFacType, the face areas and vertical spacing of a stretched mesh, and
- * the eddy diffusivity, which only HostPassiveScalar reads.
+ * MapFacType, the face areas of a stretched or terrain-fitted mesh, the
+ * vertical spacing of a stretched one, the nodal and cell-centre heights of a
+ * terrain-fitted one, and the eddy diffusivity, which only HostPassiveScalar
+ * reads.
  */
 [[nodiscard]] SBMStageMixingInputs make_stage_mixing_inputs (
     const SBMTransport& transport,
@@ -111,7 +116,20 @@ class SBMTransport;
     const amrex::Vector<std::unique_ptr<amrex::MultiFab>>& mapfac,
     const amrex::MultiFab* ax,
     const amrex::MultiFab* ay,
-    const amrex::Real* stretched_dz);
+    const amrex::Real* stretched_dz,
+    const amrex::MultiFab* z_nd = nullptr,
+    const amrex::MultiFab* z_cc = nullptr);
+
+/**
+ * Terrain-fitted particle mixing has not passed its release gates, so
+ * set_particle_mixing rejects a VariableDz mesh unless `accept` is set, for
+ * qualification only. `match` false gives the unmatched comparator, theta = 1
+ * on every face, which qualification measures the matched method against.
+ */
+struct TerrainMixingQualification {
+    bool accept{false};
+    bool match{true};
+};
 
 /**
  * Bounded mapped advection for the authoritative SBM spectrum.
@@ -166,7 +184,8 @@ class SBMTransport
      * spectrum in both.
      */
     void set_particle_mixing (const ParticleMixingConfig& config,
-                              erf_auxiliary::DiffusionMesh mesh);
+                              erf_auxiliary::DiffusionMesh mesh,
+                              TerrainMixingQualification terrain = {});
     [[nodiscard]] const ParticleMixingConfig& particle_mixing () const noexcept
     { return m_mixing; }
     [[nodiscard]] bool mixes_particles () const noexcept
@@ -279,6 +298,7 @@ class SBMTransport
     SBMBoundaryLedger m_boundary_ledger;
     ParticleMixingConfig m_mixing;
     erf_auxiliary::DiffusionMesh m_mixing_mesh{erf_auxiliary::DiffusionMesh::ConstantDz};
+    bool m_terrain_match{true};
     amrex::Gpu::DeviceVector<amrex::BCRec> m_mixing_bc;
     bool m_keep_spectral_ledger_reference{true};
     bool m_zero_flow_diagnostics_enabled{false};

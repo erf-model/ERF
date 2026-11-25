@@ -2114,6 +2114,56 @@ void run_geometry_rejections ()
     EXPECT_NE(diagnostic.find("periodic z"), std::string::npos) << diagnostic;
 }
 
+// The terrain matching rule: theta keeps theta * low between zero and high,
+// without forming high / low where it could overflow, and fails on NaN.
+void run_matched_fraction ()
+{
+    using erf_sbm::matched_diffusion_fraction;
+    EXPECT_EQ(matched_diffusion_fraction(Real(0.0), Real(0.0)), Real(1.0));
+    EXPECT_EQ(matched_diffusion_fraction(Real(3.0), Real(0.0)), Real(1.0));
+    EXPECT_EQ(matched_diffusion_fraction(Real(0.0), Real(2.0)), Real(0.0));
+    EXPECT_EQ(matched_diffusion_fraction(Real(-1.0), Real(2.0)), Real(0.0));
+    EXPECT_EQ(matched_diffusion_fraction(Real(1.0), Real(-2.0)), Real(0.0));
+    EXPECT_EQ(matched_diffusion_fraction(Real(1.0), Real(2.0)), Real(0.5));
+    EXPECT_EQ(matched_diffusion_fraction(Real(-1.0), Real(-4.0)), Real(0.25));
+    EXPECT_EQ(matched_diffusion_fraction(Real(5.0), Real(2.0)), Real(1.0));
+    EXPECT_EQ(matched_diffusion_fraction(Real(2.0), Real(2.0)), Real(1.0));
+    const Real huge = std::numeric_limits<Real>::max();
+    const Real tiny = std::numeric_limits<Real>::denorm_min();
+    EXPECT_EQ(matched_diffusion_fraction(huge, tiny), Real(1.0));
+    const Real small = matched_diffusion_fraction(tiny, huge);
+    EXPECT_GE(small, Real(0.0));
+    EXPECT_LT(small, eps());
+    for (const Real bad : {std::numeric_limits<Real>::quiet_NaN(),
+                           std::numeric_limits<Real>::infinity()}) {
+        EXPECT_TRUE(std::isnan(matched_diffusion_fraction(bad, Real(1.0))));
+        EXPECT_TRUE(std::isnan(matched_diffusion_fraction(Real(1.0), bad)));
+    }
+}
+
+// The restart schema pins the terrain operator and boundary policy for a
+// terrain mesh only, leaving every other mesh's schema unchanged.
+void run_terrain_schema ()
+{
+    erf_sbm::SBMPhysicalBoundaryConfig boundaries;
+    boundaries.kind[2] = erf_sbm::AdvectionFaceKind::ImpermeableWall;
+    boundaries.kind[5] = erf_sbm::AdvectionFaceKind::ImpermeableWall;
+    const auto mixing = policy_config(erf_sbm::ParticleMixingPolicy::HostPassiveScalar);
+    const std::string base = erf_sbm::particle_mixing_schema(mixing, boundaries);
+    for (const auto mesh : {erf_auxiliary::DiffusionMesh::ConstantDz,
+                            erf_auxiliary::DiffusionMesh::StretchedDz}) {
+        EXPECT_EQ(erf_sbm::particle_mixing_schema(mixing, boundaries, mesh), base);
+    }
+    const std::string terrain = erf_sbm::particle_mixing_schema(
+        mixing, boundaries, erf_auxiliary::DiffusionMesh::VariableDz);
+    EXPECT_EQ(terrain.rfind(base, 0), 0U);
+    EXPECT_NE(terrain.find("\nterrain-diffusion="), std::string::npos) << terrain;
+    EXPECT_TRUE(erf_sbm::particle_mixing_schema(policy_config(erf_sbm::ParticleMixingPolicy::None),
+                                                boundaries,
+                                                erf_auxiliary::DiffusionMesh::VariableDz)
+                    .empty());
+}
+
 void run_none_policy ()
 {
     const auto g = make_grid(GridOptions{});
@@ -2328,6 +2378,11 @@ TEST(SBMParticleMixing, ConstantReferenceAndNoInheritedMolecularDiffusion) { run
 TEST(SBMParticleMixing, InvalidCoefficientsFailClosed) { run_invalid_coefficients(); }
 TEST(SBMParticleMixing, TerrainAndPeriodicStretchedGeometryAreRejected) { run_geometry_rejections(); }
 TEST(SBMParticleMixing, NonePolicyHasNoTransmissibility) { run_none_policy(); }
+TEST(SBMParticleMixing, TerrainMatchingFractionStaysBetweenZeroAndTheNativeRate)
+{
+    run_matched_fraction();
+}
+TEST(SBMParticleMixing, RestartSchemaPinsTheTerrainOperator) { run_terrain_schema(); }
 TEST(SBMParticleMixing, SharedCoefficientPreservesEveryBinGroup) { run_group_cone(); }
 TEST(SBMParticleMixing, ConfigurationParsingFailsClosed) { run_config_parsing(); }
 TEST(SBMParticleMixing, HostClosureAndMeshValidation) { run_host_validation(); }

@@ -205,6 +205,18 @@ particle_mixing_schema (const ParticleMixingConfig& config,
     return schema;
 }
 
+std::string
+particle_mixing_schema (const ParticleMixingConfig& config,
+                        const SBMPhysicalBoundaryConfig& boundaries,
+                        const erf_auxiliary::DiffusionMesh mesh)
+{
+    std::string schema = particle_mixing_schema(config, boundaries);
+    if (schema.empty() || mesh != erf_auxiliary::DiffusionMesh::VariableDz) { return schema; }
+    return schema + "\nterrain-diffusion=diagonal-low-matched-native-high-v1;"
+                    "walls=complete-mapped-closure,quadratic-height-ghosts;"
+                    "sides=face-trace";
+}
+
 bool
 particle_mixing_coefficients (const ParticleMixingConfig& config,
                               erf_auxiliary::MappedDiffusionCoefficients& coefficients,

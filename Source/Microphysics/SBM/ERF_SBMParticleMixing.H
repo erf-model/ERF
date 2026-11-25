@@ -6,10 +6,13 @@
 #include "ERF_SBMPhysicalBoundary.H"
 
 #include <AMReX_Geometry.H>
+#include <AMReX_GpuQualifiers.H>
+#include <AMReX_Math.H>
 #include <AMReX_MultiFab.H>
 #include <AMReX_REAL.H>
 
 #include <array>
+#include <limits>
 #include <string>
 #include <vector>
 
@@ -125,6 +128,39 @@ struct ParticleMixingConfig
     const erf_auxiliary::MappedDiffusionBoundary& boundary,
     erf_auxiliary::MappedFaceTransmissibility& transmissibility,
     std::string& diagnostic);
+
+/**
+ * Terrain-fitted mixing only: the fraction theta in [0, 1] of one matched
+ * coordinate's nominal low-order diffusive rate `low` that a face carries,
+ * given that coordinate's native rate `high`: 1 for low = 0, 0 where high is
+ * zero or opposes low, |high| / |low| where it is smaller, and 1 otherwise,
+ * so theta low lies between zero and high. A nonfinite rate gives NaN, which
+ * the caller rejects. A face's group takes the least fraction of its
+ * coordinates.
+ */
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE amrex::Real
+matched_diffusion_fraction (const amrex::Real high, const amrex::Real low) noexcept
+{
+    if (!amrex::Math::isfinite(high) || !amrex::Math::isfinite(low)) {
+        return std::numeric_limits<amrex::Real>::quiet_NaN();
+    }
+    if (low == amrex::Real(0.0)) { return amrex::Real(1.0); }
+    if (high == amrex::Real(0.0) || (high > amrex::Real(0.0)) != (low > amrex::Real(0.0))) {
+        return amrex::Real(0.0);
+    }
+    const amrex::Real h = amrex::Math::abs(high);
+    const amrex::Real l = amrex::Math::abs(low);
+    return h < l ? h / l : amrex::Real(1.0);
+}
+
+/**
+ * As particle_mixing_schema with boundaries, for the mixing mesh: a
+ * terrain-fitted (VariableDz) mesh adds a line naming its operator and
+ * boundary policy; every other mesh leaves the schema unchanged.
+ */
+[[nodiscard]] std::string particle_mixing_schema (const ParticleMixingConfig& config,
+                                                  const SBMPhysicalBoundaryConfig& boundaries,
+                                                  erf_auxiliary::DiffusionMesh mesh);
 
 /** The diffusive faces of a boundary configuration, with the dry-air carrier of each direction. */
 [[nodiscard]] erf_auxiliary::MappedDiffusionBoundary particle_mixing_boundary (

@@ -324,7 +324,7 @@ void erf_slow_rhs_post (int level, int finest_level,
         if (sbm_transport->mixes_particles()) {
             sbm_mixing_inputs = erf_sbm::make_stage_mixing_inputs(
                 *sbm_transport, eddyDiffs, mapfac, ax.get(), ay.get(),
-                stretched_dz_d.data());
+                stretched_dz_d.data(), z_phys_nd.get(), z_phys_cc.get());
             sbm_mixing = &sbm_mixing_inputs;
         }
         sbm_transport->advance_stage_from_host(

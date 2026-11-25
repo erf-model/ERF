@@ -853,7 +853,8 @@ ERF::estTimeStep (int level,
         if (sbm_mixing) {
             const auto inputs = erf_sbm::make_stage_mixing_inputs(
                 *sbm_transport, eddyDiffs_lev[level].get(), mapfac[level],
-                ax[level].get(), ay[level].get(), stretched_dz_d[level].data());
+                ax[level].get(), ay[level].get(), stretched_dz_d[level].data(),
+                z_phys_nd[level].get(), z_phys_cc[level].get());
             // The ghost cells the transmissibility reads hold what a stage
             // reads there: ERF's fill of the step's state, made here before
             // the step regrids.
