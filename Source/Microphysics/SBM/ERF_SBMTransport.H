@@ -192,6 +192,13 @@ class SBMTransport
     { return m_mixing.policy != ParticleMixingPolicy::None; }
     [[nodiscard]] erf_auxiliary::DiffusionMesh mixing_mesh () const noexcept
     { return m_mixing_mesh; }
+    /**
+     * With terrain-fitted particle mixing, admit_terrain_mixing_geometry of a
+     * level's static nodal heights (a cell drop of at most one thickness);
+     * true with no terrain mixing. Check it once the geometry is final.
+     */
+    [[nodiscard]] bool admit_terrain_geometry (int level, const amrex::MultiFab& z_nd,
+                                               std::string& reason) const;
     bool begin_physical_step (int level, double step_begin, double step_end,
                               std::string& diagnostic);
     bool accept_physical_step (int level, double step_begin, double step_end,

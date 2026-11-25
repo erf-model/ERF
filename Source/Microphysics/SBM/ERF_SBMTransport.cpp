@@ -2379,6 +2379,19 @@ SBMTransport::set_particle_mixing (const ParticleMixingConfig& config,
     install_mixing_bc();
 }
 
+bool
+SBMTransport::admit_terrain_geometry (const int level, const MultiFab& z_nd,
+                                      std::string& reason) const
+{
+    reason.clear();
+    if (!mixes_particles() || m_mixing_mesh != erf_auxiliary::DiffusionMesh::VariableDz) {
+        return true;
+    }
+    AMREX_ALWAYS_ASSERT(is_defined(level));
+    return admit_terrain_mixing_geometry(
+        z_nd, m_levels[static_cast<std::size_t>(level)]->target.boxArray(), Real(1.0), reason);
+}
+
 void
 SBMTransport::install_mixing_bc ()
 {

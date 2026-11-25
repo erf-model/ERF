@@ -2144,6 +2144,9 @@ ERF::ReadCheckpointFile ()
                     *mapfac[lev][MapFacType::m_y], diagnostic)) {
                 amrex::Abort("SBM M3 restart mapped measure: " + diagnostic);
             }
+            if (!sbm_transport->admit_terrain_geometry(lev, *z_phys_nd[lev], diagnostic)) {
+                amrex::Abort(diagnostic);
+            }
         }
 
         // The min dz the microphysics sizes its sedimentation substeps with, for

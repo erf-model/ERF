@@ -1057,6 +1057,18 @@ if(TARGET erf_exec AND ERF_DIM STREQUAL "3" AND
     "erf.fixed_dt=-1|erf.cfl=0.8|erf.les_type=None|erf.sbm_particle_mixing=ConstantReference|erf.sbm_particle_mixing_kh=40|erf.sbm_particle_mixing_kv=40")
   add_sbm_boundary_budget_test(SBM_Mixing_Adaptive_ConstantReference_DiffusionBound
     inputs_mixing_walls zero "-DRUN_ARGS=${_sbm_mixing_constant_adaptive}|max_step=6")
+  # Qualification only: mixing over a static Cos4Hill, with the walls carrying
+  # nothing, metric terms included, and adaptive steps from the terrain
+  # conductances, slope terms included.
+  set(_sbm_mixing_terrain
+    "erf.terrain_type=StaticFittedMesh|prob.custom_terrain_type=Cos4Hill|prob.hmax=0.05|prob.L=0.3|erf.sbm_particle_mixing_terrain_qualification=true")
+  add_sbm_boundary_budget_test(SBM_Mixing_Terrain_Smagorinsky inputs_mixing_walls zero
+    ${_sbm_mixing_host} "-DRUN_ARGS=${_sbm_mixing_terrain}")
+  add_sbm_boundary_budget_test(SBM_Mixing_Terrain_2M_Deardorff inputs_mixing_walls zero
+    ${_sbm_mixing_host}
+    "-DRUN_ARGS=${_sbm_mixing_terrain}|erf.les_type=Deardorff|erf.tke_min=1.e-2|${_sbm_boundary_2m}|erf.sbm_fixture_initial_state_xhi=3.0e-6 1.2e-5 9.0e-6 2.4e-5 2.0e12 4.0e12 1.5e12 2.0e12")
+  add_sbm_boundary_budget_test(SBM_Mixing_Terrain_Adaptive_ConstantReference
+    inputs_mixing_walls zero "-DRUN_ARGS=${_sbm_mixing_terrain}|${_sbm_mixing_constant_adaptive}|max_step=6")
 
   # Through an inflow face: ERF's inflow exchanges with the inflow spectrum on
   # every face cell and inflow_outflow where the carrier enters; outflow and
@@ -1094,6 +1106,15 @@ if(TARGET erf_exec AND ERF_DIM STREQUAL "3" AND
   add_sbm_boundary_budget_test(SBM_Mixing_Inflow_AtRest_DiffusionOnly
     inputs_boundary_inflow_outflow nonzero
     "-DRUN_ARGS=xlo.density=1.0|${_sbm_mixing_open_constant}|prob.U_0=0|prob.V_0=0|xlo.velocity=0 0 0")
+  # Qualification only: through the inflow face beside the walls of a static
+  # hill, with the face-trace side flux, and inflow_outflow where the carrier
+  # enters.
+  add_sbm_boundary_budget_test(SBM_Mixing_Terrain_InflowOutflow_ConstantReference
+    inputs_boundary_static_terrain nonzero
+    "-DRUN_ARGS=xlo.density=1.0|${_sbm_mixing_open_constant}|erf.sbm_particle_mixing_terrain_qualification=true")
+  add_sbm_boundary_budget_test(SBM_Mixing_Terrain_InflowOutflow_HostPassiveScalar
+    inputs_boundary_static_terrain nonzero ${_sbm_mixing_host}
+    "-DRUN_ARGS=xlo.density=1.0|${_sbm_mixing_open_deardorff}|xlo.type=inflow_outflow|erf.sbm_particle_mixing_terrain_qualification=true")
   # A front entering an empty domain binds the limiter with mixing active.
   add_sbm_boundary_budget_test(SBM_Mixing_InflowFront_LimiterBinds
     inputs_boundary_inflow_outflow nonzero ${_sbm_mixing_host}
@@ -1156,8 +1177,13 @@ if(TARGET erf_exec AND ERF_DIM STREQUAL "3" AND
     "ConstantReference diffusivities must be finite and nonnegative"
     "-DOVERRIDE=erf.les_type=None erf.sbm_particle_mixing=ConstantReference erf.sbm_particle_mixing_kh=-1.e-2")
   add_sbm_expected_failure_test(SBM_Mixing_Reject_StaticTerrain inputs_periodic_static_terrain
-    "SBM particle mixing has no qualified monotone low-order operator on a terrain-fitted"
+    "mesh has not passed its release gates; erf.sbm_particle_mixing_terrain_qualification enables it"
     "-DOVERRIDE=erf.les_type=Smagorinsky erf.Cs=0.2 erf.sbm_particle_mixing=HostPassiveScalar")
+  # Qualification only: terrain-fitted mixing outside the moderate-terrain
+  # envelope, a cell dropping more than one thickness across, fails at setup.
+  add_sbm_expected_failure_test(SBM_Mixing_Terrain_Reject_SteepTerrain inputs_mixing_walls
+    "SBM terrain particle mixing is qualified for terrain dropping at most 1 cell thickness"
+    "-DOVERRIDE=erf.terrain_type=StaticFittedMesh prob.custom_terrain_type=Cos4Hill prob.hmax=0.5 prob.L=0.1 erf.sbm_particle_mixing_terrain_qualification=true")
   add_sbm_expected_failure_test(SBM_Mixing_Stage_Combined_CFL inputs_mixing_walls
     "SBM combined advection-diffusion outgoing-demand condition failed"
     "-DOVERRIDE=erf.sbm_test_donor_cfl_fault=true")
@@ -1350,6 +1376,13 @@ if(TARGET erf_exec AND ERF_DIM STREQUAL "3" AND
       "-DRUN_ARGS=erf.les_type=Deardorff|erf.tke_min=1.e-2|prob.test_flow_amp=0"
       "-DREFERENCE_ARGS=erf.les_type=None|erf.sbm_particle_mixing=None"
       -DRESTART_STEP=2)
+    # Qualification only: terrain mixing restarts bitwise, its schema pins
+    # the terrain operator, and a changed coefficient fails the schema check.
+    add_sbm_particle_mixing_test(SBM_Mixing_Terrain_ConstantReference_Effect_Restart
+      "-DRUN_ARGS=${_sbm_mixing_terrain}|${_sbm_mixing_constant}"
+      "-DREFERENCE_ARGS=erf.sbm_particle_mixing=None|erf.sbm_particle_mixing_kh=0|erf.sbm_particle_mixing_kv=0"
+      -DRESTART_STEP=2
+      "-DMISMATCH_ARGS=erf.sbm_particle_mixing_kh=3.e-2")
     add_sbm_particle_mixing_test(SBM_Mixing_ConstantReference_Effect_Restart
       "-DRUN_ARGS=${_sbm_mixing_constant}"
       "-DREFERENCE_ARGS=erf.sbm_particle_mixing=None|erf.sbm_particle_mixing_kh=0|erf.sbm_particle_mixing_kv=0"

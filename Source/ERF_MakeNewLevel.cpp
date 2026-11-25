@@ -448,6 +448,9 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
                 *mapfac[lev][MapFacType::m_y], measure_diagnostic)) {
             amrex::Abort("SBM M3 static mapped measure: " + measure_diagnostic);
         }
+        if (!sbm_transport->admit_terrain_geometry(lev, *z_phys_nd[lev], measure_diagnostic)) {
+            amrex::Abort(measure_diagnostic);
+        }
     }
 
      // Read in tables needed for windfarm simulations

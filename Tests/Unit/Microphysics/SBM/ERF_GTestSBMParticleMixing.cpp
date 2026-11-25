@@ -2274,6 +2274,52 @@ void run_host_validation ()
     // Two levels: SBM's own AMR envelope bounds the levels, not the mixing policy.
     EXPECT_TRUE(accepts(host, {les(LESType::Smagorinsky), les(LESType::Smagorinsky)})) << reason;
     EXPECT_TRUE(accepts(reference, {les(LESType::None), les(LESType::None)})) << reason;
+
+    // Terrain qualification admits a terrain mesh on one level only.
+    const auto qualifies = [&] (const erf_sbm::ParticleMixingConfig& config,
+                                const std::vector<TurbChoice>& turbulence) {
+        return erf_sbm::validate_particle_mixing_host(config, turbulence, MolecDiffType::None,
+                                                      MeshType::VariableDz, true, reason);
+    };
+    EXPECT_TRUE(qualifies(host, smagorinsky)) << reason;
+    EXPECT_TRUE(qualifies(reference, quiet)) << reason;
+    rejects(qualifies(host, {les(LESType::Smagorinsky), les(LESType::Smagorinsky)}),
+            "qualified on one level only");
+    erf_auxiliary::DiffusionMesh mesh = erf_auxiliary::DiffusionMesh::ConstantDz;
+    EXPECT_TRUE(erf_sbm::particle_mixing_mesh(MeshType::VariableDz, mesh, reason, true));
+    EXPECT_EQ(mesh, erf_auxiliary::DiffusionMesh::VariableDz);
+}
+
+// The terrain envelope: every cell drops at most one thickness across, by
+// ERF's unclamped cell drops; the worst cell is named otherwise.
+void run_terrain_admission ()
+{
+    const Box domain(IntVect(0), IntVect(7, 3, 5));
+    BoxArray ba(domain);
+    ba.maxSize(4);
+    const DistributionMapping dm(ba);
+    MultiFab z_nd(amrex::convert(ba, IntVect(1)), dm, 1, 0);
+    // Each cell is 1/6 thick; a plane rising `slope` per cell in x, plus a
+    // bump of `bump` on the nodes i = 5, 6 of j = 3.
+    const auto fill = [&] (const Real slope, const Real bump) {
+        for (amrex::MFIter mfi(z_nd); mfi.isValid(); ++mfi) {
+            const auto a = z_nd.array(mfi);
+            amrex::ParallelFor(mfi.validbox(), [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                a(i, j, k, 0) = Real(k) / Real(6) + slope * Real(i) +
+                                ((i == 5 || i == 6) && j == 3 ? bump : Real(0.0));
+            });
+        }
+    };
+    std::string reason;
+    fill(Real(1.0) / Real(6.0), Real(0.0));
+    EXPECT_TRUE(erf_sbm::admit_terrain_mixing_geometry(z_nd, ba, Real(1.0) + Real(8.0) * eps(),
+                                                       reason)) << reason;
+    fill(Real(0.1), Real(0.4));
+    EXPECT_FALSE(erf_sbm::admit_terrain_mixing_geometry(z_nd, ba, Real(1.0), reason));
+    // Cells (5,2,k) are worst: all four y edges rise 0.4 and the x edges 0.1,
+    // so sqrt(0.1^2 + 0.4^2) * 6 = 2.474. Roundoff in the thickness picks the k.
+    EXPECT_NE(reason.find("cell (5,2,"), std::string::npos) << reason;
+    EXPECT_NE(reason.find("drops 2.47386"), std::string::npos) << reason;
 }
 
 void run_boundary_validation ()
@@ -2383,6 +2429,7 @@ TEST(SBMParticleMixing, TerrainMatchingFractionStaysBetweenZeroAndTheNativeRate)
     run_matched_fraction();
 }
 TEST(SBMParticleMixing, RestartSchemaPinsTheTerrainOperator) { run_terrain_schema(); }
+TEST(SBMParticleMixing, TerrainGeometryAdmissionNamesTheWorstCell) { run_terrain_admission(); }
 TEST(SBMParticleMixing, SharedCoefficientPreservesEveryBinGroup) { run_group_cone(); }
 TEST(SBMParticleMixing, ConfigurationParsingFailsClosed) { run_config_parsing(); }
 TEST(SBMParticleMixing, HostClosureAndMeshValidation) { run_host_validation(); }

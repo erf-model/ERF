@@ -72,6 +72,18 @@ struct ParticleMixingConfig
                                                   std::string& reason);
 
 /**
+ * As above. With `terrain_qualification`, for qualification only, a policy
+ * other than None also accepts a terrain-fitted (VariableDz) mesh on one
+ * level; the stage still checks the geometry admission below.
+ */
+[[nodiscard]] bool validate_particle_mixing_host (const ParticleMixingConfig& config,
+                                                  const std::vector<TurbChoice>& turbulence,
+                                                  MolecDiffType molecular,
+                                                  MeshType mesh,
+                                                  bool terrain_qualification,
+                                                  std::string& reason);
+
+/**
  * Mixing accepts periodic, wall, outflow and inflow faces. An inflow_outflow
  * z face is rejected: ERF's own vertical scalar diffusion has no inward-only
  * rule there to follow, and ERF accepts inflow_outflow on x and y faces only.
@@ -97,10 +109,26 @@ struct ParticleMixingConfig
     erf_auxiliary::MappedDiffusionCoefficients& coefficients,
     std::string& reason);
 
-/** The low-order operator mesh; terrain-fitted (VariableDz) meshes are rejected. */
+/**
+ * The low-order operator mesh; terrain-fitted (VariableDz) meshes are rejected
+ * unless `terrain_qualification` is set, for qualification only.
+ */
 [[nodiscard]] bool particle_mixing_mesh (MeshType mesh_type,
                                          erf_auxiliary::DiffusionMesh& mesh,
-                                         std::string& reason);
+                                         std::string& reason,
+                                         bool terrain_qualification = false);
+
+/**
+ * The terrain geometry terrain mixing is qualified on: in every valid cell,
+ * the drop sqrt(dx_drop^2 + dy_drop^2) of ComputeTerrainCellDrops, unclamped,
+ * at most `max_drop` cell thicknesses, and a finite, positive thickness.
+ * Fails with the worst cell and its drop otherwise. An engineering envelope,
+ * not a stability bound.
+ */
+[[nodiscard]] bool admit_terrain_mixing_geometry (const amrex::MultiFab& z_nd,
+                                                  const amrex::BoxArray& cells,
+                                                  amrex::Real max_drop,
+                                                  std::string& reason);
 
 /**
  * The face transmissibility of a policy; None gives zero on every face.

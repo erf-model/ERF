@@ -888,6 +888,8 @@ struct SolverChoice {
             pp.queryAdd("sbm_particle_mixing", sbm_particle_mixing);
             pp.queryAdd("sbm_particle_mixing_kh", sbm_particle_mixing_kh);
             pp.queryAdd("sbm_particle_mixing_kv", sbm_particle_mixing_kv);
+            pp.queryAdd("sbm_particle_mixing_terrain_qualification",
+                        sbm_particle_mixing_terrain_qualification);
 
             if (sbm_nbins < 2 || (sbm_moment_mode != 1 && sbm_moment_mode != 2)) {
                 amrex::Error("SBM requires sbm_nbins >= 2 and sbm_moment_mode equal to 1 or 2");
@@ -3439,6 +3441,9 @@ struct SolverChoice {
     std::string sbm_particle_mixing{"None"};
     amrex::Real sbm_particle_mixing_kh{0};
     amrex::Real sbm_particle_mixing_kv{0};
+    // Qualification only: particle mixing on a terrain-fitted mesh, which has
+    // not passed its release gates.
+    bool sbm_particle_mixing_terrain_qualification{false};
     WindFarmType windfarm_type;
     WindFarmLocType windfarm_loc_type;
     LandSurfaceType lsm_type;
