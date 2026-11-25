@@ -507,6 +507,6 @@ EBAdvectionSrcForScalars (const Box& bx,
         AdvectionSrcForOpenBC_Tangent_Cons(patch.box, patch.x_side, patch.y_side,
                                            icomp, ncomp, advectionSrc, cell_prim,
                                            avg_xmom, avg_ymom, avg_zmom,
-                                           detJ, cellSizeInv);
+                                           detJ, mf_mx, mf_my, cellSizeInv);
     }
 }

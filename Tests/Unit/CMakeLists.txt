@@ -156,6 +156,10 @@ target_sources(${erf_exe_name}
     # Motivation: where two open lateral boundaries meet, each boundary cell must be
     # written by exactly one open-BC kernel, and by the same one however the grid is split.
     ${CMAKE_CURRENT_SOURCE_DIR}/Advection/ERF_GTestOpenBCCorners.cpp
+    # Motivation: the open-boundary advection kernels must carry the map factors: a uniform
+    # map factor is a finer mesh, and with varying ones the tendency is m_x m_y times the
+    # divergence of the mass fluxes (erf-model/ERF#5359).
+    ${CMAKE_CURRENT_SOURCE_DIR}/Advection/ERF_GTestOpenBCMapFactors.cpp
     # Motivation: reusable scalar advection must honor explicit source, flux, and
     # tendency components instead of inferring primitive storage from native cons layout.
     ${CMAKE_CURRENT_SOURCE_DIR}/Advection/ERF_GTestScalarAdvection.cpp

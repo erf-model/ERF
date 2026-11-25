@@ -344,6 +344,7 @@ AdvectionSrcForOpenBC_Normal (const amrex::Box& bx,
                               const amrex::Array4<      amrex::Real>& rhs_arr,
                               const amrex::Array4<const amrex::Real>& vel_norm_arr,
                               const amrex::Array4<const amrex::Real>& cell_data_arr,
+                              const amrex::Array4<const amrex::Real>& mf_norm,
                               const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& dxInv,
                               const bool do_lo=false);
 
@@ -359,6 +360,9 @@ AdvectionSrcForOpenBC_Tangent_Xmom (const amrex::Box& bxx,
                                     const amrex::Array4<const amrex::Real>& ax,
                                     const amrex::Array4<const amrex::Real>& az,
                                     const amrex::Array4<const amrex::Real>& detJ,
+                                    const amrex::Array4<const amrex::Real>& mf_ux,
+                                    const amrex::Array4<const amrex::Real>& mf_uy,
+                                    const amrex::Array4<const amrex::Real>& mf_vx,
                                     const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
                                     const bool do_lo=false);
 
@@ -374,6 +378,9 @@ AdvectionSrcForOpenBC_Tangent_Ymom (const amrex::Box& bxy,
                                     const amrex::Array4<const amrex::Real>& ay,
                                     const amrex::Array4<const amrex::Real>& az,
                                     const amrex::Array4<const amrex::Real>& detJ,
+                                    const amrex::Array4<const amrex::Real>& mf_vx,
+                                    const amrex::Array4<const amrex::Real>& mf_vy,
+                                    const amrex::Array4<const amrex::Real>& mf_uy,
                                     const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
                                     const bool do_lo=false);
 
@@ -393,6 +400,10 @@ AdvectionSrcForOpenBC_Tangent_Zmom (const amrex::Box& bxz,
                                     const amrex::Array4<const amrex::Real>& ay,
                                     const amrex::Array4<const amrex::Real>& az,
                                     const amrex::Array4<const amrex::Real>& detJ,
+                                    const amrex::Array4<const amrex::Real>& mf_mx,
+                                    const amrex::Array4<const amrex::Real>& mf_my,
+                                    const amrex::Array4<const amrex::Real>& mf_uy,
+                                    const amrex::Array4<const amrex::Real>& mf_vx,
                                     const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
                                     const int domhi_z);
 
@@ -410,6 +421,8 @@ AdvectionSrcForOpenBC_Tangent_Zmom (const amrex::Box& bxz,
  * @param[in] avg_ymom y-component of time-averaged mass flux
  * @param[in] avg_zmom z-component of time-averaged mass flux
  * @param[in] detJ metric Jacobian
+ * @param[in] mf_mx x map factor at cell centers
+ * @param[in] mf_my y map factor at cell centers
  * @param[in] cellSizeInv inverse grid spacing
  *
  * At a corner both sides are set, so neither direction is differenced across
@@ -428,6 +441,8 @@ AdvectionSrcForOpenBC_Tangent_Scalars (const amrex::Box& bx,
                                        const amrex::Array4<const amrex::Real>& avg_ymom,
                                        const amrex::Array4<const amrex::Real>& avg_zmom,
                                        const amrex::Array4<const amrex::Real>& detJ,
+                                       const amrex::Array4<const amrex::Real>& mf_mx,
+                                       const amrex::Array4<const amrex::Real>& mf_my,
                                        const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv);
 
 /** Compute advection tendencies for conserved variables tangential to open BC
@@ -447,6 +462,8 @@ AdvectionSrcForOpenBC_Tangent_Cons (const amrex::Box& bx,
                                     const amrex::Array4<const amrex::Real>& avg_ymom,
                                     const amrex::Array4<const amrex::Real>& avg_zmom,
                                     const amrex::Array4<const amrex::Real>& detJ,
+                                    const amrex::Array4<const amrex::Real>& mf_mx,
+                                    const amrex::Array4<const amrex::Real>& mf_my,
                                     const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv);
 
 /** Compute advection tendencies in the normal direction for variables tangent to open BC */
@@ -460,8 +477,12 @@ AdvectionSrcForOpenBC_Tangent (const int& i,
                                const int& dir,
                                const amrex::Array4<const amrex::Real>& prim_tang_arr,
                                const amrex::Array4<const amrex::Real>& mom_norm_arr,
+                               const amrex::Array4<const amrex::Real>& mf_norm,
                                const amrex::Real& dxInv,
-                               const bool do_lo=false);
+                               const bool do_lo,
+                               const bool avg_x,
+                               const bool avg_y,
+                               const bool avg_z);
 
 /** Return the effective advection type used for the requested Runge-Kutta stage. */
 AMREX_GPU_HOST_DEVICE
