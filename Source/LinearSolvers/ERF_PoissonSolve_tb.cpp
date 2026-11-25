@@ -37,6 +37,11 @@ void ERF::project_velocity_tb (int lev, double l_dt_d, Vector<MultiFab>& vmf)
     BL_PROFILE("ERF::project_velocity_tb()");
     Real l_dt = static_cast<Real>(l_dt_d);
     AMREX_ALWAYS_ASSERT(solverChoice.mesh_type == MeshType::ConstantDz);
+    // computeDivergence and MLPoisson have no map factors: the divergence they remove and the
+    // gradient they correct with are those of the computational mesh
+    if (has_nonunit_mapfac(lev)) {
+        amrex::Abort("The thin-body projection does not support map factors other than one");
+    }
 
     // Make sure the solver only sees the levels over which we are solving
     Vector<BoxArray>            ba_tmp;   ba_tmp.push_back(vmf[Vars::cons].boxArray());
@@ -103,7 +108,7 @@ void ERF::project_velocity_tb (int lev, double l_dt_d, Vector<MultiFab>& vmf)
     u[0] = &(vmf[Vars::xvel]);
     u[1] = &(vmf[Vars::yvel]);
     u[2] = &(vmf[Vars::zvel]);
-    computeDivergence(rhs[0], u, geom[0]);
+    computeDivergence(rhs[0], u, geom_tmp[0]);
     Print() << "Max norm of divergence before solve at level 0 : " << rhs[0].norm0() << std::endl;
 #endif
 
