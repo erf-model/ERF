@@ -20,5 +20,7 @@ ERF::compute_native_shoc_tendencies (int lev,
     AMREX_ALWAYS_ASSERT(native_shoc_driver[lev]);
     native_shoc_driver[lev]->advance(*cons, *xvel, *yvel, *zvel,
                                      tau13, tau23, hfx3, qfx3, eddyDiffs,
-                                     *z_phys_nd_in, Geom(lev), dt_advance);
+                                     *z_phys_nd_in, Geom(lev), dt_advance,
+                                     mapfac[lev][MapFacType::m_x].get(),
+                                     mapfac[lev][MapFacType::m_y].get());
 }

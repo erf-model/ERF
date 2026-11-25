@@ -406,8 +406,21 @@ ERF::appendPlot3DVariables (const Vector<std::string>& plot_var_names,
     }
 #endif
 
+#ifdef ERF_USE_FLOOD
+    // The flood engine's fields, at k = 0 of the flood grid's level; filled
+    // after the fire's in FillPlot3DVars, in this order
+    if (m_flood_coupler) {
+        for (const auto& plot_name : m_flood_coupler->plot_var_names()) {
+            if (containerHasElement(plot_var_names, plot_name) &&
+                !containerHasElement(tmp_plot_names, plot_name)) {
+                tmp_plot_names.push_back(plot_name);
+            }
+        }
+    }
+#endif
+
 #ifdef ERF_USE_MOVING_BODIES
-    // The structure model's fields; filled after the fire's in FillPlot3DVars, in this order
+    // The structure model's fields; filled after the fire's and the flood's in FillPlot3DVars, in this order
     if (m_structure_model) {
         // Every name ERF and the other models provide, requested or not: a model name among
         // them would be dropped here and still filled there
@@ -424,6 +437,11 @@ ERF::appendPlot3DVariables (const Vector<std::string>& plot_var_names,
 #ifdef ERF_USE_FIRE
         if (m_fire_coupler) {
             for (const auto& n : m_fire_coupler->plot_var_names()) { taken.push_back(n); }
+        }
+#endif
+#ifdef ERF_USE_FLOOD
+        if (m_flood_coupler) {
+            for (const auto& n : m_flood_coupler->plot_var_names()) { taken.push_back(n); }
         }
 #endif
         check_structure_plot_names(*m_structure_model, taken);
@@ -2184,8 +2202,20 @@ ERF::FillPlot3DVars (int lev,
     }
 #endif
 
-#ifdef ERF_USE_MOVING_BODIES
+#ifdef ERF_USE_FLOOD
     // Must match the order of appendPlot3DVariables (after the fire)
+    if (m_flood_coupler) {
+        for (const auto& plot_name : m_flood_coupler->plot_var_names()) {
+            if (containerHasElement(plot_var_names, plot_name)) {
+                m_flood_coupler->fill_plot_var(plot_name, mf_dst, mf_comp, lev);
+                mf_comp += 1;
+            }
+        }
+    }
+#endif
+
+#ifdef ERF_USE_MOVING_BODIES
+    // Must match the order of appendPlot3DVariables (after the fire and the flood)
     if (m_structure_model) {
         for (const auto& plot_name : m_structure_model->plot_var_names()) {
             if (containerHasElement(plot_var_names, plot_name)) {

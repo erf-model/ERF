@@ -1332,6 +1332,9 @@ ERF::update_terrain_arrays (int lev)
         make_J(geom[lev],*z_phys_nd[lev],*detJ_cc[lev]);
         make_areas(geom[lev],*z_phys_nd[lev],*ax[lev],*ay[lev],*az[lev]);
         make_zcc(geom[lev],*z_phys_nd[lev],*z_phys_cc[lev]);
+        if (metrics_from_finest(lev)) {
+            make_metrics_from_finest(lev);
+        }
     } else { // MeshType::ConstantDz
         if (SolverChoice::terrain_type == TerrainType::EB) {
             const auto& ebfact = *eb[lev]->get_const_factory();
@@ -1340,6 +1343,123 @@ ERF::update_terrain_arrays (int lev)
         }
     }
     update_zsfc_nd(lev);
+}
+
+/**
+ * Whether the volumes (detJ_cc) and the x- and y-face areas (ax, ay) of level lev are built by
+ * averaging the mesh of the finest level the run allows, rather than from lev's own nodes.
+ * That needs a terrain surface that can be evaluated at the finest resolution everywhere, which
+ * the problem's terrain (a function or a terrain file) is, and a fine mesh that depends only on
+ * its columns, which is the case for erf.terrain_smoothing = 0 (BTF) only.
+ *
+ * @param[in] lev level of refinement
+ */
+bool
+ERF::metrics_from_finest (int lev)
+{
+    if (lev >= max_level) { return false; }
+    if (solverChoice.terrain_type != TerrainType::StaticFittedMesh) { return false; }
+    if (SolverChoice::mesh_type != MeshType::VariableDz) { return false; }
+    if (solverChoice.init_type == InitType::WRFInput ||
+        solverChoice.init_type == InitType::Metgrid) { return false; }
+    if (!prob->terrain_is_specified()) { return false; }
+
+    // With STF or Sullivan TF a fine level is built from the coarse mesh, either interpolated
+    // (which already averages to the coarse metrics) or transformed with a correction that
+    // decays over the height of the fine grids, so that it depends on where they are
+    ParmParse pp("erf");
+    int terrain_smoothing = 0;
+    pp.query("terrain_smoothing", terrain_smoothing);
+    if (terrain_smoothing != 0) { return false; }
+
+    return true;
+}
+
+/**
+ * Overwrite detJ_cc[lev], ax[lev] and ay[lev] with the average of the metrics of the mesh at
+ * max_level resolution over lev's boxes.  That mesh is built one level at a time with
+ * build_zphys_nd, starting from z_phys_nd[lev], exactly as the finer levels themselves are
+ * built, so:
+ *   - a finer level that exists averages to these metrics bit for bit, which makes the volumes
+ *     and the coarse/fine face areas consistent, and
+ *   - these metrics depend only on lev's own nodes, not on where the finer levels are, so a
+ *     regrid does not change the volume of any cell of lev.
+ * The averages are taken one level at a time for the first of these.
+ *
+ * z_phys_nd, z_phys_cc and az (always one) are not changed: the base state and the vertical
+ * metric terms keep using lev's own nodes.
+ *
+ * Only the valid region is averaged; ghost cells shared with another box or a periodic image
+ * get the averages through FillBoundary, while the others (outside the domain, and on a level
+ * above 0, beyond the level's coarse/fine boundary) keep the values from lev's own nodes.
+ *
+ * @param[in] lev level of refinement, below max_level
+ */
+void
+ERF::make_metrics_from_finest (int lev)
+{
+    AMREX_ALWAYS_ASSERT(lev < max_level);
+
+    const BoxArray& ba            = detJ_cc[lev]->boxArray();
+    const DistributionMapping& dm = detJ_cc[lev]->DistributionMap();
+    const Real time               = t_new[lev];
+
+    //
+    // Build the nodes of each finer level over lev's boxes, each from the one below it
+    //
+    std::unique_ptr<MultiFab> znd_crse;
+    const MultiFab* crse_znd = z_phys_nd[lev].get();
+    IntVect rr_total(1);
+    for (int l = lev+1; l <= max_level; ++l) {
+        rr_total *= refRatio(l-1);
+        auto znd_fine = std::make_unique<MultiFab>(convert(amrex::refine(ba, rr_total), IntVect(1)),
+                                                   dm, 1, z_phys_nd[lev]->nGrowVect());
+        build_zphys_nd(l, crse_znd, *znd_fine, time);
+        znd_fine->FillBoundary(geom[l].periodicity());
+        znd_crse = std::move(znd_fine);
+        crse_znd = znd_crse.get();
+    }
+
+    //
+    // The metrics at max_level ...
+    //
+    const BoxArray ba_f = amrex::refine(ba, rr_total);
+    auto J_f  = std::make_unique<MultiFab>(ba_f, dm, 1, detJ_cc[lev]->nGrowVect());
+    auto ax_f = std::make_unique<MultiFab>(convert(ba_f, IntVect(1,0,0)), dm, 1, ax[lev]->nGrowVect());
+    auto ay_f = std::make_unique<MultiFab>(convert(ba_f, IntVect(0,1,0)), dm, 1, ay[lev]->nGrowVect());
+    MultiFab az_f(convert(ba_f, IntVect(0,0,1)), dm, 1, az[lev]->nGrowVect());
+    make_J(geom[max_level], *znd_crse, *J_f);
+    make_areas(geom[max_level], *znd_crse, *ax_f, *ay_f, az_f);
+    znd_crse.reset();
+
+    //
+    // ... averaged down one level at a time to lev
+    //
+    for (int l = max_level; l > lev; --l) {
+        const IntVect& rr = refRatio(l-1);
+        rr_total /= rr;
+        std::unique_ptr<MultiFab> J_c, ax_c, ay_c;
+        MultiFab* J_dst  = detJ_cc[lev].get();
+        MultiFab* ax_dst = ax[lev].get();
+        MultiFab* ay_dst = ay[lev].get();
+        if (l-1 > lev) {
+            const BoxArray ba_c = amrex::refine(ba, rr_total);
+            J_c  = std::make_unique<MultiFab>(ba_c, dm, 1, J_f->nGrowVect());
+            ax_c = std::make_unique<MultiFab>(convert(ba_c, IntVect(1,0,0)), dm, 1, ax_f->nGrowVect());
+            ay_c = std::make_unique<MultiFab>(convert(ba_c, IntVect(0,1,0)), dm, 1, ay_f->nGrowVect());
+            J_dst = J_c.get(); ax_dst = ax_c.get(); ay_dst = ay_c.get();
+        }
+        average_down      (*J_f , *J_dst , 0, 1, rr);
+        average_down_faces(*ax_f, *ax_dst, rr);
+        average_down_faces(*ay_f, *ay_dst, rr);
+        if (l-1 > lev) {
+            J_f = std::move(J_c); ax_f = std::move(ax_c); ay_f = std::move(ay_c);
+        }
+    }
+
+    detJ_cc[lev]->FillBoundary(geom[lev].periodicity());
+    ax[lev]->FillBoundary(geom[lev].periodicity());
+    ay[lev]->FillBoundary(geom[lev].periodicity());
 }
 
 /**

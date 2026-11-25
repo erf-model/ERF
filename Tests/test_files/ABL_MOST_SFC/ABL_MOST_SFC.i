@@ -42,6 +42,7 @@ erf.rayleigh_zdamp = 500.
 
 # TIME STEP CONTROL
 erf.fixed_dt = 1.0
+erf.fixed_dt_cfl_limit = false  # keep the fixed dt the test was set up with (erf-model/ERF#5238)
 erf.fixed_fast_dt = 0.2
 
 # large scale forcing

@@ -257,6 +257,10 @@ ERF::timeStep (int lev, double time, int /*iteration*/)
                     dt[k] = dt[k-1] / static_cast<double>(nsubsteps[k]);
                 }
 
+                // The CFL limit of a fixed dt on the new grids, before they take a step; a
+                // lowered fixed dt applies from the next coarse step
+                CheckFixedDtCFLLimitAfterRegrid(lev);
+
                 // A regridded level over steep terrain may need the variable beta_s before
                 // its first substep, not at the next ComputeDt
                 for (int k = lev+1; k <= finest_level; ++k) {
@@ -349,6 +353,12 @@ ERF::timeStep (int lev, double time, int /*iteration*/)
         // A fire on a finer level has reached this time too; its fields take the same time
         if (m_fire_coupler && m_fire_coupler->level() > lev) {
             m_fire_coupler->set_fields_time(t_new[lev]);
+        }
+#endif
+#ifdef ERF_USE_FLOOD
+        // A flood on a finer level has reached this time too
+        if (m_flood_coupler && m_flood_coupler->level() > lev) {
+            m_flood_coupler->set_fields_time(t_new[lev]);
         }
 #endif
     }

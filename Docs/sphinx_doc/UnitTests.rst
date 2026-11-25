@@ -263,6 +263,11 @@ Test configuration options
      - Enables the fire coupling. ERF registers no fire tests: the coupling's unit tests
        (``FireCoupler``, ``FireAnchorLevel``, ``FirePrecip`` and others) live in
        erf-model/FLARE, with the engines that use the coupling.
+   * - ``ERF_ENABLE_FLOOD``
+     - Enables the flood coupling and its unit tests (``FloodGrid``, ``FloodCoupler``,
+       ``FloodEngineRegistry``, ``FloodCouplingParams``); with
+       ``ERF_FLOOD_ENGINE_DIRS=Tests/FloodEngineExample`` also ``FloodEngineExample`` and the
+       ``Flood_ExampleEngine*`` regression tests.
    * - ``ERF_ENABLE_MOVING_BODIES``
      - Enables the actuator core, the structure coupling and their tests (``ActuatorSampling``,
        ``ActuatorSpreading``, ``WakeLines``, ``RunningStats``, ``StructureRegistry``; the first

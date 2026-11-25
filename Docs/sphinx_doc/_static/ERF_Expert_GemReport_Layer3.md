@@ -177,7 +177,7 @@ The ERF application operates through distinct pipelines encompassing compilation
 ERF inherently supports both CMake and GNU Make build systems. Building the framework involves compiling the internal AMReX submodules and linking external physics dependencies.
 
 * **Mandatory Dependencies**: AMReX (supplied as a submodule), MPI (for domain decomposition).  
-* **Optional Physics Dependencies**: Enabling radiation (RTE-RRTMGP) automatically activates EKAT, which encapsulates the Kokkos performance portability framework. The native SHOC turbulence scheme is built in tree and needs neither EKAT nor Kokkos.  
+* **Optional Physics Dependencies**: Enabling radiation (RTE-RRTMGP) brings in the Kokkos performance portability framework (Kokkos 5.1), built from the Kokkos submodule (Submodules/kokkos) or taken from an existing install (ERF\_KOKKOS\_HOME in Gmake, Kokkos\_ROOT in CMake). The native SHOC turbulence scheme is built in tree and does not need Kokkos.  
 * **I/O Dependencies**: Coupling external data or processing real-terrain geometries necessitates NetCDF (C and Fortran libraries) and HDF5. To link these, users must specify ERF\_ENABLE\_NOAHMP=ON in CMake or USE\_NETCDF=TRUE in Gmake.  
 * **HPC Target Profiles**: To guarantee compatibility across specialized supercomputers, ERF provides explicit build scripts that load optimized compiler modules and target precise GPU backends:  
   * *Perlmutter (NERSC) / Kestrel (NREL)*: cmake\_with\_kokkos\_many\_cuda.sh targets NVIDIA GPUs.  

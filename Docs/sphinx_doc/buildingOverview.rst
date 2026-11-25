@@ -23,7 +23,7 @@ ERF uses the AMReX framework. The default method uses an internal AMReX submodul
 
 **Submodule Management**
 
-AMReX, EKAT, NOAH-MP, and RTE-RRTMGP are available as submodules in the ERF repository. Kokkos is accessed as a submodule within EKAT (currently Kokkos 5.1, which requires C++20).
+AMReX, Kokkos, NOAH-MP, and RTE-RRTMGP are available as submodules in the ERF repository. Kokkos (currently 5.1, which requires C++20) is needed only by RRTMGP. Before 26.12, ERF obtained Kokkos through the EKAT submodule; it now uses Kokkos directly.
 
 **Dependency Relationships**
 
@@ -44,7 +44,7 @@ Physics packages have specific dependency requirements:
        // Dependencies
        NetCDF [fillcolor=lightblue];
        HDF5 [label="HDF5", fillcolor=lightblue];
-       Kokkos [label="Kokkos\n(from EKAT)", fillcolor=wheat];
+       Kokkos [label="Kokkos\n(submodule)", fillcolor=wheat];
        MPI [label="MPI\n(required)", fillcolor=lightyellow];
 
        // Dependency arrows
@@ -61,11 +61,10 @@ Physics packages have specific dependency requirements:
    }
 
 .. note::
-   MPI is required by EKAT (which provides Kokkos). CMake enforces this; GNU Make assumes it's set.
+   MPI is required because ERF's NetCDF I/O is parallel. Kokkos itself does not need MPI.
 
-Enabling RRTMGP automatically enables EKAT, which provides the Kokkos performance portability framework. The build system enforces these prerequisites:
+Enabling RRTMGP automatically enables the Kokkos performance portability framework, built from the ``Submodules/kokkos`` submodule unless an installed Kokkos is supplied (``ERF_KOKKOS_HOME`` for GNU Make, ``-DKokkos_ROOT`` for CMake). The build system enforces these prerequisites:
 
-* EKAT requires MPI to be enabled
 * RRTMGP requires both NetCDF and MPI to be enabled
 
 Compiler and Tool Requirements
@@ -80,7 +79,7 @@ Compiler and Tool Requirements
      - Version
    * - **C++ Compiler**
      - Must support C++20 standard
-     - GCC >= 10.4 (Kokkos minimum for EKAT builds)
+     - GCC >= 10.4 (Kokkos minimum for RRTMGP builds)
    * - **C Compiler**
      - Must support C99 standard
      - Any modern version
@@ -89,7 +88,7 @@ Compiler and Tool Requirements
      - Any modern version
    * - **CMake**
      - Build configuration tool
-     - >= 3.20 (>= 3.22 with EKAT; >= 3.25 for Cray)
+     - >= 3.20 (>= 3.22 with RRTMGP/Kokkos; >= 3.25 for Cray)
    * - **Python**
      - Build script dependency
      - >= 2.7 (including 3.x)
@@ -98,7 +97,7 @@ Compiler and Tool Requirements
      - MPICH, OpenMPI, Cray MPICH
    * - **CUDA (Optional)**
      - NVIDIA GPU support
-     - >= 12.2 (Kokkos minimum for EKAT builds)
+     - >= 12.2 (Kokkos minimum for RRTMGP builds)
    * - **HIP (Optional)**
      - AMD GPU support
      - Latest versions only

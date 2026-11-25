@@ -182,6 +182,14 @@ Set build variables in the ``GNUmakefile``:
         - Fire engine directories to compile in, space separated, each with a ``Make.package`` (needs ``USE_FIRE=TRUE``; for an engine repository that holds ERF as a submodule, see :ref:`sec:FireCoupling`)
         - (none)
         - paths
+      * - ``USE_FLOOD``
+        - Enables the flood coupling (atmosphere side; flood engines plug into it, see :ref:`sec:FloodCoupling`)
+        - FALSE
+        - TRUE/FALSE
+      * - ``FLOOD_HOME``
+        - Flood engine directories to compile in, space separated, each with a ``Make.package`` (needs ``USE_FLOOD=TRUE``; see :ref:`sec:FloodCoupling`)
+        - (none)
+        - paths
       * - ``USE_MOVING_BODIES``
         - Enables the actuator core for bodies in the flow (velocity sampling at points, force spreading onto the momentum sources; see :ref:`sec:ActuatorCore`) and the structure coupling (see :ref:`sec:StructureCoupling`)
         - FALSE
@@ -567,6 +575,14 @@ CMake can also generate makefiles for the Ninja build system for faster compilat
      - Fire engine directories to compile in, a CMake list, each with an ``ERFFireEngine.cmake`` (needs ``ERF_ENABLE_FIRE=ON``; set by an engine repository that holds ERF as a submodule, and left unset when that repository uses ERF as a library; see :ref:`sec:FireCoupling`)
      - (none)
      - paths
+   * - ``ERF_ENABLE_FLOOD``
+     - Enables the flood coupling (atmosphere side; flood engines plug into it, see :ref:`sec:FloodCoupling`)
+     - OFF
+     - ON/OFF
+   * - ``ERF_FLOOD_ENGINE_DIRS``
+     - Flood engine directories to compile in, a CMake list, each with an ``ERFFloodEngine.cmake`` (needs ``ERF_ENABLE_FLOOD=ON``; see :ref:`sec:FloodCoupling`)
+     - (none)
+     - paths
    * - ``ERF_ENABLE_MOVING_BODIES``
      - Enables the actuator core for bodies in the flow (velocity sampling at points, force spreading onto the momentum sources; see :ref:`sec:ActuatorCore`) and the structure coupling (see :ref:`sec:StructureCoupling`)
      - OFF
@@ -655,7 +671,7 @@ CMake can also generate makefiles for the Ninja build system for faster compilat
    * ``ERF_ENABLE_RRTMGP`` - RRTMGP radiation model
 
      - Requires ``ERF_ENABLE_NETCDF=ON`` and ``ERF_ENABLE_MPI=ON``
-     - Automatically enables ``ERF_ENABLE_EKAT=ON`` (provides Kokkos)
+     - Automatically enables Kokkos, from ``Submodules/kokkos`` or from the install that ``-DKokkos_ROOT`` points at
 
    * Native SHOC - Native SHOC turbulence and cloud macrophysics
 
@@ -675,7 +691,7 @@ CMake can also generate makefiles for the Ninja build system for faster compilat
    * ``ERF_ENABLE_SYCL`` - Intel GPUs
 
    .. note::
-      The Kokkos-based RRTMGP radiation package supports all three GPU backends through EKAT's Kokkos integration.
+      The Kokkos-based RRTMGP radiation package supports all three GPU backends through Kokkos.
 
 .. dropdown:: Logging Options (CMake 3.25+)
    :icon: bug
@@ -778,7 +794,7 @@ CMake can also generate makefiles for the Ninja build system for faster compilat
    .. code-block:: bash
 
       cd Build
-      ./setup_cmake_validation.sh default    # or perlmutter, gnu_ekat
+      ./setup_cmake_validation.sh default    # or perlmutter, gnu_kokkos
       cd ../build_default
       ./run.sh     # List available scripts
       ./run.sh 1   # Run first script

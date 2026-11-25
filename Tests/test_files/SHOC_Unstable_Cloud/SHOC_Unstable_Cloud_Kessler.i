@@ -9,6 +9,7 @@ erf.moisture_model = Kessler
 stop_time = 20.0
 max_step = 20
 erf.fixed_dt = 1.0
+erf.fixed_dt_cfl_limit = false  # keep the fixed dt the test was set up with (erf-model/ERF#5238)
 erf.fixed_mri_dt_ratio = 2
 erf.fix_random_seed = 1
 

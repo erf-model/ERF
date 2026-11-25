@@ -89,7 +89,7 @@ if [ $# -lt 1 ] || [ $# -gt 3 ]; then
     echo "Sets:"
     echo "  default    - Scripts from Build/"
     echo "  perlmutter - Scripts from Build/Perlmutter/"
-    echo "  gnu_ekat   - Scripts from Build/GNU_Ekat/"
+    echo "  gnu_kokkos - Scripts from Build/GNU_Kokkos/"
     echo ""
     echo "If script_pattern is provided, creates build_<pattern>/"
     echo "Otherwise creates build_<set>/"
@@ -129,7 +129,7 @@ echo "ERF_DIR set to: $ERF_DIR"
 # Define source directories relative to ERF_DIR
 DEFAULT_DIR="$ERF_DIR/Build"
 PERLMUTTER_DIR="$ERF_DIR/Build/Perlmutter"
-GNU_EKAT_DIR="$ERF_DIR/Build/GNU_Ekat"
+GNU_KOKKOS_DIR="$ERF_DIR/Build/GNU_Kokkos"
 
 case $SET in
     default)
@@ -138,12 +138,12 @@ case $SET in
     perlmutter)
         SRC_DIR="$PERLMUTTER_DIR"
         ;;
-    gnu_ekat)
-        SRC_DIR="$GNU_EKAT_DIR"
+    gnu_kokkos)
+        SRC_DIR="$GNU_KOKKOS_DIR"
         ;;
     *)
         echo "Error: Invalid set '$SET'"
-        echo "Choose: default, perlmutter, or gnu_ekat"
+        echo "Choose: default, perlmutter, or gnu_kokkos"
         exit 1
         ;;
 esac
