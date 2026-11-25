@@ -76,6 +76,9 @@ Large-Eddy Simulations
     integration--i.e., larger time steps with more substeps--is possible. We
     note that ERF LESs with 10 or more fast timesteps have successfully been
     run but your mileage may vary.
+  - The slow timestep must still respect the CFL limit min(``erf.cfl``, 0.8):
+    a larger ``erf.fixed_dt`` is lowered to that Courant number, with a
+    message, unless ``erf.fixed_dt_cfl_limit = false``.
 
 
 Single-Column Model

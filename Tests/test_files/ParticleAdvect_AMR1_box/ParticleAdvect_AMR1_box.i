@@ -38,6 +38,7 @@ tracer_particles.verbose = 1
 
 # TIME STEP CONTROL
 erf.fixed_dt           = 2E-3
+erf.fixed_dt_cfl_limit = false  # keep the fixed dt the test was set up with (erf-model/ERF#5238)
 erf.fixed_mri_dt_ratio = 12
 
 # DIAGNOSTICS & VERBOSITY

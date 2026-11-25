@@ -26,6 +26,7 @@ erf.use_gravity     = false
 erf.use_coriolis    = false
 
 erf.fixed_dt     = 0.25   # acoustic substeps stay below c dtau / dx = 0.3
+erf.fixed_dt_cfl_limit = false  # keep the fixed dt the test was set up with (erf-model/ERF#5238)
 erf.v            = 0
 amr.v            = 0
 erf.sum_interval = -1
