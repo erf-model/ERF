@@ -13,10 +13,13 @@
 #include <ERF_FloodGrid.H>
 #include <ERF_SurfacePrecipitation.H>
 #include "../MovingBodies/ERF_GTestThrowOnAbort.H"
+#include "../ERF_GTestTempDir.H"
 
 #include <AMReX_MultiFab.H>
 #include <AMReX_Geometry.H>
 #include <AMReX_ParmParse.H>
+#include <AMReX_Utility.H>
+#include <AMReX_FileSystem.H>
 
 #include <gtest/gtest.h>
 
@@ -101,6 +104,8 @@ public:
         }
     }
     bool wants_surface_precip () const override { return m_wants; }
+    // Carries no state between steps, so a restart has nothing to restore
+    void read_checkpoint (const std::string&, int) override {}
     std::vector<std::string> plot_var_names () const override { return m_names; }
     const MultiFab* plot_var (const std::string& n) const override
     {
@@ -392,4 +397,119 @@ TEST(FloodCouplingParams, RangeChecksAndEngineChoice)
         EXPECT_NE(erf_gtest::abort_message([] { FloodCouplingParams::read(); })
                       .find("several flood engines are compiled in"), std::string::npos);
     }
+}
+
+namespace {
+
+// A scheme with a total that holds the cloud ice (WSM6, WDM6): rain, snow and the
+// total, each in kg/m2, with rest_is_frozen set
+struct IceSources
+{
+    MultiFab total, rain, snow;
+    SurfacePrecipAccumulationSources s;
+    explicit IceSources (const Rig& r, bool rest_frozen)
+        : total(r.ba, r.dm, 1, 0), rain(r.ba, r.dm, 1, 0), snow(r.ba, r.dm, 1, 0)
+    {
+        s.total = {&total, Real(1.0)};
+        s.rain  = {&rain, Real(1.0)};
+        s.snow  = {&snow, Real(1.0)};
+        s.rest_is_frozen = rest_frozen;
+    }
+    // rain r, snow sn and cloud ice ci in every column
+    void set (Real r, Real sn, Real ci)
+    {
+        set_k0(rain,  [=] AMREX_GPU_DEVICE (int, int) { return r; });
+        set_k0(snow,  [=] AMREX_GPU_DEVICE (int, int) { return sn; });
+        set_k0(total, [=] AMREX_GPU_DEVICE (int, int) { return r + sn + ci; });
+    }
+};
+
+// A checkpoint directory with Level_0 and the flood's Level_1, removed afterwards
+struct ScratchCheckpoint
+{
+    std::string dir = erf_gtest_temp_path("flood_precip_ref").string();
+    ScratchCheckpoint ()
+    {
+        if (ParallelDescriptor::IOProcessor()) {
+            UtilCreateDirectory(dir + "/Level_0", 0755);
+            UtilCreateDirectory(dir + "/Level_1", 0755);
+        }
+        ParallelDescriptor::Barrier();
+    }
+    ~ScratchCheckpoint ()
+    {
+        ParallelDescriptor::Barrier();
+        if (ParallelDescriptor::IOProcessor()) { FileSystem::RemoveAll(dir); }
+    }
+    // The I/O rank writes the headers; wait for it before any rank looks
+    bool has (const std::string& f) const
+    {
+        amrex::ParallelDescriptor::Barrier();
+        return amrex::FileExists(dir + "/Level_1/" + f + "_H");
+    }
+};
+
+} // namespace
+
+// With the cloud ice frozen the reference goes to FloodPrecipRefIce, and a restart
+// reads it back: a correction pending at the checkpoint reaches the next step
+TEST(FloodCoupler, ACloudIceReferenceIsCheckpointedUnderItsOwnName)
+{
+    ScratchCheckpoint chk;
+    {
+        Rig r;
+        IceSources a(r, true);
+        a.set(Real(4.0), Real(2.0), Real(1.0));
+        r.cpl->set_precip_reference(a.s);
+        r.cpl->write_checkpoint(chk.dir);
+    }
+    EXPECT_TRUE(chk.has("FloodPrecipRefIce"));
+    EXPECT_FALSE(chk.has("FloodPrecipRef"));
+
+    // The restored accumulators hold one more unit of each, as after a finer level's correction
+    Rig r;
+    IceSources a(r, true);
+    a.set(Real(5.0), Real(3.0), Real(2.0));
+    r.cpl->set_precip_reference(a.s);
+    r.cpl->read_checkpoint(chk.dir, 0);
+    r.advance(0.0, 1.0, a.s);
+    EXPECT_EQ(max_error(*r.eng->precip, 0, [] AMREX_GPU_DEVICE (int, int, int) { return Real(1.0); }), Real(0.0));
+    EXPECT_EQ(max_error(*r.eng->precip, 1, [] AMREX_GPU_DEVICE (int, int, int) { return Real(2.0); }), Real(0.0));
+}
+
+// A checkpoint written before the cloud ice was frozen holds a FloodPrecipRef with
+// the ice in the liquid part. A run with the ice frozen does not read it: it keeps
+// the reference of the restored accumulators, so the restart hands over no step of
+// negative rain and frozen ice it already had
+TEST(FloodCoupler, AReferenceWithTheCloudIceLiquidIsNotRead)
+{
+    ScratchCheckpoint chk;
+    {
+        Rig r;
+        IceSources a(r, false);
+        a.set(Real(4.0), Real(2.0), Real(3.0));
+        r.cpl->set_precip_reference(a.s);
+        r.cpl->write_checkpoint(chk.dir);
+    }
+    EXPECT_TRUE(chk.has("FloodPrecipRef"));
+    EXPECT_FALSE(chk.has("FloodPrecipRefIce"));
+
+    Rig r;
+    IceSources a(r, true);
+    a.set(Real(4.0), Real(2.0), Real(3.0));
+    r.cpl->set_precip_reference(a.s);
+    r.cpl->read_checkpoint(chk.dir, 0);
+    r.advance(0.0, 1.0, a.s);
+    EXPECT_EQ(max_error(*r.eng->precip, 0, [] AMREX_GPU_DEVICE (int, int, int) { return Real(0.0); }), Real(0.0));
+    EXPECT_EQ(max_error(*r.eng->precip, 1, [] AMREX_GPU_DEVICE (int, int, int) { return Real(0.0); }), Real(0.0));
+
+    // A run that keeps the ice liquid still reads its FloodPrecipRef
+    Rig q;
+    IceSources b(q, false);
+    b.set(Real(5.0), Real(2.0), Real(3.0));
+    q.cpl->set_precip_reference(b.s);
+    q.cpl->read_checkpoint(chk.dir, 0);
+    q.advance(0.0, 1.0, b.s);
+    EXPECT_EQ(max_error(*q.eng->precip, 0, [] AMREX_GPU_DEVICE (int, int, int) { return Real(1.0); }), Real(0.0));
+    EXPECT_EQ(max_error(*q.eng->precip, 1, [] AMREX_GPU_DEVICE (int, int, int) { return Real(0.0); }), Real(0.0));
 }

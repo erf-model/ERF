@@ -179,6 +179,11 @@ fill_precipitation_accumulations (MultiFab& dst,
     const amrex::Real snow_factor = sources.snow.native_to_kg_m2;
     const amrex::Real graupel_factor = sources.graupel.native_to_kg_m2;
     const amrex::Real hail_factor = sources.hail.native_to_kg_m2;
+    // As in surface_precip_fill_k0: the rest of the total beyond the species is
+    // cloud ice, so the frozen part is the total less the rain
+    const bool rest_frozen = sources.rest_is_frozen && has_total_source;
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!rest_frozen || has_rain_source,
+        "fill_precipitation_accumulations: rest_is_frozen needs a rain accumulator");
 
     for (MFIter mfi(anchor_mf, TilingIfNotGPU()); mfi.isValid(); ++mfi)
     {
@@ -206,7 +211,8 @@ fill_precipitation_accumulations (MultiFab& dst,
                 has_graupel_source ? graupel_arr(i, j, k, 0) * graupel_factor : amrex::Real(0.0);
             const amrex::Real hail =
                 has_hail_source ? hail_arr(i, j, k, 0) * hail_factor : amrex::Real(0.0);
-            const amrex::Real frozen = snow + graupel + hail;
+            const amrex::Real frozen = rest_frozen ? total_source - rain_source
+                                                   : snow + graupel + hail;
             const amrex::Real total = has_total_source ? total_source : rain_source + frozen;
             // Total-plus-frozen-subset schemes derive rain as total - frozen.
             // Clamp to zero to avoid negative output from roundoff or small

@@ -636,7 +636,7 @@ The selection contract and the value written after selection are separate:
      - Value: native SHOC diagnostics; ``-999`` when absent.
    * - ``precip_total_accum``, ``precip_frozen_accum``
      - Selectable: the active moisture scheme has any rain, snow, or graupel mass component.
-     - Value: normalized liquid-water-equivalent accumulations; ``precip_frozen_accum`` is defined zero in a rain-only scheme.
+     - Value: normalized liquid-water-equivalent accumulations; ``precip_frozen_accum`` is defined zero in a rain-only scheme. For WSM6 and WDM6, ``precip_frozen_accum`` is the total less the rain, so it includes the cloud ice that reached the surface; otherwise it is snow plus graupel plus hail.
    * - ``precip_rain_accum``
      - Selectable: the active moisture scheme has a rain mass component.
      - Value: normalized rain accumulation, or the derived rain value when a runtime total source is used without a direct rain source.
@@ -913,14 +913,19 @@ hold that one species, as their 3D counterparts ``rain_accum``, ``snow_accum``
 and ``graupel_accum`` do. For ``Morrison``, ``WSM6`` and ``WDM6``,
 ``precip_total_accum`` is the scheme's precipitation total, the 3D
 ``precip_accum``, which also counts the cloud ice (and, for ``Morrison``, the
-cloud water) that fell, so it can exceed the rain plus ``precip_frozen_accum``.
+cloud water) that fell. For ``WSM6`` and ``WDM6`` that cloud ice is in
+``precip_frozen_accum``, so the total is the rain plus ``precip_frozen_accum``.
+For ``Morrison`` the total can exceed the rain plus ``precip_frozen_accum``.
 For the other schemes it is the rain plus the frozen species; for ``SAM`` that
 leaves out the cloud ice that the 3D ``precip_accum`` counts.
 
 ``precip_total_accum`` is the normalized native total when one exists, or the
 sum of normalized rain and frozen accumulations otherwise.
 ``precip_frozen_accum`` is the sum of normalized snow, graupel, and hail
-accumulations. Species absent from the active runtime source contribute zero to
+accumulations, except for ``WSM6`` and ``WDM6``, where it is the normalized
+total less the normalized rain. Being a difference, it can then be slightly
+negative from round-off (about one unit in the last place of the total, so
+around 1e-6 kg/m^2 at 10 mm in a single-precision build). Species absent from the active runtime source contribute zero to
 derived totals. ``precip_hail_accum`` is a fixed descriptor reserved for a
 future scheme that exposes a distinct hail accumulator.
 
