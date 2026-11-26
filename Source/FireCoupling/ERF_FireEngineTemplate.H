@@ -139,9 +139,11 @@ public:
      * Optional (the default stops the run, saying restart is not supported).
      * Read back what write_checkpoint() wrote, on a restart, after start_run()
      * and before the first step; step is the fire grid level's step count at
-     * the checkpoint. Abort if the checkpoint's fire grid is not this run's.
+     * the checkpoint; search_level is the finest checkpoint level to look
+     * for the fire state on (it may exceed this run's finest level). Abort if
+     * the checkpoint's fire grid is not this run's.
      */
-    void read_checkpoint (const std::string& restart_chkfile, int max_level, int step) override;
+    void read_checkpoint (const std::string& restart_chkfile, int search_level, int step) override;
 
     /// Optional (the default writes nothing): the engine's plotfile of the fire grid,
     /// named plotfile_prefix plus the step.

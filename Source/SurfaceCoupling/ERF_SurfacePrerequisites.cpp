@@ -51,20 +51,8 @@ verify_surface_grid_level (const ERF& erf, int lev, const SurfaceCouplingNames& 
               + " is outside 0.." + std::to_string(erf.finestLevel()));
     }
 
-    // Check 2: static refinement. The grid is built once from the boxes of its
-    // level, so the level must keep its boxes for the whole run. Level 0 never
-    // regrids.
-    if (lev > 0) {
-        ParmParse pp_erf("erf");
-        int regrid_int = -1;
-        pp_erf.query("regrid_int", regrid_int);
-        if (regrid_int > 0) {
-            Abort(tag + " The " + grid + " on level " + std::to_string(lev)
-                  + " is built once from that level's boxes, so the refinement must not change, but "
-                    "erf.regrid_int = " + std::to_string(regrid_int) + " regrids it. Use static refinement "
-                    "boxes with erf.regrid_int = -1, or set " + names.key("anchor_level") + " = 0.");
-        }
-    }
+    // Check 2: static refinement, with regrid_int read the way ERF reads it
+    verify_surface_static_refinement(lev, erf.pp_prefix, names);
 
     // Check 3: no z decomposition. The grid pairs one surface slab with each
     // box of the level.
@@ -113,5 +101,25 @@ verify_surface_grid_level (const ERF& erf, int lev, const SurfaceCouplingNames& 
     if (domain.smallEnd(0) != 0 || domain.smallEnd(1) != 0 || domain.smallEnd(2) != 0) {
         Abort(tag + " Internal error: the " + names.lower
               + " coupling needs a level domain that starts at index 0");
+    }
+}
+
+void
+verify_surface_static_refinement (int lev, const std::string& pp_prefix, const SurfaceCouplingNames& names)
+{
+    // The grid is built once from the boxes of its level, so the level must
+    // keep its boxes for the whole run. Level 0 never regrids. ERF reads
+    // regrid_int with its own prefix (ERF::ReadParameters), which a MultiBlock
+    // block sets to its own name.
+    if (lev == 0) { return; }
+    ParmParse pp(pp_prefix);
+    int regrid_int = -1;
+    pp.query("regrid_int", regrid_int);
+    if (regrid_int > 0) {
+        const std::string key = pp_prefix + ".regrid_int";
+        Abort(names.tag() + " The " + names.grid() + " on level " + std::to_string(lev)
+              + " is built once from that level's boxes, so the refinement must not change, but "
+              + key + " = " + std::to_string(regrid_int) + " regrids it. Use static refinement "
+                "boxes with " + key + " = -1, or set " + names.key("anchor_level") + " = 0.");
     }
 }

@@ -1941,6 +1941,12 @@ add_test_field_bounds(EB_SquareCylinder_AnelasticAMR "plt00004" x_velocity -0.5 
 # The same with the refined patch 0.46 from the cylinder: on 2 ranks the singular level-1
 # projection stalled when its BiCGStab bottom solve broke down at roundoff, and the run aborted
 add_test_field_bounds(EB_SquareCylinder_AnelasticAMR_NarrowPatch "plt00004" x_velocity -0.5 3.0)
+# The EB strain, stress and diffusion kernels have no map factors, so EB with diffusion and map
+# factors other than one is refused at initialization (#5359)
+add_test_abort(EB_Diffusion_MapFactor_Abort
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_files/EB_SquareCylinder_AnelasticAMR EB_SquareCylinder_AnelasticAMR.i
+    "EB terrain with diffusion does not support map factors other than one"
+    "erf.test_mapfactor_amp=0.1")
 # An EB level made by regrid (erf-model/ERF#5033): level 1 does not exist at the start, the
 # regrid after step 1 makes it from level 0 and a later regrid changes its grids. The EB
 # factories were built after the new level's state needed them, and the faces between covered

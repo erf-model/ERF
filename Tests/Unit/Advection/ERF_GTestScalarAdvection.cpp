@@ -554,19 +554,24 @@ TEST(ScalarAdvectionPrimitives, OpenBoundaryUsesExplicitScalarAndRhsComponents)
     fill_rhs_sentinels(rhs);
     fill_rhs_sentinels(native_rhs);
     fill_metrics(detJ, dummy_mx, dummy_my, false);
+    // Unit map factors: the expected value below has none
+    dummy_mx.setVal<amrex::RunOn::Device>(Real(1.0));
+    dummy_my.setVal<amrex::RunOn::Device>(Real(1.0));
 
     const GpuArray<Real, AMREX_SPACEDIM> cellSizeInv{{Real(0.45), Real(0.8), Real(1.15)}};
     AdvectionSrcForOpenBC_Tangent_Scalars(bx, OpenSide::lo, OpenSide::none,
                                           kScalarComp, kRhsComp, 1,
                                           rhs.array(), scalar.const_array(),
                                           xmom.const_array(), ymom.const_array(), zmom.const_array(),
-                                          detJ.const_array(), cellSizeInv);
+                                          detJ.const_array(),
+                                          dummy_mx.const_array(), dummy_my.const_array(), cellSizeInv);
     const int cons_comp = kScalarComp + 1;
     AdvectionSrcForOpenBC_Tangent_Cons(bx, OpenSide::lo, OpenSide::none,
                                        cons_comp, 1,
                                        native_rhs.array(), scalar.const_array(),
                                        xmom.const_array(), ymom.const_array(), zmom.const_array(),
-                                       detJ.const_array(), cellSizeInv);
+                                       detJ.const_array(),
+                                       dummy_mx.const_array(), dummy_my.const_array(), cellSizeInv);
     gpu_sync();
 
     FArrayBox host_rhs(rhs.box(), rhs.nComp(), amrex::The_Pinned_Arena());
