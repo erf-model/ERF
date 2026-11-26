@@ -6307,7 +6307,8 @@ atmospheric cell), ``start_datetime`` and the
 | **erf.radiation.seb_snow_enable**                  | One bulk snow layer on the force-restore surface: the ISBA | Boolean            | false            |
 |                                                    | snow routine as in Douville et al. (1995), Sec. 2.1, for   |                    |                  |
 |                                                    | bare ground. Frozen surface precipitation (snow, graupel,  |                    |                  |
-|                                                    | hail) builds a snow water equivalent, and the hydrology    |                    |                  |
+|                                                    | hail; for WSM6 and WDM6 also cloud ice) builds a snow      |                    |                  |
+|                                                    | water equivalent, and the hydrology                        |                    |                  |
 |                                                    | then takes the rain only. Snow raises the surface albedo   |                    |                  |
 |                                                    | (their Eq. 8), sublimates, and melts where the balance     |                    |                  |
 |                                                    | takes T_s above 273.16 K (their Eq. 12), which holds T_s   |                    |                  |

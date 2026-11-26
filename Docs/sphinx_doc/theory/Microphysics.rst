@@ -189,6 +189,13 @@ and
    + P_{graupel}(t_1) - P_{graupel}(t_0)
    + P_{hail}(t_1) - P_{hail}(t_0).
 
+For WSM6 and WDM6 the total also holds the cloud ice that reached the surface,
+and the frozen accumulation is the total less the rain,
+:math:`P_{frozen} = P_{total} - P_{rain}`, so the cloud ice counts as frozen.
+The flood coupling, the force-restore snow layer and the 2D plotfile use this
+split. Noah-MP still forms its snow ratio from the snow and graupel alone, so
+there the cloud ice of WSM6 and WDM6 counts as rain.
+
 
 Kessler Microphysics model
 ---------------------------

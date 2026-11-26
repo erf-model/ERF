@@ -110,7 +110,9 @@ public:
      * @brief Write the flood to a checkpoint: the engine's state
      *        (FloodEngine::write_checkpoint), then the flood grid's level,
      *        ratio and region in checkpointname/Level_<lev>/FloodGrid, and the
-     *        precipitation reference in Level_<lev>/FloodPrecipRef
+     *        precipitation reference in Level_<lev>/FloodPrecipRef, or in
+     *        Level_<lev>/FloodPrecipRefIce for a scheme whose cloud ice counts as
+     *        frozen (SurfacePrecipAccumulationSources::rest_is_frozen)
      */
     void write_checkpoint (const std::string& checkpointname) const;
 
@@ -189,6 +191,12 @@ private:
     /// Liquid (0) and frozen (1) accumulation [kg/m2] at the end of the last
     /// step, on m_ba_cols; null until set_precip_reference()
     std::unique_ptr<amrex::MultiFab> m_precip_prev;
+    /// The sources' rest_is_frozen at set_precip_reference(): which split the reference holds
+    bool m_precip_rest_frozen = false;
+
+    /// The checkpoint name of the reference. Before the cloud ice of WSM6 and WDM6
+    /// counted as frozen, their reference had it in the liquid part, under FloodPrecipRef.
+    std::string precip_ref_name () const { return m_precip_rest_frozen ? "FloodPrecipRefIce" : "FloodPrecipRef"; }
 
     std::vector<std::string> m_plot_var_names;
 };

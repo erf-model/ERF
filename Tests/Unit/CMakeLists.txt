@@ -461,6 +461,9 @@ target_sources(${erf_exe_name}
     # Motivation: supported Eulerian microphysics must consume anelastic p0
     # explicitly while preserving the compressible EOS and SAM plane contract.
     ${CMAKE_CURRENT_SOURCE_DIR}/Utils/Microphysics/ERF_GTestAnelasticMicrophysicsWiring.cpp
+    # Motivation: WSM6 and WDM6 add the cloud-ice fallout to their total, so the
+    # liquid/frozen split read by the flood, the snow layer and the plotfile counts it as frozen.
+    ${CMAKE_CURRENT_SOURCE_DIR}/Utils/Microphysics/ERF_GTestSurfacePrecipCloudIce.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/SatAdj/ERF_GTestSatAdjThermo.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/SatAdj/ERF_GTestSatAdjCell.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/SatAdj/ERF_GTestSatAdjMultiFab.cpp

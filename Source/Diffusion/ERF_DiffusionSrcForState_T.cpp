@@ -14,6 +14,8 @@ using namespace amrex;
  * @param[in]  start_comp starting component index
  * @param[in]  num_comp number of components
  * @param[in]  rotate flag to rotate terrain-aligned fluxes
+ * @param[in]  u velocity in x-dir, read at an ext_dir_upwind x face
+ * @param[in]  v velocity in y-dir, read at an ext_dir_upwind y face
  * @param[in]  cell_data conserved cell center vars
  * @param[in]  cell_prim primitive cell center vars
  * @param[out] cell_rhs RHS for cell center vars
@@ -53,6 +55,8 @@ void
 DiffusionSrcForState_T (const Box& bx, const Box& domain,
                         int start_comp, int num_comp,
                         const bool& rotate,
+                        const Array4<const Real>& u,
+                        const Array4<const Real>& v,
                         const Array4<const Real>& cell_data,
                         const Array4<const Real>& cell_prim,
                         const Array4<Real>& cell_rhs,
@@ -150,7 +154,7 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
 
         BuildScalarDiffusionFluxes_T(
             bx, domain, field, flux_policy, rotate, z_nd, z_cc, cellSizeInv,
-            mf_ux, mf_vy, bc_ptr, native_policy.bc_comp);
+            u, v, mf_ux, mf_vy, bc_ptr, native_policy.bc_comp);
         if (native_policy.scale_raw_vertical_flux) {
             ScaleScalarDiffusionVerticalFlux(
                 zbx, zflux, field.flux_comp, explicit_fac);
