@@ -1033,16 +1033,15 @@ ERF::post_timestep (int nstep, double time, double dt_lev0)
         for (int lev = finest_level-1; lev >= 0; lev--)
         {
             // This call refluxes the cell-centered variables from the lev/lev+1 interface onto lev:
-            // all "slow" variables, plus (rho theta) on anelastic levels and rho and (rho theta) on
-            // pseudo-incompressible levels.  Density is not refluxed on anelastic levels (it is fixed),
-            // nor are rho and (rho theta) on compressible levels.
+            // all "slow" variables, plus (rho theta) on anelastic and compressible levels and rho and
+            // (rho theta) on pseudo-incompressible levels.  Density is not refluxed on anelastic levels
+            // (it is fixed), nor on compressible levels, whose fine coarse/fine faces carry the coarse
+            // level's mass flux (CFFaceFluxes).
             int reflux_comp;
             if (solverChoice.compressibility_type[lev] == CompressibilityType::PseudoIncompressible) {
                 reflux_comp = Rho_comp;
-            } else if (solverChoice.compressibility_type[lev] == CompressibilityType::Anelastic) {
-                reflux_comp = RhoTheta_comp;
             } else {
-                reflux_comp = RhoTheta_comp + 1;
+                reflux_comp = RhoTheta_comp;
             }
             const int nreflux = ncomp - reflux_comp;
 

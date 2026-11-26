@@ -121,6 +121,7 @@ void erf_substep_NS (int step, int nrk,
     Real dzi = dxInv[2];
 
     auto dz_ptr = stretched_dz_d.data();
+    const bool l_stretched = (SolverChoice::mesh_type != MeshType::ConstantDz);
 
     const auto& ba = S_stage_data[IntVars::cons].boxArray();
     const auto& dm = S_stage_data[IntVars::cons].DistributionMap();
@@ -478,18 +479,22 @@ void erf_substep_NS (int step, int nrk,
                                                    yflux_lo * (prim(i,j,k,0) + prim(i,j-1,k,0)) ) * dyi * mfsq) * myhalf;
 
             if (l_reflux) {
-                (flx_arr[0])(i,j,k,0) = xflux_lo;
+                // The flux registers take fluxes through the face area h_zeta = dz_ptr[k]/dz, as the
+                // slow fluxes are (ax*rho_u/mf_uy): ERF::post_timestep divides the correction by detJ
+                const Real h_zeta = (l_stretched) ? dz_ptr[k] * dzi : one;
+
+                (flx_arr[0])(i,j,k,0) = xflux_lo * h_zeta;
                 (flx_arr[0])(i,j,k,1) = (flx_arr[0])(i  ,j,k,0) * myhalf * (prim(i,j,k,0) + prim(i-1,j,k,0));
 
-                (flx_arr[1])(i,j,k,0) = yflux_lo;
+                (flx_arr[1])(i,j,k,0) = yflux_lo * h_zeta;
                 (flx_arr[1])(i,j,k,1) = (flx_arr[1])(i,j  ,k,0) * myhalf * (prim(i,j,k,0) + prim(i,j-1,k,0));
 
                 if (i == vbx_hi.x) {
-                    (flx_arr[0])(i+1,j,k,0) = xflux_hi;
+                    (flx_arr[0])(i+1,j,k,0) = xflux_hi * h_zeta;
                     (flx_arr[0])(i+1,j,k,1) = (flx_arr[0])(i+1,j,k,0) * myhalf * (prim(i,j,k,0) + prim(i+1,j,k,0));
                 }
                 if (j == vbx_hi.y) {
-                    (flx_arr[1])(i,j+1,k,0) = yflux_hi;
+                    (flx_arr[1])(i,j+1,k,0) = yflux_hi * h_zeta;
                     (flx_arr[1])(i,j+1,k,1) = (flx_arr[1])(i,j+1,k,0) * myhalf * (prim(i,j,k,0) + prim(i,j+1,k,0));
                 }
             }
@@ -718,8 +723,9 @@ void erf_substep_NS (int step, int nrk,
         // We only add to the flux registers in the final RK step
         if (l_reflux) {
             int strt_comp_reflux = 0;
-            // For now we don't reflux (rho theta) because it seems to create issues at c/f boundaries
-            int  num_comp_reflux = 1;
+            // rho and (rho theta); only (rho theta) is refluxed (see ERF::post_timestep), since the
+            // coarse/fine faces of a fine level carry the coarse mass flux (CFFaceFluxes)
+            int  num_comp_reflux = 2;
             if (level < finest_level) {
                 fr_as_crse->CrseAdd(mfi,
                     {{AMREX_D_DECL(&(flux[0]), &(flux[1]), &(flux[2]))}},

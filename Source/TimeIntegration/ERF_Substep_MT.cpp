@@ -831,8 +831,9 @@ void erf_substep_MT (int step, int /*nrk*/,
         // We only add to the flux registers in the final RK step
         if (l_reflux) {
             int strt_comp_reflux = 0;
-            // For now we don't reflux (rho theta) because it seems to create issues at c/f boundaries
-            int  num_comp_reflux = 1;
+            // rho and (rho theta); only (rho theta) is refluxed (see ERF::post_timestep), since the
+            // coarse/fine faces of a fine level carry the coarse mass flux (CFFaceFluxes)
+            int  num_comp_reflux = 2;
             if (level < finest_level) {
                 fr_as_crse->CrseAdd(mfi,
                     {{AMREX_D_DECL(&(flux[0]), &(flux[1]), &(flux[2]))}},

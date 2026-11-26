@@ -501,11 +501,11 @@ void erf_slow_rhs_pre (int level, int finest_level,
         const GpuArray<const Array4<Real>, AMREX_SPACEDIM>
             flx_arr{{AMREX_D_DECL(flux[0].array(), flux[1].array(), flux[2].array())}};
 
-        // On an anelastic or pseudo-incompressible level, in the stage whose fluxes are refluxed, the diffusion of (rho theta)
+        // In the stage whose fluxes are refluxed, the diffusion of (rho theta)
         // adds its face fluxes to flux[] too, so that the flux registers see the diffusive as well as
         // the advective transport (EB diffusion does not do this), as in erf_slow_rhs_post
         const ScalarDiffusionRefluxViews* l_reflux_diffusion =
-            (l_reflux && l_anelastic && !l_use_eb) ? &flx_arr : nullptr;
+            (l_reflux && !l_use_eb) ? &flx_arr : nullptr;
 
         // Define flux arrays for momentum variables (used only for EB now)
         GpuArray<Array4<Real>, AMREX_SPACEDIM> flx_u_arr{};
@@ -977,11 +977,13 @@ void erf_slow_rhs_pre (int level, int finest_level,
         // weighted as in that update (RefluxStageWeight)
         // On anelastic levels we reflux (rho theta); the density is fixed so there is no density flux.
         //       On pseudo-incompressible levels the density evolves, so we reflux rho and (rho theta).
-        //       Compressible levels do not reflux either rho or (rho theta) (see ERF::post_timestep).
+        //       On compressible levels we reflux (rho theta): its flux here is the part carried by the
+        //       stage momenta, and the acoustic substeps register the rest; their density is not refluxed
+        //       (see ERF::post_timestep).
         // The flux components are indexed by conserved state component, which is why srccomp and
         //       destcomp below are both the state component being refluxed.
-        if (l_reflux && l_anelastic) {
-            int strt_comp_reflux = l_fixed_rho ? RhoTheta_comp : Rho_comp;
+        if (l_reflux) {
+            int strt_comp_reflux = (l_fixed_rho || !l_anelastic) ? RhoTheta_comp : Rho_comp;
             int  num_comp_reflux = RhoTheta_comp + 1 - strt_comp_reflux;
             if (level < finest_level) {
                 fr_as_crse->CrseAdd(mfi, {{AMREX_D_DECL(&(flux[0]), &(flux[1]), &(flux[2]))}},
