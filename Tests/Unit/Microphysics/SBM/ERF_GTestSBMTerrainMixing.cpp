@@ -105,8 +105,10 @@ make_layout (const erf_sbm::MomentMode mode, const bool with_property, const int
 // wavelength and the high one wet everywhere, under one group limiter.
 // Stripe: in the last 2M bin, a dry low endpoint max(cos 2 pi z, 0)^8 and a
 // wet high endpoint 1 + cos(2 pi z) / 5, both of physical height alone with
-// zero gradient at flat walls z = 0, 1.
-enum class Profile { Smooth, Step, Uniform, Empty, DryEndpoint, Stripe };
+// zero gradient at flat walls z = 0, 1. EdgeBin: Smooth, except that the
+// interior 2M bin 0 is nearly empty and its mean mass lies within 1e-10 to
+// 2e-9 (relative) of its strict upper edge.
+enum class Profile { Smooth, Step, Uniform, Empty, DryEndpoint, Stripe, EdgeBin };
 
 // Hill: a terrain-following hill decaying to a flat top. Wave: flat bottom
 // and top walls with interior coordinate surfaces displaced by
@@ -127,17 +129,23 @@ struct Options
     // Bins of the single population; two have the fixed edges 0.1, 0.5, 1.
     int nbins{2};
     bool attached_property{false};
+    // Positive: every property is this fraction of its carrier's number.
+    Real property_ratio{0};
     ParticleMixingPolicy policy{ParticleMixingPolicy::HostPassiveScalar};
     Real kh{0};
     Real kv{0};
     Real eddy_scale{1};
+    // HostPassiveScalar with Scalar_h = eddy_scale (1 + 0.3 sin cos) varying in
+    // x and y, and Scalar_v = 0.
+    bool horizontal_eddy_only{false};
     int nz{8};
     // Boxes are at most max_grid_xy x max_grid_xy x max_grid_z cells.
     int max_grid_xy{4};
     int max_grid_z{8};
     // Hill terrain z = zeta + (1 - zeta) hill (sin 2 pi xi + cos(2 pi eta) / 2) + plane xi,
-    // with xi = x / lx and eta = y / ly.
+    // with xi = x / lx and eta = y / ly. Wave terrain adds hill_y sin(2 pi eta) sin(pi zeta).
     Real hill{Real(0.1)};
+    Real hill_y{Real(0.0)};
     Real plane{Real(0.0)};
     bool varying_density{false};
     // Map factors varying in x and y about 1, isotropic as ERF's are.
@@ -181,20 +189,27 @@ struct Run
 void fill_heights (MultiFab& z_nd, const Options& options)
 {
     const Real hill = options.hill;
+    const Real hill_y = options.hill_y;
     const Real plane = options.plane;
     const bool wave = options.terrain == Terrain::Wave;
     const bool witness = options.terrain == Terrain::Witness;
     const Real nx = Real(options.nx);
     const Real ny = Real(options.ny);
     const Real nz = Real(options.nz);
+    // The periodic parts take the node index modulo the period, so both copies
+    // of a periodic node hold one height, as ERF's OverrideSync of z_phys_nd
+    // gives them; the plane is translation invariant and takes the true index.
+    const int px = options.nx;
+    const int py = options.ny;
     for (amrex::MFIter mfi(z_nd); mfi.isValid(); ++mfi) {
         const auto a = z_nd.array(mfi);
         amrex::ParallelFor(mfi.fabbox(), [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-            const Real xi = Real(i) / nx;
-            const Real eta = Real(j) / ny;
+            const Real xi = Real(((i % px) + px) % px) / nx;
+            const Real eta = Real(((j % py) + py) % py) / ny;
             const Real zeta = Real(k) / nz;
             if (wave) {
-                a(i, j, k, 0) = zeta + hill * std::sin(two_pi * xi) *
+                a(i, j, k, 0) = zeta + (hill * std::sin(two_pi * xi) +
+                                        hill_y * std::sin(two_pi * eta)) *
                                            std::sin(Real(0.5) * two_pi * zeta);
                 return;
             }
@@ -204,7 +219,7 @@ void fill_heights (MultiFab& z_nd, const Options& options)
                 return;
             }
             const Real surface = hill * (std::sin(two_pi * xi) + Real(0.5) * std::cos(two_pi * eta));
-            a(i, j, k, 0) = zeta + (Real(1.0) - zeta) * surface + plane * xi;
+            a(i, j, k, 0) = zeta + (Real(1.0) - zeta) * surface + plane * Real(i) / nx;
         });
     }
 }
@@ -225,7 +240,8 @@ void fill_density (MultiFab& rho, const bool varying, const int nx, const int ny
 
 // Anisotropic eddy diffusivities; every other channel holds a distinct value
 // that a wrong channel would pick up.
-void fill_eddy (MultiFab& eddy, const Real scale, const int nx, const int ny)
+void fill_eddy (MultiFab& eddy, const Real scale, const int nx, const int ny,
+                const bool horizontal_only)
 {
     for (amrex::MFIter mfi(eddy); mfi.isValid(); ++mfi) {
         const auto a = eddy.array(mfi);
@@ -239,16 +255,24 @@ void fill_eddy (MultiFab& eddy, const Real scale, const int nx, const int ny)
             a(i, j, k, EddyDiff::Scalar_v) =
                 scale * (Real(0.002) + Real(0.001) * std::cos(two_pi * Real(i) / Real(nx)) +
                          Real(0.0005) * Real(k));
+            if (horizontal_only) {
+                a(i, j, k, EddyDiff::Scalar_h) =
+                    scale * (Real(1.0) + Real(0.3) * std::sin(two_pi * Real(i) / Real(nx)) *
+                                             std::cos(two_pi * Real(j) / Real(ny)));
+                a(i, j, k, EddyDiff::Scalar_v) = Real(0.0);
+            }
         });
     }
 }
 
 // U = rho z for the selected profile, in physical height; 2M bins keep one
 // mean mass per region, 1M bins their pivot, and attached properties a
-// fraction of the number.
+// fraction of the number. With a positive property_ratio every attached
+// property is that fraction of its carrier's number in every cell, an exactly
+// proportional state.
 void fill_spectrum (MultiFab& spectrum, const MultiFab& rho, const MultiFab& z_cc,
                     const erf_sbm::SBMLayout& layout, const Profile profile,
-                    const int nx, const int ny)
+                    const int nx, const int ny, const Real property_ratio)
 {
     const auto& population = layout.populations().front();
     const bool two_moment = population.moment_mode == erf_sbm::MomentMode::TwoMoment;
@@ -268,9 +292,20 @@ void fill_spectrum (MultiFab& spectrum, const MultiFab& rho, const MultiFab& z_c
             for (int bin = 0; bin < nbins; ++bin) {
                 Real factor = Real(1.0);
                 bool upper = false;
-                if (profile == Profile::Smooth) {
+                if (profile == Profile::Smooth || profile == Profile::EdgeBin) {
                     factor = Real(1.0) + Real(0.3) * std::sin(two_pi * x) * std::cos(two_pi * y) +
                              Real(0.2) * std::cos(Real(0.5) * two_pi * z);
+                    if (profile == Profile::EdgeBin && two_moment && bin == 0) {
+                        // Bin 0 spans [0.1, 0.5]: a mean of 0.5 (1 - gap).
+                        const Real number = Real(1.0e-12) * factor;
+                        const Real gap = Real(1.0e-9) * (Real(1.0) + Real(0.9) * std::cos(two_pi * x));
+                        u(i, j, k, mass0) = density * number * Real(0.5) * (Real(1.0) - gap);
+                        u(i, j, k, number0) = density * number;
+                        if (property0 >= 0) {
+                            u(i, j, k, property0) = density * number * Real(0.4);
+                        }
+                        continue;
+                    }
                 } else if (profile == Profile::Step) {
                     upper = z > Real(0.5);
                     factor = upper ? Real(0.1) : Real(1.0);
@@ -287,6 +322,9 @@ void fill_spectrum (MultiFab& spectrum, const MultiFab& rho, const MultiFab& z_c
                         (profile == Profile::Stripe ? c : std::sin(two_pi * z + Real(0.7))));
                     u(i, j, k, mass0 + bin) = density * (Real(0.5) * low + high);
                     u(i, j, k, number0 + bin) = density * (low + high);
+                    if (property0 >= 0) {
+                        u(i, j, k, property0 + bin) = density * property_ratio * (low + high);
+                    }
                     continue;
                 }
                 const Real number = factor * Real(0.01) * (Real(1.0) + Real(0.5) * Real(bin));
@@ -299,8 +337,9 @@ void fill_spectrum (MultiFab& spectrum, const MultiFab& rho, const MultiFab& z_c
                 u(i, j, k, mass0 + bin) = density * number * mean;
                 if (number0 >= 0) { u(i, j, k, number0 + bin) = density * number; }
                 if (property0 >= 0) {
-                    u(i, j, k, property0 + bin) =
-                        density * number * (upper ? Real(0.1) : Real(0.4));
+                    u(i, j, k, property0 + bin) = density * number *
+                        (property_ratio > Real(0.0) ? property_ratio
+                                                    : (upper ? Real(0.1) : Real(0.4)));
                 }
             }
         });
@@ -383,9 +422,12 @@ make_run (const Options& options)
         const Real nyr = Real(ny);
         for (amrex::MFIter mfi(*run->mapfac[m]); mfi.isValid(); ++mfi) {
             const auto a = run->mapfac[m]->array(mfi);
+            // Periodic in the index, so both copies of a periodic face agree.
             amrex::ParallelFor(mfi.fabbox(), [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept {
-                a(i, j, 0, 0) = Real(1.0) + amplitude * std::sin(two_pi * Real(i + m) / nxr) +
-                                Real(0.5) * amplitude * std::cos(two_pi * Real(j) / nyr);
+                const int ip = ((i + m) % nx + nx) % nx;
+                const int jp = (j % ny + ny) % ny;
+                a(i, j, 0, 0) = Real(1.0) + amplitude * std::sin(two_pi * Real(ip) / nxr) +
+                                Real(0.5) * amplitude * std::cos(two_pi * Real(jp) / nyr);
             });
         }
     }
@@ -420,7 +462,7 @@ make_run (const Options& options)
     run->target.define(ba, dm, 3, 2);
     MultiFab::Copy(run->target, run->rho, 0, 0, 3, 2);
     run->eddy.define(ba, dm, EddyDiff::NumDiffs, 2);
-    fill_eddy(run->eddy, options.eddy_scale, nx, ny);
+    fill_eddy(run->eddy, options.eddy_scale, nx, ny, options.horizontal_eddy_only);
     run->eddy.FillBoundary(run->geom.periodicity());
 
     run->xmom.define(amrex::convert(ba, IntVect(1, 0, 0)), dm, 1, 0);
@@ -440,7 +482,7 @@ make_run (const Options& options)
     run->zmom.setVal(Real(0.0));
 
     fill_spectrum(run->state->new_state_for_initialization(0), run->rho, run->z_cc,
-                  run->state->layout(), options.profile, nx, ny);
+                  run->state->layout(), options.profile, nx, ny, options.property_ratio);
     run->inputs = erf_sbm::make_stage_mixing_inputs(*run->transport, &run->eddy, run->mapfac,
                                                     &run->ax, &run->ay, nullptr, &run->z_nd,
                                                     &run->z_cc);
@@ -1034,6 +1076,8 @@ struct StripeErrors
     Real wet_peak{0};
     Real dry_l1{0};
     Real r_hat{0};
+    // With an attached property, its largest drift from the exact ratio.
+    Real ratio_drift{0};
 };
 
 StripeErrors
@@ -1109,7 +1153,57 @@ stripe_errors (const Run& run, const MultiFab& initial, const Real kh, const Rea
 // cells_per_wave cells per vertical wavelength, a worst cell drop just under
 // one thickness, K_h = 1 and K_v = r, to (2 pi / L)^2 K_h t = 2 at 0.8 of
 // the combined bound.
-StripeErrors run_stripe (const int cells_per_wave, const Real r, const bool match)
+// Runs a stripe configuration to (2 pi / L)^2 K_h t = 2, K_h the mean
+// horizontal diffusivity, at 0.8 of the combined bound, and returns its
+// errors against vertical diffusion with K_v.
+StripeErrors run_height_only (const Options& options, const Real kh, const Real kv,
+                              const std::string& label)
+{
+    auto run = make_run(options);
+    std::string diagnostic;
+    EXPECT_TRUE(erf_sbm::admit_terrain_mixing_geometry(run->z_nd, run->ba, Real(1.0), diagnostic))
+        << diagnostic;
+    const auto initial = copy_of(run->spectrum());
+    erf_auxiliary::MappedFaceTransmissibility t;
+    t.define(run->ba, run->dm, 1, 0);
+    EXPECT_TRUE(erf_sbm::build_particle_mixing_transmissibility(
+        run->transport->particle_mixing(), run->geom, run->inputs.metrics, run->rho, Rho_comp,
+        run->inputs.eddy_diffusivity, t, diagnostic)) << diagnostic;
+    erf_auxiliary::MappedFaceFluxRate at_rest;
+    at_rest.define(run->ba, run->dm, 1, 0);
+    at_rest.setVal(Real(0.0));
+    Real rate = Real(0.0);
+    EXPECT_TRUE(erf_auxiliary::ComputeMaxMappedCombinedOutgoingRate(
+        at_rest, t, run->transport->static_measure(0), run->rho, Rho_comp,
+        run->geom.InvCellSizeArray(), rate, diagnostic)) << diagnostic;
+    const Real time = Real(2.0) / (two_pi * two_pi * kh);
+    const int steps = static_cast<int>(std::ceil(time * rate / Real(0.8)));
+    advance(*run, HostIntegrator::CompressibleRK3, time / Real(steps), steps);
+    EXPECT_TRUE(erf_sbm::authoritative_state_admissible(run->spectrum(), run->state->layout(), 0,
+                                                        &diagnostic)) << diagnostic;
+    auto errors = stripe_errors(*run, *initial, kh, kv, time);
+    if (options.attached_property) {
+        // The largest drift of the last bin's property from its exact ratio.
+        const auto& layout = run->state->layout();
+        const int number = layout.populations().front().number_offset + 1;
+        const int property = layout.property_offset(0) + 1;
+        MultiFab drift(run->ba, run->dm, 1, 0);
+        MultiFab::Copy(drift, run->spectrum(), property, 0, 1, 0);
+        MultiFab::Saxpy(drift, -options.property_ratio, run->spectrum(), number, 0, 1, 0);
+        errors.ratio_drift = drift.norm0(0) /
+                             (options.property_ratio * run->spectrum().norm0(number));
+    }
+    amrex::Print() << "SBM_M6B_STRIPE " << label << " matched=" << options.match
+                   << " steps=" << steps << " wet_peak=" << errors.wet_peak
+                   << " dry_l1=" << errors.dry_l1 << " r_hat=" << errors.r_hat
+                   << " property_ratio_drift=" << errors.ratio_drift << '\n';
+    return errors;
+}
+
+// The stripe on the flat-walled wave terrain with A = Delta_x / Delta_Z = 10,
+// cells_per_wave cells per vertical wavelength, a worst cell drop just under
+// one thickness, and ConstantReference K_h = 1, K_v = r.
+Options stripe_options (const int cells_per_wave, const Real r, const bool match)
 {
     Options options;
     options.terrain = Terrain::Wave;
@@ -1128,34 +1222,15 @@ StripeErrors run_stripe (const int cells_per_wave, const Real r, const bool matc
     options.mode = erf_sbm::MomentMode::TwoMoment;
     options.profile = Profile::Stripe;
     options.match = match;
-    auto run = make_run(options);
-    std::string diagnostic;
-    EXPECT_TRUE(erf_sbm::admit_terrain_mixing_geometry(run->z_nd, run->ba, Real(1.0), diagnostic))
-        << diagnostic;
-    const auto initial = copy_of(run->spectrum());
-    erf_auxiliary::MappedFaceTransmissibility t;
-    t.define(run->ba, run->dm, 1, 0);
-    EXPECT_TRUE(erf_sbm::build_particle_mixing_transmissibility(
-        run->transport->particle_mixing(), run->geom, run->inputs.metrics, run->rho, Rho_comp,
-        nullptr, t, diagnostic)) << diagnostic;
-    erf_auxiliary::MappedFaceFluxRate at_rest;
-    at_rest.define(run->ba, run->dm, 1, 0);
-    at_rest.setVal(Real(0.0));
-    Real rate = Real(0.0);
-    EXPECT_TRUE(erf_auxiliary::ComputeMaxMappedCombinedOutgoingRate(
-        at_rest, t, run->transport->static_measure(0), run->rho, Rho_comp,
-        run->geom.InvCellSizeArray(), rate, diagnostic)) << diagnostic;
-    const Real time = Real(2.0) / (two_pi * two_pi * options.kh);
-    const int steps = static_cast<int>(std::ceil(time * rate / Real(0.8)));
-    advance(*run, HostIntegrator::CompressibleRK3, time / Real(steps), steps);
-    EXPECT_TRUE(erf_sbm::authoritative_state_admissible(run->spectrum(), run->state->layout(), 0,
-                                                        &diagnostic)) << diagnostic;
-    const auto errors = stripe_errors(*run, *initial, options.kh, options.kv, time);
-    amrex::Print() << "SBM_M6B_STRIPE cells_per_wave=" << cells_per_wave << " r=" << r
-                   << " matched=" << match << " steps=" << steps
-                   << " wet_peak=" << errors.wet_peak << " dry_l1=" << errors.dry_l1
-                   << " r_hat=" << errors.r_hat << '\n';
-    return errors;
+    return options;
+}
+
+StripeErrors run_stripe (const int cells_per_wave, const Real r, const bool match)
+{
+    const auto options = stripe_options(cells_per_wave, r, match);
+    return run_height_only(options, options.kh, options.kv,
+                           "cells_per_wave=" + std::to_string(cells_per_wave) +
+                           " r=" + std::to_string(r));
 }
 
 // The design's accuracy gate on moderate terrain, at 64 cells per vertical
@@ -1492,6 +1567,87 @@ void run_weak_damping (const Real hill, const Real stretch, const int n,
     }
 }
 
+// The stripe gate with an attached property exactly proportional to its
+// carrier, 0.37 of the number, in every cell. Its donor envelope has no width,
+// so roundoff in that support can keep the limiter fully active and the
+// accepted diffusion the matched low-order exchange; the gates still hold, and
+// the ratio stays exact.
+void run_proportional_property_gate ()
+{
+    for (const Real r : {Real(0.0), Real(0.01), Real(1.0)}) {
+        auto options = stripe_options(64, r, true);
+        options.attached_property = true;
+        options.property_ratio = Real(0.37);
+        const auto errors = run_height_only(options, options.kh, options.kv,
+                                            "proportional_property r=" + std::to_string(r));
+        EXPECT_LT(errors.wet_peak, Real(0.02)) << "r = " << r;
+        EXPECT_LT(errors.dry_l1, Real(0.02)) << "r = " << r;
+        EXPECT_LE(std::abs(errors.r_hat - r), std::max(Real(0.002), Real(0.1) * r)) << "r = " << r;
+        EXPECT_LE(errors.ratio_drift, Real(64.0) * eps()) << "r = " << r;
+    }
+}
+
+// The stripe with K_v = 0 on curved terrain sloping in x and y, with both
+// signs, under HostPassiveScalar with a horizontal diffusivity varying in x
+// and y. The spectrum is stationary, and the stripe gates hold.
+void run_two_slope_gate ()
+{
+    auto options = stripe_options(64, Real(0.0), true);
+    options.ny = 16;
+    options.ly = options.lx;
+    options.max_grid_xy = 16;
+    // Equal slopes in x and y keep the worst combined drop under one thickness.
+    options.hill /= std::sqrt(Real(2.0));
+    options.hill_y = options.hill;
+    options.policy = ParticleMixingPolicy::HostPassiveScalar;
+    options.kh = Real(0.0);
+    options.kv = Real(0.0);
+    options.horizontal_eddy_only = true;
+    options.eddy_scale = Real(1.0);
+    const auto errors = run_height_only(options, Real(1.0), Real(0.0), "two_slope_varying_kh");
+    EXPECT_LT(errors.wet_peak, Real(0.02));
+    EXPECT_LT(errors.dry_l1, Real(0.02));
+    EXPECT_LE(std::abs(errors.r_hat), Real(0.002));
+}
+
+// A nearly empty interior 2M bin whose mean mass lies within 1e-10 to 2e-9
+// (relative) of its strict upper edge, with an attached property, advected and
+// mixed over the hill with varying density: every group stays admissible,
+// the strict edge's reserve included, every inventory is conserved, and the
+// bin's mean stays below its upper edge in every cell.
+void run_edge_bin ()
+{
+    Options options;
+    options.mode = erf_sbm::MomentMode::TwoMoment;
+    options.attached_property = true;
+    options.profile = Profile::EdgeBin;
+    options.carrier_x = Real(1.0);
+    options.varying_density = true;
+    auto run = make_run(options);
+    const auto initial = copy_of(run->spectrum());
+    const auto& population = run->state->layout().populations().front();
+    const int mass = population.mass_offset;
+    const int number = population.number_offset;
+    double t = 0.0;
+    for (int step = 0; step < 4; ++step) {
+        t = step_once(*run, HostIntegrator::CompressibleRK3, t, 0.03);
+        std::string diagnostic;
+        EXPECT_TRUE(erf_sbm::authoritative_state_admissible(run->spectrum(),
+                                                            run->state->layout(), 0, &diagnostic))
+            << "step " << step << ": " << diagnostic;
+        // M - 0.5 N < 0: the mean below the upper edge 0.5.
+        MultiFab excess(run->ba, run->dm, 1, 0);
+        MultiFab::LinComb(excess, Real(1.0), run->spectrum(), mass, Real(-0.5),
+                          run->spectrum(), number, 0, 1, 0);
+        EXPECT_LT(excess.max(0), Real(0.0)) << "step " << step;
+    }
+    MultiFab change(run->ba, run->dm, 1, 0);
+    MultiFab::Copy(change, run->spectrum(), number, 0, 1, 0);
+    MultiFab::Subtract(change, *initial, number, 0, 1, 0);
+    EXPECT_GT(change.norm0(0), Real(1.0e-3) * initial->norm0(number));
+    expect_conserved(*initial, *run);
+}
+
 // Qualification tool, disabled by default: the cost of matching against the
 // unmatched comparator (theta = 1) on the same terrain stage, boundaries,
 // chunks and timestep, with an advecting carrier and HostPassiveScalar
@@ -1587,6 +1743,9 @@ TEST(SBMTerrainMixing, MatchingKeepsTheWetEndpointOfADryGroupStationary)
 }
 TEST(SBMTerrainMixing, ModerateTerrainStripeAccuracyGate) { run_stripe_gate(); }
 TEST(SBMTerrainMixing, WallRuleConvergesOnATiltedSlab) { run_tilted_slab(); }
+TEST(SBMTerrainMixing, ProportionalPropertyStripeAccuracyGate) { run_proportional_property_gate(); }
+TEST(SBMTerrainMixing, TwoSlopeCurvedDryHalfAccuracyGate) { run_two_slope_gate(); }
+TEST(SBMTerrainMixing, NearlyEmptyBinAtItsStrictEdgeStaysCanonical) { run_edge_bin(); }
 TEST(SBMTerrainMixing, DISABLED_MatchingCost) { run_matching_cost(); }
 TEST(SBMTerrainMixing, DISABLED_WeakDampingWitness)
 {
