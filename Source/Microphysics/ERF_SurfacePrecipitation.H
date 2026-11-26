@@ -30,6 +30,11 @@ struct SurfacePrecipAccumulationSource
  * @var SurfacePrecipAccumulationSources::snow Snow precipitation source.
  * @var SurfacePrecipAccumulationSources::graupel Graupel precipitation source.
  * @var SurfacePrecipAccumulationSources::hail Hail precipitation source.
+ * @var SurfacePrecipAccumulationSources::rest_is_frozen True when what the total holds
+ *      beyond rain, snow, graupel and hail is frozen. That rest is the cloud species
+ *      that fell out. It is cloud ice alone in WSM6 and WDM6, so for them the frozen
+ *      part is the total less the rain. It is false where the rest holds cloud water
+ *      (Morrison) or where there is no total.
  */
 struct SurfacePrecipAccumulationSources
 {
@@ -38,6 +43,7 @@ struct SurfacePrecipAccumulationSources
     SurfacePrecipAccumulationSource snow{};
     SurfacePrecipAccumulationSource graupel{};
     SurfacePrecipAccumulationSource hail{};
+    bool rest_is_frozen = false;
 };
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
@@ -104,6 +110,10 @@ inline void surface_precip_fill_k0 (amrex::MultiFab& accum_2d,
     const Real f_snow    = sources.snow.native_to_kg_m2;
     const Real f_graupel = sources.graupel.native_to_kg_m2;
     const Real f_hail    = sources.hail.native_to_kg_m2;
+    // The total less the rain is the frozen part, and the rain is the liquid part
+    const bool rest_frozen = sources.rest_is_frozen && has_total;
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!rest_frozen || has_rain,
+        "surface_precip_fill_k0: rest_is_frozen needs a rain accumulator");
 
     // Whether box n of a source holds the plane k = klo.
     auto holds_klo = [klo] (const SurfacePrecipAccumulationSource& src, int n) {
@@ -128,9 +138,13 @@ inline void surface_precip_fill_k0 (amrex::MultiFab& accum_2d,
             const int i = iv[0], j = iv[1];
             Real frozen = Real(0.0);
             if (phase != SurfacePrecipPhase::Total || frozen_in_comp1) {
-                if (has_snow)    { frozen += snow(i, j, klo)    * f_snow; }
-                if (has_graupel) { frozen += graupel(i, j, klo) * f_graupel; }
-                if (has_hail)    { frozen += hail(i, j, klo)    * f_hail; }
+                if (rest_frozen) {
+                    frozen = total(i, j, klo) * f_total - rain(i, j, klo) * f_rain;
+                } else {
+                    if (has_snow)    { frozen += snow(i, j, klo)    * f_snow; }
+                    if (has_graupel) { frozen += graupel(i, j, klo) * f_graupel; }
+                    if (has_hail)    { frozen += hail(i, j, klo)    * f_hail; }
+                }
             }
             Real v;
             if (phase == SurfacePrecipPhase::Frozen) {
@@ -138,7 +152,9 @@ inline void surface_precip_fill_k0 (amrex::MultiFab& accum_2d,
             } else if (phase == SurfacePrecipPhase::Liquid) {
                 // No bound here: this is an accumulation, and a bound on it would change the
                 // difference of two of its values. The user bounds that difference.
-                if (has_total) {
+                if (rest_frozen) {
+                    v = rain(i, j, klo) * f_rain;
+                } else if (has_total) {
                     v = total(i, j, klo) * f_total - frozen;
                 } else {
                     v = has_rain ? rain(i, j, klo) * f_rain : Real(0.0);
@@ -179,9 +195,13 @@ inline void surface_precip_fill_k0 (amrex::MultiFab& accum_2d,
  * the rest: the total minus the frozen part, or without a total the rain
  * accumulator. Frozen plus Liquid is then the Total field for every scheme
  * with a total, including one whose total holds more than its species
- * (Morrison's also counts the cloud water and cloud ice that fell out). The
- * Liquid field is not bounded at zero: where the frozen accumulators exceed
- * the total by round-off it is slightly negative, and a caller that takes the
+ * (Morrison's also counts the cloud water and cloud ice that fell out, and
+ * both stay in its Liquid part). Where sources.rest_is_frozen is set (WSM6,
+ * WDM6: the rest is cloud ice), Frozen is the total minus the rain and Liquid
+ * is the rain. The
+ * part that is a difference is not bounded at zero: Liquid where the frozen
+ * accumulators exceed the total by round-off, and Frozen (rest_is_frozen)
+ * where the rain exceeds the total by round-off. A caller that takes the
  * change over a step bounds that change (force_restore_rain_rate).
  */
 inline void surface_precip_accum_k0 (amrex::MultiFab& accum_2d,

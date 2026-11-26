@@ -68,14 +68,15 @@ struct FloodForcing
     /**
      * Surface precipitation of this step on the k = 0 slabs [kg/m2, equal to
      * mm of liquid water]: component 0 the liquid part, component 1 the frozen
-     * part (snow, graupel and hail as liquid-water equivalent; Morrison and
-     * WSM6 count their cloud-water fallout, and Morrison its cloud-ice
-     * fallout, as liquid). It is the change of the microphysics accumulators
-     * over the step, so the sum over the steps of a run is the change of ERF's
-     * own accumulation over the run. Not bounded at zero: the liquid part is
-     * the total less the frozen part for a scheme with a total accumulator and
-     * can be slightly negative from round-off; an engine that bounds it should
-     * carry the negative part to the next step. Where a finer level covers the
+     * part (snow, graupel and hail as liquid-water equivalent; WSM6 and WDM6
+     * also count their cloud-ice fallout as frozen, while Morrison counts its
+     * cloud-water and cloud-ice fallout as liquid). It is the change of the
+     * microphysics accumulators over the step, so the sum over the steps of a
+     * run is the change of ERF's own accumulation over the run. Not bounded at
+     * zero: the part that is a difference of two accumulators (the liquid part
+     * for Morrison, the frozen part for WSM6 and WDM6) can be slightly negative
+     * from round-off; an engine that bounds it should carry the negative part
+     * to the next step. Where a finer level covers the
      * flood grid's level, ERF averages the finer accumulators down onto it
      * after the flood's step (and, with super-droplets, at plotfiles and
      * regrids); the next step carries that correction, of either sign, in the

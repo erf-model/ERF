@@ -275,6 +275,8 @@ public:
         sources.rain    = {mic_fab_vars[MicVar_WDM6::rain_accum].get(), rhoh2o / amrex::Real(1000.0)};
         sources.snow    = {mic_fab_vars[MicVar_WDM6::snow_accum].get(), rhoh2o / amrex::Real(1000.0)};
         sources.graupel = {mic_fab_vars[MicVar_WDM6::graupel_accum].get(), rhoh2o / amrex::Real(1000.0)};
+        // The total also holds the cloud ice that fell out, and nothing else beyond the species
+        sources.rest_is_frozen = true;
         return sources;
     }
 

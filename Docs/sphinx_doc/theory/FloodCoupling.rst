@@ -142,11 +142,11 @@ the step,
 where :math:`A` is the accumulation of ERF's own surface precipitation
 diagnostics, read on the flood grid's level after the step. The sum of
 :math:`P^n` over the steps of a run is therefore the change of :math:`A` over
-the run, to round-off. For a scheme that keeps a total and a frozen
-accumulator, the liquid part is the total less the frozen part and can be
-slightly negative from round-off. An engine that bounds it should carry the
-negative part over to the next step rather than drop it, so that its total
-still equals :math:`A`.
+the run, to round-off. One part can be a difference of two accumulations
+and slightly negative from round-off: the liquid part for Morrison (the total
+less the frozen species) and the frozen part for WSM6 and WDM6 (the total less
+the rain). An engine that bounds it should carry the negative part over to the
+next step rather than drop it, so that its total still equals :math:`A`.
 
 When a finer level covers part of the flood grid's level, ERF averages the
 finer level's accumulators down onto it once the finer level has caught up
@@ -165,10 +165,14 @@ correction; the run total is unchanged.
 
 The two components follow ERF's surface precipitation diagnostics. Kessler
 and the super-droplet model hand rain only. SAM hands rain as liquid and snow
-plus graupel as frozen; its cloud-ice sedimentation does not reach the surface
-accumulators. Morrison and WSM6 keep a total and a frozen accumulator, with
-snow and graupel (and hail) as frozen; the cloud-water fallout and, for
-Morrison, the cloud-ice fallout are in the total and so are counted as liquid.
+plus graupel as frozen; it hands no total, so the cloud ice that its 3D
+``precip_accum`` counts is in neither part. Morrison, WSM6 and WDM6 keep a
+total next to their species accumulators. WSM6 and WDM6 add rain, snow, graupel and the cloud-ice fallout
+to their total, so their liquid part is the rain and their frozen part is the
+total less the rain, which counts the cloud ice as frozen. Morrison adds the
+cloud-water and cloud-ice fallout to its total in one sum; its frozen part is
+snow and graupel, and the rest of its total, both cloud fallouts included, is
+counted as liquid.
 An engine that reads the precipitation needs a moisture model that accumulates
 it (Kessler, SAM, Morrison, WSM6, WDM6 with precipitation); with any other the
 run stops at start-up.
@@ -183,9 +187,14 @@ flood grid, or the run stops naming ``erf.flood.anchor_level`` and
 ``erf.flood.grid_ratio``. A checkpoint without a marker (from a run without
 the flood) starts the engine from its initial state and prints a note, so a
 flood can start from an atmosphere spun up without it. The precipitation the
-flood last read is saved next to the marker (``FloodPrecipRef``), so a pending
-correction from a finer level is kept and a restart reproduces a straight run;
-without a marker the reference is taken from the restored accumulators. A restart that regrids level 0 is refused.
+flood last read is saved next to the marker (``FloodPrecipRef``, or
+``FloodPrecipRefIce`` for WSM6 and WDM6, whose split counts the cloud ice as
+frozen), so a pending correction from a finer level is kept and a restart
+reproduces a straight run; without a marker the reference is taken from the
+restored accumulators. A WSM6 or WDM6 checkpoint written before that split
+holds only ``FloodPrecipRef``, with the cloud ice counted as liquid; the run
+prints a note and takes the reference from the restored accumulators, so a
+pending finer-level correction in that checkpoint is not carried over. A restart that regrids level 0 is refused.
 
 Output
 ------

@@ -1058,7 +1058,8 @@ The default is off, and the results are then unchanged. The state is the snow wa
 
 where :math:`P_n` is the frozen precipitation, :math:`E_n` the sublimation and :math:`F_n` the
 melt, all in kg m\ :sup:`-2` s\ :sup:`-1`. :math:`P_n` is the change over the step of the
-microphysics scheme's snow, graupel and hail accumulations at the surface. With the snow layer
+microphysics scheme's snow, graupel and hail accumulations at the surface; for WSM6 and WDM6
+it is the change of the total less the rain, which also counts the cloud ice that fell out. With the snow layer
 on, the hydrology's rain :math:`P` is the rest: the scheme's total minus the frozen part (the
 rain accumulation for a scheme without a total), so the two always add up to what the
 hydrology takes without the snow layer. A scheme without those accumulations (Kessler,
