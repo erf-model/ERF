@@ -377,8 +377,8 @@ make_run (const Options& options)
     const int nx = options.nx;
     const int ny = options.ny;
     const Box domain(IntVect(0), IntVect(nx - 1, ny - 1, nz - 1));
-    const amrex::RealBox real_box({0.0, 0.0, 0.0},
-                                  {double(options.lx), double(options.ly), 1.0});
+    const amrex::RealBox real_box({Real(0.0), Real(0.0), Real(0.0)},
+                                  {options.lx, options.ly, Real(1.0)});
     const int periodic[AMREX_SPACEDIM] = {options.inflow_x ? 0 : 1, 1, 0};
     run->geom = Geometry(domain, &real_box, amrex::CoordSys::cartesian, periodic);
     run->ba = BoxArray(domain);
