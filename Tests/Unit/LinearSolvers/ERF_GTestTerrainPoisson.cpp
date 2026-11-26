@@ -12,6 +12,7 @@
 
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <cmath>
 
 using namespace amrex;
@@ -59,6 +60,8 @@ struct Region
     int K0;  // the region's lowest cell; above 0 its bottom is a coarse/fine face
     Box cells;
     FArrayBox zp, ax, ay, az, dJ, x, y;
+    FArrayBox mf_ux, mf_vy;   // map factors m_x on x-faces and m_y on y-faces (2D)
+    bool use_mf = false;      // pass them to the operator (else null, i.e. one)
     Dim3 dlo, dhi;
 
     explicit Region (Real hmax, int k0 = 0)
@@ -71,6 +74,8 @@ struct Region
           dJ(grow(cells, 1), 1, The_Pinned_Arena()),
           x(grow(cells, 1), 1, The_Pinned_Arena()),
           y(cells, 1, The_Pinned_Arena()),
+          mf_ux(grow(Box(IntVect(0,0,0), IntVect(NX,NY-1,0)), IntVect(1,1,0)), 1, The_Pinned_Arena()),
+          mf_vy(grow(Box(IntVect(0,0,0), IntVect(NX-1,NY,0)), IntVect(1,1,0)), 1, The_Pinned_Arena()),
           dlo{0, 0, k0}, dhi{NX-1, NY-1, k0+NZ-1}
     {
         auto z = zp.array();
@@ -104,6 +109,25 @@ struct Region
                                             -z(i,j,k  ) - z(i+1,j,k  ) - z(i,j+1,k  ) - z(i+1,j+1,k  ));
         }}}
     }
+
+    // Map factors m_x on the x-faces and m_y on the y-faces: one value m, or (vary) ones that
+    // vary in x and y and differ from each other
+    void set_mapfac (Real m, bool vary = false)
+    {
+        use_mf = true;
+        auto u = mf_ux.array();
+        auto v = mf_vy.array();
+        for (int j = mf_ux.box().smallEnd(1); j <= mf_ux.box().bigEnd(1); ++j) {
+        for (int i = mf_ux.box().smallEnd(0); i <= mf_ux.box().bigEnd(0); ++i) {
+            u(i,j,0) = (!vary) ? m : Real(1.1) + Real(0.2)*std::sin(Real(0.6)*Real(i) + Real(0.3)*Real(j));
+        }}
+        for (int j = mf_vy.box().smallEnd(1); j <= mf_vy.box().bigEnd(1); ++j) {
+        for (int i = mf_vy.box().smallEnd(0); i <= mf_vy.box().bigEnd(0); ++i) {
+            v(i,j,0) = (!vary) ? m : Real(0.9) + Real(0.15)*std::cos(Real(0.4)*Real(i) - Real(0.5)*Real(j));
+        }}
+    }
+    Array4<Real const> mfu () const { return use_mf ? mf_ux.const_array() : Array4<Real const>{}; }
+    Array4<Real const> mfv () const { return use_mf ? mf_vy.const_array() : Array4<Real const>{}; }
 
     void set_field (bool constant)
     {
@@ -139,7 +163,7 @@ struct Region
         for (int j = 0; j < NY; ++j) {
         for (int i = 0; i < NX; ++i) {
             terrpoisson_adotx(i, j, k, ya, xa, axa, aya, aza, dJa, zpa,
-                              Real(1.0)/DX, Real(1.0)/DY, Real(1.0)/DZ, dlo, dhi, zf);
+                              Real(1.0)/DX, Real(1.0)/DY, Real(1.0)/DZ, dlo, dhi, zf, mfu(), mfv());
         }}}
     }
 
@@ -157,7 +181,8 @@ struct Region
         for (int i = 0; i < NX; ++i) {
             Real fxl = terrpoisson_flux_x(i  ,j,k,xa,zpa,dxi), fxh = terrpoisson_flux_x(i+1,j,k,xa,zpa,dxi);
             Real fyl = terrpoisson_flux_y(i,j  ,k,xa,zpa,dyi), fyh = terrpoisson_flux_y(i,j+1,k,xa,zpa,dyi);
-            Real fzl = terrpoisson_flux_z(i,j,k  ,xa,zpa,dxi,dyi), fzh = terrpoisson_flux_z(i,j,k+1,xa,zpa,dxi,dyi);
+            Real fzl = terrpoisson_flux_z(i,j,k  ,xa,zpa,dxi,dyi,mfu(),mfv());
+            Real fzh = terrpoisson_flux_z(i,j,k+1,xa,zpa,dxi,dyi,mfu(),mfv());
             if ((zf & tp_face_xlo) && i == 0)    { fxl = 0; }
             if ((zf & tp_face_xhi) && i == NX-1) { fxh = 0; }
             if ((zf & tp_face_ylo) && j == 0)    { fyl = 0; }
@@ -541,3 +566,103 @@ TEST(TerrainPoisson, SingularSolveConvergesWithZeroFlux)
     EXPECT_LE(phi.norm0(), Real(1.e6)) << gmres.getNumIters() << " iterations";
 }
 #endif
+
+// ---------------------------------------------------------------------------------------
+// Map factors (erf-model/ERF#5359).  The projection corrects u by m_x G_x phi and v by
+// m_y G_y phi, and Omega = w - m_x h_xi u - m_y h_eta v (OmegaFromW), so the slope terms of
+// the z-face flux carry m_x^2 and m_y^2.  The operator applies them in terrpoisson_flux_z
+// (getFluxes) and in its own inlined stencil (apply); the two must agree.
+// ---------------------------------------------------------------------------------------
+
+// The inlined stencil of terrpoisson_adotx and the face-by-face assembly from
+// terrpoisson_flux_x/y/z give the same operator with map factors that vary in x and y
+// (m_x != m_y), with and without masked faces; and with them the zero-flux operator still
+// conserves (sum dJ (A x) dV = 0), since the map factors only change the face fluxes.
+TEST(TerrainPoisson, MapFactorsInlinedStencilMatchesFaceByFace)
+{
+    Region r(Real(60.0));
+    r.set_mapfac(Real(0.0), true);
+    r.set_field(false);
+    FArrayBox yref(r.cells, 1, The_Pinned_Arena());
+    for (int zf : {0, ALL_NEUMANN, int(tp_face_xlo | tp_face_yhi)}) {
+        r.apply(zf);
+        r.assemble(zf, yref);
+        auto ya = r.y.const_array(); auto yr = yref.const_array();
+        for (int k = 0; k < NZ; ++k) {
+        for (int j = 0; j < NY; ++j) {
+        for (int i = 0; i < NX; ++i) {
+            EXPECT_NEAR(ya(i,j,k), yr(i,j,k), tol(Real(100.0) * (std::abs(yr(i,j,k)) + Real(1.e-3))))
+                << "mask " << zf << ", cell (" << i << "," << j << "," << k << ")";
+        }}}
+    }
+
+    r.apply(ALL_NEUMANN);
+    auto [s, mag] = r.weighted_sum();
+    ASSERT_GT(mag, Real(0.0));
+    EXPECT_NEAR(s, Real(0.0), tol(Real(100.0) * mag));
+}
+
+// Unit map factors give the operator without map factors (null arrays) bit for bit, and on
+// a sloping mesh map factors other than one change it
+TEST(TerrainPoisson, UnitMapFactorsAreBitForBit)
+{
+    Region r(Real(60.0));
+    r.set_field(false);
+    r.apply(ALL_NEUMANN);
+    FArrayBox y_none(r.cells, 1, The_Pinned_Arena());
+    y_none.copy<RunOn::Host>(r.y);
+
+    r.set_mapfac(Real(1.0));
+    r.apply(ALL_NEUMANN);
+    auto yn = y_none.const_array(); auto y1 = r.y.const_array();
+    for (int k = 0; k < NZ; ++k) {
+    for (int j = 0; j < NY; ++j) {
+    for (int i = 0; i < NX; ++i) {
+        EXPECT_EQ(y1(i,j,k), yn(i,j,k)) << "cell (" << i << "," << j << "," << k << ")";
+    }}}
+
+    r.set_mapfac(Real(0.0), true);
+    r.apply(ALL_NEUMANN);
+    Real maxdiff = 0;
+    for (int k = 0; k < NZ; ++k) {
+    for (int j = 0; j < NY; ++j) {
+    for (int i = 0; i < NX; ++i) {
+        maxdiff = std::max(maxdiff, std::abs(r.y.const_array()(i,j,k) - yn(i,j,k)));
+    }}}
+    EXPECT_GT(maxdiff, Real(0.0));
+}
+
+// With one map factor m on every face, the z-face flux is its vertical part plus m^2 times
+// its slope terms: F(m) = F(0) + m^2 (F(1) - F(0)), at every interior z-face
+TEST(TerrainPoisson, ZFluxSlopeTermsScaleWithMSquared)
+{
+    Region r(Real(60.0));
+    r.set_field(false);
+    const Real m = Real(0.7);
+    auto flux = [&] (Real mf) {
+        r.set_mapfac(mf);
+        FArrayBox f(surroundingNodes(r.cells, 2), 1, The_Pinned_Arena());
+        auto fa = f.array(); auto xa = r.x.const_array(); auto zpa = r.zp.const_array();
+        for (int k = 1; k < NZ; ++k) {
+        for (int j = 0; j < NY; ++j) {
+        for (int i = 0; i < NX; ++i) {
+            fa(i,j,k) = terrpoisson_flux_z(i,j,k,xa,zpa,Real(1.0)/DX,Real(1.0)/DY,r.mfu(),r.mfv());
+        }}}
+        return f;
+    };
+    // m = 0 leaves the vertical part alone
+    const FArrayBox f0 = flux(Real(0.0));
+    const FArrayBox f1 = flux(Real(1.0));
+    const FArrayBox fm = flux(m);
+    auto a0 = f0.const_array(); auto a1 = f1.const_array(); auto am = fm.const_array();
+    Real slope_max = 0;
+    for (int k = 1; k < NZ; ++k) {
+    for (int j = 0; j < NY; ++j) {
+    for (int i = 0; i < NX; ++i) {
+        const Real expected = a0(i,j,k) + m*m * (a1(i,j,k) - a0(i,j,k));
+        slope_max = std::max(slope_max, std::abs(a1(i,j,k) - a0(i,j,k)));
+        EXPECT_NEAR(am(i,j,k), expected, tol(Real(100.0) * (std::abs(a1(i,j,k)) + std::abs(a0(i,j,k)))))
+            << "face (" << i << "," << j << "," << k << ")";
+    }}}
+    EXPECT_GT(slope_max, Real(0.0));   // the mesh slopes, so the test sees the slope terms
+}
