@@ -3257,6 +3257,19 @@ struct SolverChoice {
                dampingChoice.rayleigh_damping_type == RayleighDampingType::FastExplicit;
     }
 
+    // Whether the vertical pressure gradient on level lev, in the slow and the fast terms, uses
+    // the distance between the cell centers z_phys_cc rather than dz.  Always on a mesh other
+    // than ConstantDz; on a ConstantDz mesh only where the base state is nested
+    // (ERF::build_nested_base_state sets zcc_vertical_metric_lev), since its cell centers are
+    // then placed to hold the base state in balance and are no longer dz apart.
+    [[nodiscard]] bool zcc_vertical_metric (int lev) const noexcept
+    {
+        if (mesh_type != MeshType::ConstantDz) { return true; }
+        return lev >= 0 && lev < static_cast<int>(zcc_vertical_metric_lev.size()) &&
+               zcc_vertical_metric_lev[lev] != 0;
+    }
+    amrex::Vector<int> zcc_vertical_metric_lev;
+
     // Implicit Rayleigh damping of w in the substeps (FastImplicit with erf.rayleigh_damp_W).
     // It replaces the explicit w damping, which is then applied on neither step.
     [[nodiscard]] bool rayleigh_implicit_w (int lev) const noexcept

@@ -117,7 +117,7 @@ ERF::compute_max_pressure_gradient_diagnostic (int lev)
     // Now compute pressure gradients for base state pressure
     // *******************************************************************************
 
-    compute_gradp(p_hse, geom[lev], *z_phys_cc[lev].get(), mapfac[lev],
+    compute_gradp(lev, p_hse, geom[lev], *z_phys_cc[lev].get(), mapfac[lev],
                   get_eb(lev), gradp_temp, solverChoice);
 
     Real min_gpx = gradp_temp[0].min(xface_domain,comp);
@@ -239,7 +239,7 @@ ERF::compute_max_pressure_gradient_diagnostic (int lev)
                     pp_arr(i,j,k) = getPgivenRTh(cell_data(i,j,k,RhoTheta_comp),qv_for_p);
                 });
             }
-            compute_gradp(p, geom[lev], *z_phys_cc[lev].get(), mapfac[lev],
+            compute_gradp(lev, p, geom[lev], *z_phys_cc[lev].get(), mapfac[lev],
                           get_eb(lev), gradp_temp, solverChoice);
 
             min_gpx = gradp_temp[0].min(xface_domain,comp);

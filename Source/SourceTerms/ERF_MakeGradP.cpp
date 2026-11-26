@@ -229,13 +229,15 @@ void make_gradp_pert (int level,
             compute_gradp_hse(p,rhopert,geom,z_phys_cc,mapfac,gradp,solverChoice);
         }
 
-        compute_gradp_z(p,geom,z_phys_cc,ebfact,gradp,solverChoice);
+        compute_gradp_z(p,geom,z_phys_cc,ebfact,gradp,solverChoice,
+                        solverChoice.zcc_vertical_metric(level));
 
     } // FullyCompressible
 }
 
 /**
  * @brief Compute the full pressure gradient.
+ * @param[in] lev Level of refinement.
  * @param[in] p Pressure field.
  * @param[in] geom Geometry container.
  * @param[in] z_phys_cc Physical height on cell centers.
@@ -245,7 +247,8 @@ void make_gradp_pert (int level,
  * @param[in] solverChoice Solver options.
  */
 void
-compute_gradp (const MultiFab& p,
+compute_gradp (int lev,
+               const MultiFab& p,
                const Geometry& geom,
                const MultiFab& z_phys_cc,
                Vector<std::unique_ptr<MultiFab>>& mapfac,
@@ -254,7 +257,7 @@ compute_gradp (const MultiFab& p,
                const SolverChoice& solverChoice)
 {
     compute_gradp_xy(p,geom,z_phys_cc,mapfac,ebfact,gradp,solverChoice);
-    compute_gradp_z(p,geom,z_phys_cc,ebfact,gradp,solverChoice);
+    compute_gradp_z(p,geom,z_phys_cc,ebfact,gradp,solverChoice,solverChoice.zcc_vertical_metric(lev));
 }
 
 /**
@@ -548,6 +551,8 @@ compute_gradp_xy (const MultiFab& p,
  * @param[in] ebfact EB factory.
  * @param[out] gradp Pressure gradient components.
  * @param[in] solverChoice Solver options.
+ * @param[in] use_zcc Use the distance between the cell centers (z_phys_cc) rather than dz:
+ *                    SolverChoice::zcc_vertical_metric of the level
  */
 void
 compute_gradp_z (const MultiFab& p,
@@ -555,9 +560,10 @@ compute_gradp_z (const MultiFab& p,
                  const MultiFab& z_phys_cc,
                  const eb_& ebfact,
                  Vector<MultiFab>& gradp,
-                 const SolverChoice& solverChoice)
+                 const SolverChoice& solverChoice,
+                 bool use_zcc)
 {
-    const bool l_use_terrain_fitted_coords = (solverChoice.mesh_type != MeshType::ConstantDz);
+    const bool l_use_terrain_fitted_coords = use_zcc;
 
     const Box domain = geom.Domain();
     const int domain_klo = domain.smallEnd(2);

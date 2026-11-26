@@ -43,7 +43,8 @@ void make_gradp_pert (int level,
                       const eb_& ebfact,
                       amrex::Vector<amrex::MultiFab>& gradp);
 
-void compute_gradp (const amrex::MultiFab& p,
+void compute_gradp (int lev,
+                    const amrex::MultiFab& p,
                     const amrex::Geometry& geom,
                     const amrex::MultiFab& z_phys_cc,
                     amrex::Vector<std::unique_ptr<amrex::MultiFab>>& mapfac,
@@ -64,7 +65,8 @@ void compute_gradp_z (const amrex::MultiFab& p,
                       const amrex::MultiFab& z_phys_cc,
                       const eb_& ebfact,
                       amrex::Vector<amrex::MultiFab>& gradp,
-                      const SolverChoice& solverChoice);
+                      const SolverChoice& solverChoice,
+                      bool use_zcc);
 
 void compute_gradp_hse (const amrex::MultiFab& p,
                         const amrex::MultiFab& rhopert,
