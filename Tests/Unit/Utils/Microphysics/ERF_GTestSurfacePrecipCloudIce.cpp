@@ -112,6 +112,20 @@ SurfacePrecipAccumulationSources unit_fallout_sources (Scheme& scheme, MoistureT
     return scheme.Get_Surface_Precip_Accumulation_Ptrs(0);
 }
 
+// Component c of the k = 0 plane of a 3D field, on the 2D boxes. A free function
+// because nvcc rejects an extended __device__ lambda inside a gtest TEST body.
+MultiFab k0_component (const MultiFab& src, const int c)
+{
+    MultiFab k0(boxes2d(), dmap(), 1, 0);
+    for (MFIter mfi(k0); mfi.isValid(); ++mfi) {
+        const auto o = k0.array(mfi);
+        const auto d = src.const_array(mfi);
+        ParallelFor(mfi.validbox(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        { o(i, j, k) = d(i, j, 0, c); });
+    }
+    return k0;
+}
+
 } // namespace
 
 // With rest_is_frozen the frozen part is the total less the rain, so the cloud ice
@@ -189,14 +203,7 @@ TEST(SurfacePrecipCloudIce, PlotfileFrozenAccumulationHoldsTheCloudIce)
         Real expected = kTotal;
         if (selected.id[n] == plotfile2d::DiagnosticID::PrecipRainAccum)   { expected = kRain; }
         if (selected.id[n] == plotfile2d::DiagnosticID::PrecipFrozenAccum) { expected = kSnow + kGraupel + kIce; }
-        MultiFab k0(boxes2d(), dm, 1, 0);
-        for (MFIter mfi(k0); mfi.isValid(); ++mfi) {
-            const auto o = k0.array(mfi);
-            const auto d = dst.const_array(mfi);
-            const int c = selected.dst_comp[n];
-            ParallelFor(mfi.validbox(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-            { o(i, j, k) = d(i, j, 0, c); });
-        }
+        const MultiFab k0 = k0_component(dst, selected.dst_comp[n]);
         EXPECT_EQ(k0.min(0), expected) << names[n];
         EXPECT_EQ(k0.max(0), expected) << names[n];
     }
