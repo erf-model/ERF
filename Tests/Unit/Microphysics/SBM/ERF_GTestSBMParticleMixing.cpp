@@ -387,6 +387,7 @@ host_mapped_diffusion (const DiffusionGrid& g, const DiffusionFields& f, const i
         if (g.stretched) {
             BuildScalarDiffusionFluxes_S(
                 bx, g.domain, field, policy, inv[0], inv[1], g.dz.data(), klo, khi,
+                amrex::Array4<const amrex::Real>{}, amrex::Array4<const amrex::Real>{},
                 g.mf_ux.const_array(mfi), g.mf_uy.const_array(mfi),
                 g.mf_vx.const_array(mfi), g.mf_vy.const_array(mfi), bcs.data(), 0);
             BuildScalarDiffusionMappedTransfers_S(
@@ -1153,7 +1154,8 @@ void run_terrain_counterexample ()
         field.zflux = raw_z.array(mfi);
         BuildScalarDiffusionFluxes_T(
             bx, domain, field, policy, false, z_nd.const_array(mfi), z_cc.const_array(mfi),
-            inv, one_x.const_array(mfi), one_y.const_array(mfi), bcs.data(), 0);
+            inv, amrex::Array4<const amrex::Real>{}, amrex::Array4<const amrex::Real>{},
+            one_x.const_array(mfi), one_y.const_array(mfi), bcs.data(), 0);
         BuildScalarDiffusionMappedTransfers_T(
             bx, domain, raw_x.const_array(mfi), raw_y.const_array(mfi),
             raw_z.const_array(mfi), 0, mapped.dir(0).array(mfi), 0,
