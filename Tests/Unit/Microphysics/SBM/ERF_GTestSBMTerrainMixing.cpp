@@ -6,6 +6,8 @@
 #include <AMReX_GpuContainers.H>
 #include <AMReX_MFIter.H>
 #include <AMReX_MultiFab.H>
+#include <AMReX_PlotFileUtil.H>
+#include <AMReX_VisMF.H>
 
 #include "ERF_AuxiliaryDiffusion.H"
 #include "ERF_AuxiliaryMappedTransport.H"
@@ -21,8 +23,11 @@
 #include <array>
 #include <chrono>
 #include <cmath>
+#include <cstdint>
+#include <cstdlib>
 #include <limits>
 #include <memory>
+#include <sstream>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -994,6 +999,27 @@ void run_terrain_envelope ()
         stage(*missing, HostIntegrator::CompressibleRK3, 0, 0.0, 0.0, 0.001, 0.001);
     });
     EXPECT_NE(heights.find("cell-centre heights"), std::string::npos) << heights;
+
+    // A periodic face whose two copies read map factors one roundoff apart:
+    // matching could then give them different rates and lose conservation.
+    auto skewed = make_run(Options{});
+    const int nx = skewed->options.nx;
+    auto& u_x = *skewed->mapfac[MapFacType::u_x];
+    for (amrex::MFIter mfi(u_x); mfi.isValid(); ++mfi) {
+        const auto a = u_x.array(mfi);
+        amrex::ParallelFor(mfi.validbox(), [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+            if (i == nx) { a(i, j, k, 0) += Real(1.0e-15); }
+        });
+    }
+    const auto initial = copy_of(skewed->spectrum());
+    begin_step(*skewed, 0.0);
+    const std::string shared = abort_message([&] {
+        stage(*skewed, HostIntegrator::CompressibleRK3, 0, 0.0, 0.0, 0.001, 0.001);
+    });
+    EXPECT_NE(shared.find("both copies of every face shared"), std::string::npos)
+        << shared;
+    EXPECT_NE(shared.find("the u_x map factor differ"), std::string::npos) << shared;
+    EXPECT_EQ(difference(skewed->state->old_state(0), *initial), Real(0.0));
 }
 
 // Endpoint numbers of the last 2M bin, whose edges are 0.5 and 1:
@@ -1648,6 +1674,332 @@ void run_edge_bin ()
     expect_conserved(*initial, *run);
 }
 
+// Qualification tool: a run on the grid of an ERF LES over terrain, read from
+// ERF_M6B_LES_PLOTFILE (with Kmv and Kmh) and ERF_M6B_LES_CHECKPOINT (with
+// Z_Phys_nd). HostPassiveScalar reads Scalar_h = Kmh and Scalar_v = Kmv, the
+// momentum channels, whose ratio the scalar channels share; the density is
+// one, x and y are periodic, and walls bound z.
+std::unique_ptr<Run> make_les_run (const std::string& plotfile, const std::string& checkpoint,
+                                   const bool match)
+{
+    auto run = std::make_unique<Run>();
+    amrex::PlotFileData pf(plotfile);
+    const Box domain = pf.probDomain(0);
+    const auto lo = pf.probLo();
+    const auto hi = pf.probHi();
+    const amrex::RealBox real_box(lo.data(), hi.data());
+    const int periodic[AMREX_SPACEDIM] = {1, 1, 0};
+    run->geom = Geometry(domain, &real_box, amrex::CoordSys::cartesian, periodic);
+    MultiFab z_file;
+    amrex::VisMF::Read(z_file, checkpoint + "/Level_0/Z_Phys_nd");
+    run->ba = amrex::convert(z_file.boxArray(), IntVect(0));
+    run->dm = z_file.DistributionMap();
+    const auto& ba = run->ba;
+    const auto& dm = run->dm;
+    auto& options = run->options;
+    options.nx = domain.length(0);
+    options.ny = domain.length(1);
+    options.nz = domain.length(2);
+    options.lx = Real(hi[0] - lo[0]);
+    options.ly = Real(hi[1] - lo[1]);
+    options.match = match;
+
+    run->state = std::make_unique<erf_sbm::SBMStateManager>(
+        make_layout(erf_sbm::MomentMode::OneMoment, false), 1);
+    run->state->define(0, ba, dm, 0.0);
+    run->transport = std::make_unique<erf_sbm::SBMTransport>(run->state->layout(), 1, 16);
+    run->transport->define(0, ba, dm);
+    erf_sbm::ParticleMixingConfig config;
+    config.policy = ParticleMixingPolicy::HostPassiveScalar;
+    run->transport->set_particle_mixing(config, erf_auxiliary::DiffusionMesh::VariableDz,
+                                        {true, match});
+    erf_sbm::SBMPhysicalBoundaryConfig boundaries;
+    boundaries.kind[2] = erf_sbm::AdvectionFaceKind::ImpermeableWall;
+    boundaries.kind[5] = erf_sbm::AdvectionFaceKind::ImpermeableWall;
+    run->transport->set_physical_boundaries(boundaries);
+
+    amrex::BoxList boxes = ba.boxList();
+    for (auto& box : boxes) { box.setRange(2, 0); }
+    const BoxArray ba2d(std::move(boxes));
+    run->mapfac.resize(MapFacType::num);
+    run->mapfac[MapFacType::m_x] = std::make_unique<MultiFab>(ba2d, dm, 1, 0);
+    run->mapfac[MapFacType::u_x] = std::make_unique<MultiFab>(
+        amrex::convert(ba2d, IntVect(1, 0, 0)), dm, 1, 0);
+    run->mapfac[MapFacType::v_x] = std::make_unique<MultiFab>(
+        amrex::convert(ba2d, IntVect(0, 1, 0)), dm, 1, 0);
+    for (int m = 0; m < MapFacType::num; ++m) { run->mapfac[m]->setVal(Real(1.0)); }
+
+    run->z_nd.define(z_file.boxArray(), dm, 1, z_file.nGrowVect());
+    MultiFab::Copy(run->z_nd, z_file, 0, 0, 1, z_file.nGrowVect());
+    run->z_cc.define(ba, dm, 1, 2);
+    for (amrex::MFIter mfi(run->z_cc); mfi.isValid(); ++mfi) {
+        const auto zc = run->z_cc.array(mfi);
+        const auto zn = run->z_nd.const_array(mfi);
+        amrex::ParallelFor(mfi.fabbox(), [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+            zc(i, j, k) = Compute_Z_AtCellCenter(i, j, k, zn);
+        });
+    }
+    run->detj.define(ba, dm, 1, 0);
+    make_J(run->geom, run->z_nd, run->detj);
+    run->ax.define(amrex::convert(ba, IntVect(1, 0, 0)), dm, 1, 0);
+    run->ay.define(amrex::convert(ba, IntVect(0, 1, 0)), dm, 1, 0);
+    MultiFab az(amrex::convert(ba, IntVect(0, 0, 1)), dm, 1, 0);
+    make_areas(run->geom, run->z_nd, run->ax, run->ay, az);
+    std::string diagnostic;
+    EXPECT_TRUE(run->transport->rebuild_static_measure(0, run->detj, *run->mapfac[MapFacType::m_x],
+                                                       *run->mapfac[MapFacType::m_x], diagnostic))
+        << diagnostic;
+
+    run->rho.define(ba, dm, 3, 2);
+    run->rho.setVal(Real(1.0));
+    run->target.define(ba, dm, 3, 2);
+    run->target.setVal(Real(1.0));
+    run->eddy.define(ba, dm, EddyDiff::NumDiffs, 2);
+    run->eddy.setVal(Real(0.0));
+    run->eddy.ParallelCopy(pf.get(0, "Kmh"), 0, EddyDiff::Scalar_h, 1);
+    run->eddy.ParallelCopy(pf.get(0, "Kmv"), 0, EddyDiff::Scalar_v, 1);
+    run->eddy.FillBoundary(run->geom.periodicity());
+    // Below the bottom and above the top, the nearest interior value.
+    const int nz = options.nz;
+    for (amrex::MFIter mfi(run->eddy); mfi.isValid(); ++mfi) {
+        const auto a = run->eddy.array(mfi);
+        amrex::ParallelFor(mfi.fabbox(), static_cast<int>(EddyDiff::NumDiffs),
+            [=] AMREX_GPU_DEVICE(int i, int j, int k, int n) noexcept {
+                if (k < 0) { a(i, j, k, n) = a(i, j, 0, n); }
+                if (k >= nz) { a(i, j, k, n) = a(i, j, nz - 1, n); }
+            });
+    }
+
+    run->xmom.define(amrex::convert(ba, IntVect(1, 0, 0)), dm, 1, 0);
+    run->ymom.define(amrex::convert(ba, IntVect(0, 1, 0)), dm, 1, 0);
+    run->zmom.define(amrex::convert(ba, IntVect(0, 0, 1)), dm, 1, 0);
+    run->xmom.setVal(Real(0.0));
+    run->ymom.setVal(Real(0.0));
+    run->zmom.setVal(Real(0.0));
+    run->inputs = erf_sbm::make_stage_mixing_inputs(*run->transport, &run->eddy, run->mapfac,
+                                                    &run->ax, &run->ay, nullptr, &run->z_nd,
+                                                    &run->z_cc);
+    return run;
+}
+
+Real cell_value (const MultiFab& mf, const int comp, const IntVect& cell)
+{
+    Real value = Real(0.0);
+    for (amrex::MFIter mfi(mf); mfi.isValid(); ++mfi) {
+        if (mfi.validbox().contains(cell)) { value = mf.const_array(mfi)(cell, comp); }
+    }
+    amrex::ParallelAllReduce::Sum(value, amrex::ParallelContext::CommunicatorSub());
+    return value;
+}
+
+// The least eigenvector of the symmetric part of the C-weighted native
+// operator restricted to `window` (as the numerical analysis's witness), as an
+// intensive field zero outside it, with the least eigenvalue. Host-side.
+std::unique_ptr<MultiFab> window_witness (Run& run, const Box& window, Real& least_eigenvalue)
+{
+    std::vector<IntVect> cells;
+    for (amrex::BoxIterator bit(window); bit.ok(); ++bit) { cells.push_back(bit()); }
+    const int m = static_cast<int>(cells.size());
+    const MultiFab& omega = run.transport->static_measure(0);
+    std::vector<Real> weight(static_cast<std::size_t>(m)), measure(static_cast<std::size_t>(m));
+    for (int a = 0; a < m; ++a) {
+        measure[static_cast<std::size_t>(a)] = cell_value(omega, 0, cells[static_cast<std::size_t>(a)]);
+        weight[static_cast<std::size_t>(a)] =
+            measure[static_cast<std::size_t>(a)] *
+            cell_value(run.rho, Rho_comp, cells[static_cast<std::size_t>(a)]);
+    }
+    // A = C^{-1/2} K C^{-1/2} with K_ab = -omega_a T(e_b)_a.
+    std::vector<Real> matrix(static_cast<std::size_t>(m) * static_cast<std::size_t>(m));
+    const int ncomp = run.spectrum().nComp();
+    MultiFab u(run.ba, run.dm, ncomp, 0);
+    MultiFab tendency(run.ba, run.dm, ncomp, 0);
+    for (int b = 0; b < m; ++b) {
+        const IntVect unit = cells[static_cast<std::size_t>(b)];
+        u.setVal(Real(0.0));
+        for (amrex::MFIter mfi(u); mfi.isValid(); ++mfi) {
+            const auto out = u.array(mfi);
+            const auto r = run.rho.const_array(mfi);
+            amrex::ParallelFor(mfi.validbox(), [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                if (i == unit[0] && j == unit[1] && k == unit[2]) {
+                    out(i, j, k, 0) = r(i, j, k, Rho_comp);
+                }
+            });
+        }
+        tendency.setVal(Real(0.0));
+        native_tendency(run, u, tendency);
+        for (int a = 0; a < m; ++a) {
+            const std::size_t ia = static_cast<std::size_t>(a);
+            matrix[ia * static_cast<std::size_t>(m) + static_cast<std::size_t>(b)] =
+                -measure[ia] * cell_value(tendency, 0, cells[ia]) /
+                std::sqrt(weight[ia] * weight[static_cast<std::size_t>(b)]);
+        }
+    }
+    std::vector<Real> sym(matrix.size());
+    Real bound = Real(0.0);
+    for (int a = 0; a < m; ++a) {
+        Real row = Real(0.0);
+        for (int b = 0; b < m; ++b) {
+            const std::size_t ab = static_cast<std::size_t>(a * m + b);
+            const std::size_t ba_ = static_cast<std::size_t>(b * m + a);
+            sym[ab] = Real(0.5) * (matrix[ab] + matrix[ba_]);
+            row += std::abs(sym[ab]);
+        }
+        bound = std::max(bound, row);
+    }
+    std::vector<Real> v(static_cast<std::size_t>(m)), w(static_cast<std::size_t>(m));
+    for (int a = 0; a < m; ++a) {
+        v[static_cast<std::size_t>(a)] = Real(1.0) + Real(0.1) * std::sin(Real(1.7) * Real(a));
+    }
+    Real eigen = Real(0.0);
+    for (int iteration = 0; iteration < 1000000; ++iteration) {
+        Real norm = Real(0.0);
+        for (int a = 0; a < m; ++a) {
+            Real value = bound * v[static_cast<std::size_t>(a)];
+            for (int b = 0; b < m; ++b) {
+                value -= sym[static_cast<std::size_t>(a * m + b)] * v[static_cast<std::size_t>(b)];
+            }
+            w[static_cast<std::size_t>(a)] = value;
+            norm += value * value;
+        }
+        norm = std::sqrt(norm);
+        Real change = Real(0.0);
+        for (int a = 0; a < m; ++a) {
+            const Real next = w[static_cast<std::size_t>(a)] / norm;
+            change = std::max(change, std::abs(next - v[static_cast<std::size_t>(a)]));
+            v[static_cast<std::size_t>(a)] = next;
+        }
+        eigen = bound - norm;
+        if (change < Real(1.0e-12)) { break; }
+    }
+    least_eigenvalue = eigen;
+    auto field = std::make_unique<MultiFab>(run.ba, run.dm, 1, 0);
+    field->setVal(Real(0.0));
+    for (int a = 0; a < m; ++a) {
+        const IntVect cell = cells[static_cast<std::size_t>(a)];
+        const Real value = v[static_cast<std::size_t>(a)] / std::sqrt(weight[static_cast<std::size_t>(a)]);
+        for (amrex::MFIter mfi(*field); mfi.isValid(); ++mfi) {
+            if (!mfi.validbox().contains(cell)) continue;
+            const auto out = field->array(mfi);
+            amrex::ParallelFor(Box(cell, cell), [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                out(i, j, k, 0) = value;
+            });
+        }
+    }
+    return field;
+}
+
+// Mean-free weighted amplitudes of a matched-stage run on the LES grid from
+// q = 2 + f / max|f|, at t K / L^2 = marks, K the domain-mean horizontal
+// diffusivity and L the domain height, over the initial amplitude.
+std::vector<Real> les_trajectory (Run& run, const MultiFab& f, const std::vector<double>& marks)
+{
+    const Real peak = f.norm0(0);
+    auto& u0 = run.state->new_state_for_initialization(0);
+    const int ncomp = u0.nComp();
+    for (amrex::MFIter mfi(u0); mfi.isValid(); ++mfi) {
+        const auto out = u0.array(mfi);
+        const auto in = f.const_array(mfi);
+        const auto r = run.rho.const_array(mfi);
+        amrex::ParallelFor(mfi.validbox(), ncomp,
+            [=] AMREX_GPU_DEVICE(int i, int j, int k, int n) noexcept {
+                out(i, j, k, n) = r(i, j, k, Rho_comp) * Real(0.01) * (Real(2.0) + in(i, j, k, 0) / peak);
+            });
+    }
+    const Real initial = weighted_amplitude(run, run.spectrum());
+    erf_auxiliary::MappedFaceTransmissibility t;
+    t.define(run.ba, run.dm, 1, 0);
+    std::string diagnostic;
+    EXPECT_TRUE(erf_sbm::build_particle_mixing_transmissibility(
+        run.transport->particle_mixing(), run.geom, run.inputs.metrics, run.rho, Rho_comp,
+        run.inputs.eddy_diffusivity, t, diagnostic)) << diagnostic;
+    erf_auxiliary::MappedFaceFluxRate at_rest;
+    at_rest.define(run.ba, run.dm, 1, 0);
+    at_rest.setVal(Real(0.0));
+    Real rate = Real(0.0);
+    EXPECT_TRUE(erf_auxiliary::ComputeMaxMappedCombinedOutgoingRate(
+        at_rest, t, run.transport->static_measure(0), run.rho, Rho_comp,
+        run.geom.InvCellSizeArray(), rate, diagnostic)) << diagnostic;
+    const Real k_mean = run.eddy.sum(EddyDiff::Scalar_h) /
+                        Real(run.options.nx * run.options.ny * run.options.nz);
+    const Real height = run.geom.ProbHi(2) - run.geom.ProbLo(2);
+    std::vector<Real> amplitude;
+    double now = 0.0;
+    int total_steps = 0;
+    for (const double mark : marks) {
+        const double span = mark * height * height / k_mean - now;
+        const int steps = static_cast<int>(std::ceil(span * rate / 0.8));
+        const double dt = span / steps;
+        for (int step = 0; step < steps; ++step) {
+            now = step_once(run, HostIntegrator::CompressibleRK3, now, dt);
+        }
+        total_steps += steps;
+        amplitude.push_back(weighted_amplitude(run, run.spectrum()) / initial);
+    }
+    amrex::Print() << "SBM_M6B_LES_TRAJECTORY k_mean=" << k_mean << " rate=" << rate
+                   << " steps=" << total_steps << '\n';
+    return amplitude;
+}
+
+// The weak-damping gate on actual LES coefficients: from the analysis's
+// witness restricted to a window about `center`, three or more layers from
+// the walls, and from a deterministic noise field filling the domain.
+void run_les_damping ()
+{
+    const char* plotfile = std::getenv("ERF_M6B_LES_PLOTFILE");
+    const char* checkpoint = std::getenv("ERF_M6B_LES_CHECKPOINT");
+    const char* center_text = std::getenv("ERF_M6B_LES_CENTER");
+    const char* marks_text = std::getenv("ERF_M6B_LES_MARKS");
+    if (plotfile == nullptr || checkpoint == nullptr || center_text == nullptr) {
+        GTEST_SKIP() << "set ERF_M6B_LES_PLOTFILE, ERF_M6B_LES_CHECKPOINT and "
+                        "ERF_M6B_LES_CENTER (i,j,k of the window centre)";
+    }
+    std::vector<double> marks{0.001, 0.01, 0.1, 1.0};
+    if (marks_text != nullptr) {
+        marks.clear();
+        std::istringstream in(marks_text);
+        for (double mark; in >> mark;) { marks.push_back(mark); }
+    }
+    IntVect center;
+    {
+        std::istringstream in(center_text);
+        in >> center[0] >> center[1] >> center[2];
+    }
+    auto run = make_les_run(plotfile, checkpoint, true);
+    const int nz = run->options.nz;
+    Box window(center - IntVect(3, 3, 5), center + IntVect(2, 2, 4));
+    window.setSmall(2, std::max(window.smallEnd(2), 3));
+    window.setBig(2, std::min(window.bigEnd(2), nz - 4));
+    Real least = Real(0.0);
+    const auto witness = window_witness(*run, window, least);
+    const auto witness_amplitude = les_trajectory(*run, *witness, marks);
+
+    auto noise_run = make_les_run(plotfile, checkpoint, true);
+    MultiFab noise(noise_run->ba, noise_run->dm, 1, 0);
+    for (amrex::MFIter mfi(noise); mfi.isValid(); ++mfi) {
+        const auto out = noise.array(mfi);
+        amrex::ParallelFor(mfi.validbox(), [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+            // A deterministic hash in [-1, 1].
+            const std::uint32_t h = static_cast<std::uint32_t>(i * 73856093) ^
+                                    static_cast<std::uint32_t>(j * 19349663) ^
+                                    static_cast<std::uint32_t>(k * 83492791);
+            const std::uint32_t mixed = (h ^ (h >> 13)) * 0x5bd1e995u;
+            out(i, j, k, 0) = Real((mixed ^ (mixed >> 15)) % 20001u) / Real(10000.0) - Real(1.0);
+        });
+    }
+    const auto noise_amplitude = les_trajectory(*noise_run, noise, marks);
+
+    auto print = [] (const std::vector<Real>& values) {
+        std::ostringstream out;
+        for (std::size_t s = 0; s < values.size(); ++s) { out << (s ? "," : "") << values[s]; }
+        return out.str();
+    };
+    amrex::Print() << "SBM_M6B_LES_DAMPING window=" << window << " cells=" << window.numPts()
+                   << " least_eigenvalue=" << least << " witness=" << print(witness_amplitude)
+                   << " noise=" << print(noise_amplitude) << '\n';
+    for (const Real a : witness_amplitude) { EXPECT_LE(a, Real(1.02)); }
+    for (const Real a : noise_amplitude) { EXPECT_LE(a, Real(1.02)); }
+}
+
 // Qualification tool, disabled by default: the cost of matching against the
 // unmatched comparator (theta = 1) on the same terrain stage, boundaries,
 // chunks and timestep, with an advecting carrier and HostPassiveScalar
@@ -1747,6 +2099,7 @@ TEST(SBMTerrainMixing, ProportionalPropertyStripeAccuracyGate) { run_proportiona
 TEST(SBMTerrainMixing, TwoSlopeCurvedDryHalfAccuracyGate) { run_two_slope_gate(); }
 TEST(SBMTerrainMixing, NearlyEmptyBinAtItsStrictEdgeStaysCanonical) { run_edge_bin(); }
 TEST(SBMTerrainMixing, DISABLED_MatchingCost) { run_matching_cost(); }
+TEST(SBMTerrainMixing, DISABLED_LesWeakDamping) { run_les_damping(); }
 TEST(SBMTerrainMixing, DISABLED_WeakDampingWitness)
 {
     // The numerical analysis's grid, then half its amplitudes, at 16^2; then

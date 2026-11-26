@@ -658,12 +658,80 @@ build_terrain_high_order_mixing (erf_auxiliary::MappedFaceFluxRate& diffusive,
     }
 }
 
+// Largest difference between the copies of the faces or nodes a field shares
+// across box boundaries and periodic images: zero when every copy holds one
+// value. ERF syncs its nodal heights (OverrideSync), so the metrics derived
+// from them agree; its map factors are not synced and must agree by
+// construction.
+Real
+shared_copy_mismatch (const MultiFab& field, const amrex::Periodicity& period)
+{
+    MultiFab synced(field.boxArray(), field.DistributionMap(), field.nComp(), 0);
+    MultiFab::Copy(synced, field, 0, 0, field.nComp(), 0);
+    synced.OverrideSync(period);
+    MultiFab::Subtract(synced, field, 0, 0, field.nComp(), 0);
+    return synced.norm0(0, field.nComp(), amrex::IntVect(0));
+}
+
+// The shared-copy mismatch of every metric a terrain side face reads: its
+// area, its map factors and the terrain slopes of ERF's side flux, which take
+// differences of the nodal heights. Returns the first that differs, or empty.
+// (The k faces have no periodic images, and the boxes sharing one read the
+// same nodes.)
+std::string
+shared_metric_mismatch (const erf_auxiliary::MappedDiffusionMetrics& metrics,
+                        const amrex::Geometry& geometry)
+{
+    const amrex::Box& domain = geometry.Domain();
+    const amrex::Periodicity lateral(amrex::IntVect(
+        AMREX_D_DECL(geometry.isPeriodic(0) ? domain.length(0) : 0,
+                     geometry.isPeriodic(1) ? domain.length(1) : 0, 0)));
+    const auto dx_inv = geometry.InvCellSizeArray();
+    std::array<MultiFab, 2> slope;
+    for (int dir = 0; dir < 2; ++dir) {
+        const MultiFab& area = dir == 0 ? *metrics.ax : *metrics.ay;
+        slope[static_cast<std::size_t>(dir)].define(area.boxArray(), area.DistributionMap(), 2, 0);
+        for (amrex::MFIter mfi(area); mfi.isValid(); ++mfi) {
+            const auto out = slope[static_cast<std::size_t>(dir)].array(mfi);
+            const auto z_nd = metrics.z_nd->const_array(mfi);
+            amrex::ParallelFor(mfi.validbox(), [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                out(i, j, k, 0) = dir == 0 ? Compute_h_xi_AtIface(i, j, k, dx_inv, z_nd)
+                                           : Compute_h_xi_AtJface(i, j, k, dx_inv, z_nd);
+                out(i, j, k, 1) = dir == 0 ? Compute_h_eta_AtIface(i, j, k, dx_inv, z_nd)
+                                           : Compute_h_eta_AtJface(i, j, k, dx_inv, z_nd);
+            });
+        }
+    }
+    const std::array<std::pair<const char*, const MultiFab*>, 8> fields{{
+        {"ax", metrics.ax}, {"ay", metrics.ay},
+        {"the x-face terrain slopes", &slope[0]}, {"the y-face terrain slopes", &slope[1]},
+        {"the u_x map factor", metrics.mf_ux}, {"the u_y map factor", metrics.mf_uy},
+        {"the v_x map factor", metrics.mf_vx}, {"the v_y map factor", metrics.mf_vy}}};
+    for (const auto& [name, field] : fields) {
+        const Real mismatch = shared_copy_mismatch(*field, lateral);
+        if (mismatch != Real(0.0)) {
+            std::ostringstream message;
+            message.precision(6);
+            message << name << " differ by " << mismatch;
+            return message.str();
+        }
+    }
+    return {};
+}
+
 // Terrain mixing only: one chunk's diffusive rates. The high-order rates take
 // the native terrain diffusion D^H unchanged. The low-order rates take
 // theta L^0, where L^0 = -T_f (z_R - z_L) is the nominal diagonal exchange of
 // the trial base and theta, one per face and atomic group, is the least
 // matched_diffusion_fraction of the group's matched coordinates, which keeps
 // each of them between zero and its native rate. Without `match`, theta = 1.
+//
+// Conservation requires both copies of a face shared by two boxes, or by a
+// box and its periodic image, to get the same rate. theta is not continuous
+// in its inputs: a coordinate whose low rate is cancellation noise, the low
+// endpoint of a bin whose mean sits at its upper edge, can turn theta from 0
+// to 1 on a roundoff change. So the metrics the two copies read must agree
+// bitwise, which shared_metric_mismatch checks once per level.
 void
 add_matched_terrain_mixing (erf_auxiliary::MappedFaceFluxRate& low,
                             erf_auxiliary::MappedFaceFluxRate& high,
@@ -1910,6 +1978,8 @@ struct SBMTransport::LevelStorage
     MultiFab terrain_scalar;
     std::array<MultiFab, AMREX_SPACEDIM> terrain_raw;
     std::array<MultiFab, 2> terrain_side_open;
+    // Whether the static terrain metrics' shared copies have been checked.
+    bool terrain_metrics_checked{false};
     erf_auxiliary::CompletedStepFluxLedger projected_ledger;
     erf_auxiliary::CompletedStepFluxLedger spectral_ledger;
     SBMAMRFluxRegister* interface_as_coarse{nullptr};
@@ -2537,6 +2607,8 @@ SBMTransport::rebuild_static_measure (const int level,
                                                diagnostic))
         return false;
     data.measure_ready = true;
+    // New static geometry: check its shared metric copies again.
+    data.terrain_metrics_checked = false;
     return true;
 }
 
@@ -2646,6 +2718,15 @@ SBMTransport::advance_stage (const int level,
                    !z_nd->nGrowVect().allGE(amrex::IntVect(1))) {
             reason = "requires ERF's cell-centre heights with two ghost cells and nodal "
                      "heights with one";
+        }
+        if (reason.empty() && !data.terrain_metrics_checked) {
+            const std::string mismatch = shared_metric_mismatch(mixing->metrics, geometry);
+            if (!mismatch.empty()) {
+                reason = "requires both copies of every face shared by two boxes, or by a "
+                         "box and its periodic image, to read one metric, but " + mismatch +
+                         "; sync them with OverrideSync, as ERF does its nodal heights";
+            }
+            data.terrain_metrics_checked = true;
         }
         if (!reason.empty()) {
             amrex::Abort("SBM terrain-fitted particle mixing " + reason);
