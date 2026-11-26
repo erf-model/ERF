@@ -89,9 +89,9 @@ ERF::FillCoarsePatch (int lev, double time)
 
     InterpFromCoarseLevelCons(lev, vars_new[lev][Vars::cons], ngvect_cons, vars_new[lev-1][Vars::cons]);
 
-    // Refill the valid cells weighted by detJ, so that they hold the coarse mass; detJ is not
-    //    available in all the ghost cells
-    if (volume_weighted_interp()) {
+    // Refill the valid cells so that they hold the coarse amounts (weighted by detJ, and the
+    //    scalars restored); detJ is not available in all the ghost cells
+    {
         MultiFab mf_v(vars_new[lev][Vars::cons].boxArray(), vars_new[lev][Vars::cons].DistributionMap(),
                       ncomp_cons, 0);
         InterpFromCoarseLevelCons(lev, mf_v, IntVect(0), vars_new[lev-1][Vars::cons], true);
