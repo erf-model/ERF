@@ -755,7 +755,8 @@ public:
   /**
    * @brief One bulk snow layer on the force-restore surface (ERF_ForceRestoreSnow.H): the
    * snow routine of the ISBA scheme as in Douville, Royer and Mahfouf (1995), Sec. 2.1, for
-   * bare ground. Frozen surface precipitation (snow, graupel, hail) builds a snow water
+   * bare ground. Frozen surface precipitation (snow, graupel, hail; for WSM6 and WDM6 also
+   * the cloud ice that fell out) builds a snow water
    * equivalent; the snow raises the surface albedo, sublimates, and melts where the balance
    * takes T_s above 273.16 K, with the melt water going to the soil as rain. Needs
    * seb_prognostic_enable, seb_use_radiation_fluxes, seb_precipitation_source = microphysics,

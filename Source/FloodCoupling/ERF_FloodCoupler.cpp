@@ -111,6 +111,7 @@ FloodCoupler::set_precip_reference (const SurfacePrecipAccumulationSources& prec
 {
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(m_grid_set, "[FLOOD] FloodCoupler: set_flood_grid() before set_precip_reference()");
     m_precip_prev = std::make_unique<MultiFab>(m_ba_cols, m_dm_cols, 2, 0);
+    m_precip_rest_frozen = precip_sources.rest_is_frozen;
     surface_precip_liquid_frozen_accum_k0(*m_precip_prev, precip_sources, m_geom_atm.Domain().smallEnd(2));
 }
 
@@ -206,7 +207,7 @@ FloodCoupler::write_checkpoint (const std::string& checkpointname) const
     // and the next step hands that correction to the engine; saving the
     // reference keeps the correction for the step after a restart.
     if (m_precip_prev) {
-        VisMF::Write(*m_precip_prev, checkpointname + "/Level_" + std::to_string(m_lev) + "/FloodPrecipRef");
+        VisMF::Write(*m_precip_prev, checkpointname + "/Level_" + std::to_string(m_lev) + "/" + precip_ref_name());
     }
 }
 
@@ -236,7 +237,10 @@ FloodCoupler::read_checkpoint (const std::string& restart_chkfile, int step)
     // every rank takes the same branch. Every level the checkpoint holds is
     // searched, not only those of this run's amr.max_level, so a restart onto
     // fewer levels stops on the mismatch instead of starting the engine empty.
-    Vector<int> rec(8, -1);   // found, lev, C, ilo, jlo, ihi, jhi, has precipitation reference
+    // found, lev, C, ilo, jlo, ihi, jhi, has this run's precipitation reference,
+    // has a FloodPrecipRef where this run writes FloodPrecipRefIce
+    Vector<int> rec(9, -1);
+    const std::string ref_name = precip_ref_name();
     if (ParallelDescriptor::IOProcessor()) {
         for (int l = 0; amrex::FileExists(restart_chkfile + "/Level_" + std::to_string(l)); ++l) {
             const std::string f = restart_chkfile + "/Level_" + std::to_string(l) + "/FloodGrid";
@@ -245,8 +249,9 @@ FloodCoupler::read_checkpoint (const std::string& restart_chkfile, int step)
             rec[0] = 1;
             is >> rec[1] >> rec[2] >> rec[3] >> rec[4] >> rec[5] >> rec[6];
             if (!is) { rec[0] = 0; }   // unreadable record
-            rec[7] = amrex::FileExists(restart_chkfile + "/Level_" + std::to_string(l)
-                                       + "/FloodPrecipRef_H") ? 1 : 0;
+            const std::string lev_dir = restart_chkfile + "/Level_" + std::to_string(l);
+            rec[7] = amrex::FileExists(lev_dir + "/" + ref_name + "_H") ? 1 : 0;
+            rec[8] = (ref_name != "FloodPrecipRef" && amrex::FileExists(lev_dir + "/FloodPrecipRef_H")) ? 1 : 0;
             break;
         }
     }
@@ -266,11 +271,21 @@ FloodCoupler::read_checkpoint (const std::string& restart_chkfile, int step)
     m_engine->read_checkpoint(restart_chkfile, step);
     // The reference the flood last read, which can differ from the restored
     // accumulators under a finer level (write_checkpoint)
+    if (rec[7] == 0 && rec[8] == 1 && m_precip_prev) {
+        // A reference written with the cloud ice in the liquid part: the one taken
+        // from the restored accumulators (set_precip_reference) is kept. Without a
+        // finer level those accumulators are what the flood last read; under one,
+        // the finer level's last correction is not handed to the engine.
+        amrex::Print() << "[FLOOD] The checkpoint holds FloodPrecipRef, written before the cloud ice of"
+                          " WSM6 and WDM6 counted as frozen; the flood ignores it and takes its reference"
+                          " from the restored accumulators, so a correction pending from a finer level"
+                          " at the checkpoint is not carried over.\n";
+    }
     if (rec[7] == 1 && m_precip_prev) {
         MultiFab ref;
-        VisMF::Read(ref, restart_chkfile + "/Level_" + std::to_string(m_lev) + "/FloodPrecipRef");
+        VisMF::Read(ref, restart_chkfile + "/Level_" + std::to_string(m_lev) + "/" + ref_name);
         AMREX_ALWAYS_ASSERT_WITH_MESSAGE(ref.nComp() == m_precip_prev->nComp(),
-            "[FLOOD] The checkpoint's FloodPrecipRef has the wrong number of components");
+            "[FLOOD] The checkpoint's " + ref_name + " has the wrong number of components");
         m_precip_prev->ParallelCopy(ref, 0, 0, ref.nComp());
     }
 }

@@ -329,6 +329,7 @@ add_high_order_mixing (erf_auxiliary::MappedFaceFluxRate& high,
                     BuildScalarDiffusionFluxes_S(
                         bx, domain, field, policy, dx_inv[0], dx_inv[1],
                         metrics.stretched_dz, domain.smallEnd(2), domain.bigEnd(2),
+                        amrex::Array4<const Real>{}, amrex::Array4<const Real>{},
                         mf_ux, mf_uy, mf_vx, mf_vy, bc, 0);
                     BuildScalarDiffusionMappedTransfers_S(
                         bx, xflux, local, yflux, local, zflux, local,

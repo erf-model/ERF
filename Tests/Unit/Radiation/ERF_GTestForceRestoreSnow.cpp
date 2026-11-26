@@ -839,3 +839,35 @@ TEST(ForceRestoreSnow, RestartRefusesHalfOfTheSnowFiles)
     }
     amrex::FileSystem::RemoveAll(chk);
 }
+
+// WSM6 and WDM6 add the cloud-ice fallout to their total (rest_is_frozen). The snow layer
+// then takes the total less the rain as frozen, so the cloud ice builds snow, and the
+// hydrology takes the rain only.
+TEST(ForceRestoreSnow, TheCloudIceOfATotalWithAFrozenRestFallsAsSnow)
+{
+    using namespace amrex;
+    RadChoice rc;
+    rc.seb_snow_enable = true;
+    rc.seb_precipitation_source = SEBPrecipitationSource::Microphysics;
+    const BoxArray ba3d(Box(IntVect(0, 0, 0), IntVect(3, 3, 2)));
+    const BoxArray ba2d(Box(IntVect(0, 0, 0), IntVect(3, 3, 0)));
+    const DistributionMapping dm(ba3d);
+    MultiFab total(ba3d, dm, 1, 0), rain(ba3d, dm, 1, 0), snowacc(ba3d, dm, 1, 0);
+    SurfacePrecipAccumulationSources src;
+    src.total.accum = &total; src.rain.accum = &rain; src.snow.accum = &snowacc;
+    src.rest_is_frozen = true;
+
+    ForceRestorePrecipRate precip;
+    precip.resize(1);
+    precip.define_level(0, rc, ba2d, dm);
+    ASSERT_TRUE(precip.split());
+
+    // One 10 s step: 0.3 kg/m^2 of rain, 0.5 of snow and 0.2 of cloud ice.
+    total.setVal(5.0); rain.setVal(1.0); snowacc.setVal(4.0);
+    precip.begin_step(0, src, 0);
+    total.setVal(6.0); rain.setVal(1.3); snowacc.setVal(4.5);
+    precip.end_step(0, src, 0, Real(10.0));
+    EXPECT_NEAR(precip.rate(0)->max(ForceRestorePrecipRate::Rain), Real(0.03), tol);
+    EXPECT_NEAR(precip.rate(0)->min(ForceRestorePrecipRate::Frozen), Real(0.07), tol);
+    EXPECT_NEAR(precip.rate(0)->max(ForceRestorePrecipRate::Frozen), Real(0.07), tol);
+}

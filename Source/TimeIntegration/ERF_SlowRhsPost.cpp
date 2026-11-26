@@ -670,7 +670,7 @@ void erf_slow_rhs_post (int level, int finest_level,
                             const Array4<Real> diffusion_z = dflux_z->array(mfi, flux_comp);
 
                         if (solverChoice.mesh_type == MeshType::StretchedDz) {
-                            DiffusionSrcForState_S(tbx, domain, diffusion_start, diffusion_num,
+                            DiffusionSrcForState_S(tbx, domain, diffusion_start, diffusion_num, u, v,
                                                    new_cons, cur_prim, cell_rhs,
                                                    diffusion_x, diffusion_y, diffusion_z,
                                                    stretched_dz_d, dxInv,
@@ -682,7 +682,7 @@ void erf_slow_rhs_post (int level, int finest_level,
                                                    l_apply_surface_layer_fluxes_in_diffusion, SurfLayer, l_vert_implicit_fac,
                                                    l_reflux_diffusion);
                         } else if (l_use_terrain) {
-                            DiffusionSrcForState_T(tbx, domain, diffusion_start, diffusion_num, l_rotate,
+                            DiffusionSrcForState_T(tbx, domain, diffusion_start, diffusion_num, l_rotate, u, v,
                                                    new_cons, cur_prim, cell_rhs,
                                                    diffusion_x, diffusion_y, diffusion_z,
                                                    z_nd, z_cc, ax_arr, ay_arr, az_arr,
