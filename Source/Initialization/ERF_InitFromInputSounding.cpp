@@ -267,16 +267,6 @@ ERF::build_base_state_from_input_sounding (int lev, MultiFab& base_state_mf)
 {
     AMREX_ALWAYS_ASSERT(solverChoice.sounding_type != SoundingType::ConstantDensity);
 
-    // The sounding sampled at this level's own cell centers
-    const InputSoundingData& sounding = sounding_at_level(lev);
-
-    const bool l_isentropic = (solverChoice.sounding_type == SoundingType::Isentropic ||
-                               solverChoice.sounding_type == SoundingType::DryIsentropic);
-
-    const Real l_gravity = solverChoice.gravity;
-    const Real l_rdOcp   = solverChoice.rdOcp;
-    const bool l_moist   = (solverChoice.moisture_type != MoistureType::None);
-
     //
     // Work on this level's boxes grown by the base state's lateral ghost cells, so that the
     //    ghost cells are built, and rebalanced, as valid cells: a ghost column is then the
@@ -289,6 +279,46 @@ ERF::build_base_state_from_input_sounding (int lev, MultiFab& base_state_mf)
     std::unique_ptr<MultiFab> z_nd_g, z_cc_g;
     make_base_state_on_grown_boxes(lev, base_state_mf, ngb[0], IntVect(0,0,ngz), bs_g, z_nd_g, z_cc_g);
     AMREX_ALWAYS_ASSERT(ngb[1] == ngb[0]);
+
+    build_base_state_from_input_sounding_on(lev, bs_g, *z_nd_g, (z_phys_cc[lev]) ? z_cc_g.get() : nullptr);
+
+    // Into the valid and ghost cells; the grown boxes cover the lateral ghost cells
+    copy_base_state_from_grown_boxes(lev, base_state_mf, bs_g);
+
+    // Below the finest level the run allows, the base state is the average of that level's
+    //    and the cell-center heights are placed to hold it in balance (ERF_NestedBaseState.cpp)
+    if (nested_base_state(lev)) {
+        build_nested_base_state(lev, base_state_mf);
+    }
+}
+
+/**
+ * The input-sounding base state on the cells of bs_g (valid cells, with the vertical ghost
+ * cells extrapolated), at the resolution of level lev, from the heights z_nd_g and z_cc_g on
+ * the same boxes: the sounding sampled at the cell centers and each column rebalanced from the
+ * lowest cell of its box, with p_0 and pi_0 recomputed.  Which boxes they are is up to the
+ * caller, so this also builds the base state of a mesh that is not (or not yet) a level.
+ *
+ * @param[in]     lev    level whose resolution (and resampled sounding) bs_g has
+ * @param[in,out] bs_g   base state, all BaseState components
+ * @param[in]     z_nd_g nodal heights on bs_g's boxes
+ * @param[in]     z_cc_g cell-center heights on bs_g's boxes (null on a flat mesh without them)
+ */
+void
+ERF::build_base_state_from_input_sounding_on (int lev, MultiFab& bs_g,
+                                              const MultiFab& z_nd_g, const MultiFab* z_cc_g)
+{
+    // The sounding sampled at this level's own cell centers
+    const InputSoundingData& sounding = sounding_at_level(lev);
+
+    const bool l_isentropic = (solverChoice.sounding_type == SoundingType::Isentropic ||
+                               solverChoice.sounding_type == SoundingType::DryIsentropic);
+
+    const Real l_gravity = solverChoice.gravity;
+    const Real l_rdOcp   = solverChoice.rdOcp;
+    const bool l_moist   = (solverChoice.moisture_type != MoistureType::None);
+
+    const int ngz = bs_g.nGrowVect()[2];
 
     // The kernel also writes rho, rho theta and rho qv; they are not used
     MultiFab cons_g(bs_g.boxArray(), bs_g.DistributionMap(), RhoQ1_comp+1, 0);
@@ -310,8 +340,8 @@ ERF::build_base_state_from_input_sounding (int lev, MultiFab& base_state_mf)
         Array4<Real> th_hse_arr(bs_arr, BaseState::th0_comp, 1);
         Array4<Real> qv_hse_arr(bs_arr, BaseState::qv0_comp, 1);
 
-        Array4<Real const> z_cc_arr = (z_phys_cc[lev]) ? z_cc_g->const_array(mfi) : Array4<Real const>{};
-        Array4<Real const> z_nd_arr = z_nd_g->const_array(mfi);
+        Array4<Real const> z_cc_arr = (z_cc_g) ? z_cc_g->const_array(mfi) : Array4<Real const>{};
+        Array4<Real const> z_nd_arr = z_nd_g.const_array(mfi);
 
         // HSE will be initialized here, interpolated from values previously
         // calculated by calc_rho_p or calc_rho_p_isentropic
@@ -324,12 +354,9 @@ ERF::build_base_state_from_input_sounding (int lev, MultiFab& base_state_mf)
 
     // Enforce HSE on the base state -- holding th_hse and qv_hse constant
     bool maintain_Th = true;
-    rebalance_columns(r_hse, th_hse, qv_hse, qv_hse, z_nd_g.get(), geom[lev], maintain_Th);
+    rebalance_columns(r_hse, th_hse, qv_hse, qv_hse, &z_nd_g, geom[lev], maintain_Th);
 
     recompute_p_pi_hse(bs_g, l_rdOcp);
-
-    // Into the valid and ghost cells; the grown boxes cover the lateral ghost cells
-    copy_base_state_from_grown_boxes(lev, base_state_mf, bs_g);
 }
 
 void

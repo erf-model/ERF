@@ -172,6 +172,7 @@ void make_fast_coeffs (int level,
                        const amrex::Real beta_s,
                        const amrex::MultiFab* z_phys_cc,
                        const amrex::MultiFab* z_phys_nd,
+                       const bool use_zcc_kface_metric,
                        const bool use_variable_beta_s,
                        amrex::GpuArray<ERF_BC, AMREX_SPACEDIM*2> &phys_bc_type);
 

@@ -424,8 +424,9 @@ ERF::rebuild_base_state_from_coarse (int lev)
  * is not.
  *
  * The residual is dp_0/dz + rho_0 (1 + qv_0) |g| between vertically adjacent cells of the
- * same grid, with dz the distance between the cell centers (from z_phys_nd), which is the balance
- * rebalance_columns and the initializations enforce.  It is checked over the valid region,
+ * same grid, with dz the distance between the cell centers (z_phys_cc), which is the balance
+ * rebalance_columns and the initializations enforce (and, below the finest level of a nested
+ * base state, build_nested_base_state).  It is checked over the valid region,
  * as compute_max_pressure_gradient_diagnostic does.  The tolerance is the one
  * compute_max_pressure_gradient_diagnostic uses.
  *
@@ -450,7 +451,7 @@ ERF::check_base_state_hse (int lev, const std::string& when, bool abort_if_fail)
         solverChoice.init_type == InitType::ConstantDensityLinearTheta) { return; }
 
     const MultiFab& bs = base_state[lev];
-    const MultiFab& znd = *z_phys_nd[lev];
+    const MultiFab& zcc = *z_phys_cc[lev];
     const Real grav    = CONST_GRAV;
 
     // The residual on each face, kept per cell so that its largest value can be located
@@ -465,17 +466,15 @@ ERF::check_base_state_hse (int lev, const std::string& when, bool abort_if_fail)
         if (!bx.ok()) { continue; }
 
         const Array4<Real const>& b = bs.const_array(mfi);
-        const Array4<Real const>& zn = znd.const_array(mfi);
+        const Array4<Real const>& zc = zcc.const_array(mfi);
         const Array4<Real      >& r = res.array(mfi);
 
         ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
-            // Cell-center heights as rebalance_columns forms them, from the nodal heights
-            auto zcc = [&] (int kk) {
-                return Real(0.125) * (zn(i,j,kk  ) + zn(i+1,j,kk  ) + zn(i,j+1,kk  ) + zn(i+1,j+1,kk  )
-                                     +zn(i,j,kk+1) + zn(i+1,j,kk+1) + zn(i,j+1,kk+1) + zn(i+1,j+1,kk+1));
-            };
-            const Real dz  = zcc(k) - zcc(k-1);
+            // The distance between the cell centers, which the vertical pressure gradient uses:
+            //    the average of the nodes, as rebalance_columns forms it, except below the
+            //    finest level where the base state is nested (ERF_NestedBaseState.cpp)
+            const Real dz  = zc(i,j,k) - zc(i,j,k-1);
             const Real rhi = b(i,j,k  ,BaseState::r0_comp) * (one + b(i,j,k  ,BaseState::qv0_comp));
             const Real rlo = b(i,j,k-1,BaseState::r0_comp) * (one + b(i,j,k-1,BaseState::qv0_comp));
             r(i,j,k) = std::abs((b(i,j,k,BaseState::p0_comp) - b(i,j,k-1,BaseState::p0_comp)) / dz

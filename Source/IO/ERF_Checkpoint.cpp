@@ -2111,6 +2111,13 @@ ERF::ReadCheckpointFile ()
                 0, 0, 1, ng, /*src_ghosts=*/true, erf_checkpoint::lateral_periodicity(geom[lev]));
             update_terrain_arrays(lev);
 
+            // update_terrain_arrays made z_phys_cc from the nodes; a nested base state needs the
+            //    heights that hold it in balance.  They are placed by rebuilding it, which gives
+            //    the base state the checkpoint holds (it depends only on the level's columns)
+            if (nested_base_state(lev)) {
+                build_nested_base_state(lev, base_state[lev]);
+            }
+
 #if 0
             if ( (solverChoice.init_type != InitType::WRFInput) && (solverChoice.init_type != InitType::Metgrid) ) {
                 check_mesh_type(lev);
