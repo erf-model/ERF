@@ -413,30 +413,6 @@ add_high_order_mixing (erf_auxiliary::MappedFaceFluxRate& high,
     }
 }
 
-// The host face coefficient of a mixing coefficient set, selected at run time.
-AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE Real
-mixing_face_coefficient (const ScalarDiffusionCoefficientMode mode,
-                         const Array4<const Real>& rho,
-                         const Array4<const Real>& mu,
-                         const ScalarDiffusionCoefficients& coefficients,
-                         const int i, const int j, const int k,
-                         const int di, const int dj, const int dk,
-                         const int eddy_comp) noexcept
-{
-    if (mode.molecular_is_kinematic) {
-        return mode.add_turbulence
-            ? ScalarDiffusionFaceCoefficient<true, true>(
-                  rho, Rho_comp, mu, coefficients, i, j, k, di, dj, dk, eddy_comp)
-            : ScalarDiffusionFaceCoefficient<true, false>(
-                  rho, Rho_comp, mu, coefficients, i, j, k, di, dj, dk, eddy_comp);
-    }
-    return mode.add_turbulence
-        ? ScalarDiffusionFaceCoefficient<false, true>(
-              rho, Rho_comp, mu, coefficients, i, j, k, di, dj, dk, eddy_comp)
-        : ScalarDiffusionFaceCoefficient<false, false>(
-              rho, Rho_comp, mu, coefficients, i, j, k, di, dj, dk, eddy_comp);
-}
-
 // Terrain mixing only. In every column of each fab within the domain (or
 // across a periodic side), the cell below the bottom wall and the cell above
 // the top one are extended quadratically in physical height through the three
@@ -536,14 +512,15 @@ fill_side_open_mask (MultiFab& mask, const int dir,
 
 // Terrain mixing only: ERF's native terrain diffusion of one chunk's physical
 // stage input, mapped once into `diffusive`. The horizontal raw fluxes carry
-// the horizontal coefficient and the vertical raw flux the vertical one.
-// Before the mapping interpolates side fluxes to the k faces, a raw side flux
-// on a lateral domain face is zeroed where the face does not exchange and,
-// where it does, replaced by the face-trace flux, the one-sided quadratic
-// gradient against the inflow spectrum the ghost cell holds, with no
-// tangential term since that trace is constant on the face. The mapping
-// suppresses the complete transfer through both walls, including its metric
-// terms; the walls' quadratic ghosts feed only the side fluxes beside them.
+// the horizontal coefficient and the vertical raw flux the vertical one. At
+// an open lateral face (ext_dir in the mixing BC) the native builder takes the
+// face-trace flux, the one-sided gradient against the inflow spectrum the
+// ghost cell holds, whose cross term vanishes for that constant trace. Before
+// the mapping interpolates side fluxes to the k faces, a raw side flux on a
+// lateral domain face that does not exchange (closed, or inflow_outflow where
+// the carrier leaves) is zeroed. The mapping suppresses the complete transfer
+// through both walls, including its metric terms; the walls' quadratic ghosts
+// feed only the side fluxes beside them.
 void
 build_terrain_high_order_mixing (erf_auxiliary::MappedFaceFluxRate& diffusive,
                                  MultiFab& scalar,
@@ -580,8 +557,6 @@ build_terrain_high_order_mixing (erf_auxiliary::MappedFaceFluxRate& diffusive,
     ScalarDiffusionFluxPolicy policy;
     policy.coefficients = coefficients.horizontal;
     policy.coefficient_mode = coefficients.mode;
-    const auto mode = coefficients.mode;
-    const auto horizontal = coefficients.horizontal;
     for (amrex::MFIter mfi(scalar, false); mfi.isValid(); ++mfi) {
         const amrex::Box bx = mfi.validbox();
         const auto q = scalar.const_array(mfi);
@@ -604,15 +579,15 @@ build_terrain_high_order_mixing (erf_auxiliary::MappedFaceFluxRate& diffusive,
             field.yflux = raw[1].array(mfi);
             field.zflux = raw[2].array(mfi);
             field.flux_comp = local;
+            // The mixing BCs use ext_dir and foextrap only, so no velocity is read.
             BuildScalarDiffusionFluxes_T(bx, domain, field, policy, coefficients.vertical,
-                                         false, z_nd, z_cc, dx_inv, mf_ux, mf_vy, bc, 0);
+                                         false, z_nd, z_cc, dx_inv, Array4<const Real>{},
+                                         Array4<const Real>{}, mf_ux, mf_vy, bc, 0);
         }
         for (int dir = 0; dir < 2; ++dir) {
             if (geometry.isPeriodic(dir)) continue;
             const auto out = raw[static_cast<std::size_t>(dir)].array(mfi);
             const auto open = side_open[static_cast<std::size_t>(dir)].const_array(mfi);
-            const auto map = dir == 0 ? mf_ux : mf_vy;
-            const Real inv = dx_inv[dir];
             const int lo = domain.smallEnd(dir);
             const int hi = domain.bigEnd(dir);
             for (const int face : {lo, hi + 1}) {
@@ -621,21 +596,9 @@ build_terrain_high_order_mixing (erf_auxiliary::MappedFaceFluxRate& diffusive,
                 faces.setRange(dir, face, 1);
                 faces.setSmall(2, std::max(faces.smallEnd(2), domain.smallEnd(2)));
                 faces.setBig(2, std::min(faces.bigEnd(2), domain.bigEnd(2)));
-                const bool low = face == lo;
                 amrex::ParallelFor(faces, ncomp,
                     [=] AMREX_GPU_DEVICE(int i, int j, int k, int n) noexcept {
-                        if (open(i, j, k, 0) == Real(0.0)) {
-                            out(i, j, k, n) = Real(0.0);
-                            return;
-                        }
-                        const Real coeff = mixing_face_coefficient(
-                            mode, rho, mu, horizontal, i, j, k, dir == 0 ? 1 : 0,
-                            dir == 1 ? 1 : 0, 0, horizontal.eddy_h_comp);
-                        out(i, j, k, n) = dir == 0
-                            ? ScalarDiffusionFlux_N<0>(q, n, i, j, k, coeff, inv,
-                                                       map(i, j, 0), Real(1.0), low, !low)
-                            : ScalarDiffusionFlux_N<1>(q, n, i, j, k, coeff, inv,
-                                                       map(i, j, 0), Real(1.0), low, !low);
+                        if (open(i, j, k, 0) == Real(0.0)) { out(i, j, k, n) = Real(0.0); }
                     });
             }
         }

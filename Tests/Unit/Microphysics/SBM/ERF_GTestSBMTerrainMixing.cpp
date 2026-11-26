@@ -634,9 +634,11 @@ void native_tendency (const Run& run, const MultiFab& state, MultiFab& tendency)
             field.xflux = raw_x.array(mfi);
             field.yflux = raw_y.array(mfi);
             field.zflux = raw_z.array(mfi);
+            // Periodic x and y with walls: no ext_dir_upwind face, so no velocity is read.
             BuildScalarDiffusionFluxes_T(bx, run.geom.Domain(), field, policy, c.vertical, false,
                                          run.z_nd.const_array(mfi), run.z_cc.const_array(mfi),
-                                         inv, u.const_array(mfi), v.const_array(mfi),
+                                         inv, amrex::Array4<const Real>{}, amrex::Array4<const Real>{},
+                                         u.const_array(mfi), v.const_array(mfi),
                                          bcs.data(), 0);
             BuildScalarDiffusionMappedTransfers_T(
                 bx, run.geom.Domain(), raw_x.const_array(mfi), raw_y.const_array(mfi),
