@@ -32,7 +32,8 @@ using namespace amrex;
  *                                  pressure gradient is the distance between the cell centers, as in
  *                                  the slow vertical pressure gradient and the hydrostatic base state.
  *                                  Otherwise (the moving mesh, whose z_phys_cc is not that of the end of
- *                                  the sub-step) it is the average of detJ_cc on the two sides of the face
+ *                                  the sub-step) it is the average of detJ_cc on the two sides of the face,
+ *                                  or dz on a ConstantDz mesh (SolverChoice::zcc_vertical_metric)
  * @param[in]  use_variable_beta_s If true, beta_s on each w-face is set from the terrain slope and
  *                                 the vertical acoustic Courant number there in place of beta_s
  * @param[in]  phys_bc_type  Physical boundary condition types
@@ -253,18 +254,23 @@ void make_fast_coeffs (int /*level*/,
             {
                 Real pi_c =  myhalf * (pi_stage_ca(i,j,k-1) + pi_stage_ca(i,j,k));
 
+                // The face metric of the vertical pressure gradient: dz, or where the base state
+                //    is nested the distance between the cell centers (in units of dz), as the slow
+                //    vertical pressure gradient uses
+                Real inv_h_kface = (l_zcc_kface) ? one / ((z_cc(i,j,k) - z_cc(i,j,k-1)) * dzi) : one;
+
                 Real qv_p = (l_use_moisture) ? prim(i,j,k  ,PrimQ1_comp) : zero;
                 Real qv_q = (l_use_moisture) ? prim(i,j,k-1,PrimQ1_comp) : zero;
 
                 Real Thm_hi = stage_cons(i,j,k  ,RhoTheta_comp) * (one + RvoRd*qv_p);
                 Real Thm_lo = stage_cons(i,j,k-1,RhoTheta_comp) * (one + RvoRd*qv_q);
-                Real Thm_grad = dzi * ( Thm_hi - Thm_lo );
+                Real Thm_grad = dzi * inv_h_kface * ( Thm_hi - Thm_lo );
 
-                Real coeff_P = -Gamma * R_d * dzi * pi_c * (one + RvoRd*qv_p)
+                Real coeff_P = -Gamma * R_d * dzi * inv_h_kface * pi_c * (one + RvoRd*qv_p)
                              -  Gamma * R_d * R_d * Thm_grad * myhalf * pi_stage_ca(i,j,k  ) /
                              (  c_v * stage_cons(i,j,k  ,RhoTheta_comp) );
 
-                Real coeff_Q =  Gamma * R_d * dzi * pi_c * (one + RvoRd*qv_q)
+                Real coeff_Q =  Gamma * R_d * dzi * inv_h_kface * pi_c * (one + RvoRd*qv_q)
                              -  Gamma * R_d * R_d * Thm_grad * myhalf * pi_stage_ca(i,j,k-1) /
                              (  c_v * stage_cons(i,j,k-1,RhoTheta_comp) );
 

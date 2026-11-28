@@ -1236,7 +1236,7 @@ ERF::FillPlot3DVars (int lev,
         if ( (containerHasElement(plot_var_names, "dpdx")) ||
              (containerHasElement(plot_var_names, "dpdy")) ||
              (containerHasElement(plot_var_names, "dpdz")) ) {
-            compute_gradp(pressure, geom[lev], *z_phys_cc[lev].get(), mapfac[lev],
+            compute_gradp(lev, pressure, geom[lev], *z_phys_cc[lev].get(), mapfac[lev],
                           get_eb(lev), gradp_temp, solverChoice);
         }
     }
@@ -1292,7 +1292,7 @@ ERF::FillPlot3DVars (int lev,
 
     if ( (containerHasElement(plot_var_names, "pres_hse_x")) ||
          (containerHasElement(plot_var_names, "pres_hse_y")) ) {
-        compute_gradp(p_hse, geom[lev], *z_phys_cc[lev].get(), mapfac[lev],
+        compute_gradp(lev, p_hse, geom[lev], *z_phys_cc[lev].get(), mapfac[lev],
                       get_eb(lev), gradp_temp, solverChoice);
     }
 
