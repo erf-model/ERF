@@ -1080,6 +1080,9 @@ public:
     // Build the nested base state of level lev in bs (on lev's grids) and place z_phys_cc[lev]
     void build_nested_base_state (int lev, amrex::MultiFab& bs);
 
+    // The nodal heights of a flat mesh at level lev's resolution on the boxes of z_nd
+    void flat_heights (int lev, amrex::MultiFab& z_nd);
+
     /**
      * Rebuild level lev's base state from the input sounding after a regrid made or
      * remade the level, replacing the interpolation from the coarser level that the

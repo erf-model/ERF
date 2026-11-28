@@ -194,6 +194,14 @@ ERF::initHSE (int lev)
     }
 
     //
+    // Below the finest level the run allows, the base state is the average of that level's,
+    //   with the cell-center heights placed to hold it in balance (ERF_NestedBaseState.cpp)
+    //
+    if (nested_base_state(lev)) {
+        build_nested_base_state(lev, base_state[lev]);
+    }
+
+    //
     // Impose physical bc's on the base state -- the values outside the fine region
     //   but inside the domain have already been filled in the call above to InterpFromCoarseLevel
     //

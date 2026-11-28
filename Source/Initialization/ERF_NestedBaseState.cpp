@@ -36,20 +36,37 @@
 using namespace amrex;
 
 /**
- * Whether level lev's base state is nested (see the file comment): below max_level, with the
- * metrics from the finest mesh (static terrain-fitted mesh, BTF, terrain from the problem),
- * gravity, and a base state from the input sounding in hydrostatic balance.
+ * Whether level lev's base state is nested (see the file comment): below max_level, with
+ * gravity, on
+ *   - a static terrain-fitted mesh with the metrics from the finest mesh (BTF, terrain from the
+ *     problem), or
+ *   - a flat mesh (ConstantDz or StretchedDz, no terrain), whose finer levels' heights follow
+ *     from the levels alone,
+ * and a base state built in hydrostatic balance from
+ *   - the input sounding (not SoundingType::ConstantDensity), or
+ *   - the problem's dry hydrostatic construction (InitType::Isentropic: erf_init_dens_hse_dry
+ *     and erf_enforce_hse, as initHSE does).
  *
  * @param[in] lev level of refinement
  */
 bool
 ERF::nested_base_state (int lev)
 {
-    if (!metrics_from_finest(lev)) { return false; }
+    if (lev >= max_level) { return false; }
     if (!solverChoice.use_gravity) { return false; }
-    if (solverChoice.init_type != InitType::Input_Sounding) { return false; }
-    if (solverChoice.sounding_type == SoundingType::ConstantDensity) { return false; }
-    return true;
+
+    // A StretchedDz mesh is flat whatever terrain_type says (erf.initial_dz and
+    //    erf.terrain_z_levels set it to StaticFittedMesh); a ConstantDz mesh only without
+    //    terrain (not EB or immersed forcing)
+    const bool flat = (SolverChoice::mesh_type == MeshType::StretchedDz) ||
+                      (SolverChoice::mesh_type == MeshType::ConstantDz &&
+                       solverChoice.terrain_type == TerrainType::None);
+    if (!flat && !metrics_from_finest(lev)) { return false; }
+
+    if (solverChoice.init_type == InitType::Input_Sounding) {
+        return (solverChoice.sounding_type != SoundingType::ConstantDensity);
+    }
+    return (solverChoice.init_type == InitType::Isentropic);
 }
 
 /**
@@ -117,19 +134,27 @@ ERF::build_nested_base_state (int lev, MultiFab& bs)
         return ba_l;
     };
 
-    std::unique_ptr<MultiFab> znd = std::make_unique<MultiFab>(convert(ba_at(0), IntVect(1)), dm_col, 1, ngn);
-    // The ghost nodes first and then the valid ones, so a node some box holds as valid gets
-    //    that value (ParallelCopy does not order overlapping sources)
-    znd->ParallelCopy(*z_phys_nd[0], 0, 0, 1, z_phys_nd[0]->nGrowVect(), ngn);
-    znd->ParallelCopy(*z_phys_nd[0], 0, 0, 1, IntVect(0), ngn);
+    std::unique_ptr<MultiFab> znd_lev, znd;
+    if (SolverChoice::mesh_type == MeshType::VariableDz) {
+        znd = std::make_unique<MultiFab>(convert(ba_at(0), IntVect(1)), dm_col, 1, ngn);
+        // The ghost nodes first and then the valid ones, so a node some box holds as valid gets
+        //    that value (ParallelCopy does not order overlapping sources)
+        znd->ParallelCopy(*z_phys_nd[0], 0, 0, 1, z_phys_nd[0]->nGrowVect(), ngn);
+        znd->ParallelCopy(*z_phys_nd[0], 0, 0, 1, IntVect(0), ngn);
 
-    std::unique_ptr<MultiFab> znd_lev;
-    for (int l = 1; l <= max_level; ++l) {
-        if (l == lev+1) { znd_lev = std::move(znd); }
-        auto znd_l = std::make_unique<MultiFab>(convert(ba_at(l), IntVect(1)), dm_col, 1, ngn);
-        build_zphys_nd(l, (l == lev+1) ? znd_lev.get() : znd.get(), *znd_l, time);
-        znd_l->FillBoundary(geom[l].periodicity());
-        znd = std::move(znd_l);
+        for (int l = 1; l <= max_level; ++l) {
+            if (l == lev+1) { znd_lev = std::move(znd); }
+            auto znd_l = std::make_unique<MultiFab>(convert(ba_at(l), IntVect(1)), dm_col, 1, ngn);
+            build_zphys_nd(l, (l == lev+1) ? znd_lev.get() : znd.get(), *znd_l, time);
+            znd_l->FillBoundary(geom[l].periodicity());
+            znd = std::move(znd_l);
+        }
+    } else {
+        // A flat mesh: the heights of each level are its levels (or the uniform spacing)
+        znd_lev = std::make_unique<MultiFab>(convert(ba_at(lev), IntVect(1)), dm_col, 1, ngn);
+        znd     = std::make_unique<MultiFab>(convert(ba_at(max_level), IntVect(1)), dm_col, 1, ngn);
+        flat_heights(lev, *znd_lev);
+        flat_heights(max_level, *znd);
     }
     AMREX_ALWAYS_ASSERT(znd_lev != nullptr);
 
@@ -137,12 +162,26 @@ ERF::build_nested_base_state (int lev, MultiFab& bs)
     // The base state at max_level over the columns, built as the finest level builds its own
     //
     const BoxArray ba_f = ba_at(max_level);
-    MultiFab zcc_f(ba_f, dm_col, 1, 0);
-    make_zcc(geom[max_level], *znd, zcc_f);
+    auto zcc_f = std::make_unique<MultiFab>(ba_f, dm_col, 1, 1);
+    make_zcc(geom[max_level], *znd, *zcc_f);
 
-    MultiFab bs_f(ba_f, dm_col, BaseState::num_comps, 0);
+    // One ghost cell all round, which erf_enforce_hse writes
+    MultiFab bs_f(ba_f, dm_col, BaseState::num_comps, 1);
     bs_f.setVal(zero);
-    build_base_state_from_input_sounding_on(max_level, bs_f, *znd, &zcc_f);
+    if (solverChoice.init_type == InitType::Input_Sounding) {
+        build_base_state_from_input_sounding_on(max_level, bs_f, *znd, zcc_f.get());
+    } else {
+        // InitType::Isentropic: as initHSE builds a level's base state
+        MultiFab r (bs_f, make_alias, BaseState::r0_comp,  1);
+        MultiFab pr(bs_f, make_alias, BaseState::p0_comp,  1);
+        MultiFab pi(bs_f, make_alias, BaseState::pi0_comp, 1);
+        MultiFab th(bs_f, make_alias, BaseState::th0_comp, 1);
+        MultiFab qv(bs_f, make_alias, BaseState::qv0_comp, 1);
+        prob->erf_init_dens_hse_dry(r, znd, zcc_f, geom[max_level], stretched_dz_h[max_level],
+                                    SolverChoice::mesh_type == MeshType::ConstantDz,
+                                    SolverChoice::mesh_type == MeshType::StretchedDz);
+        erf_enforce_hse(max_level, r, pr, pi, th, qv, zcc_f);
+    }
 
     //
     // The conserved densities, J, J rho_0, J rho_0 theta_0 and J rho_0 qv_0, averaged down one
@@ -152,7 +191,7 @@ ERF::build_nested_base_state (int lev, MultiFab& bs)
     auto U = std::make_unique<MultiFab>(ba_f, dm_col, n_avg, 0);
     {
         MultiFab J_f(ba_f, dm_col, 1, 0);
-        make_J(geom[max_level], *znd, J_f);
+        make_J(geom[max_level], *znd, J_f);  // dz_k/dz on a flat mesh
         for (MFIter mfi(*U, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
             const Box& bx = mfi.tilebox();
             const auto& u = U->array(mfi);
@@ -288,4 +327,52 @@ ERF::build_nested_base_state (int lev, MultiFab& bs)
     if (physbcs_base[lev]) {
         (*physbcs_base[lev])(bs, 0, bs.nComp(), bs.nGrowVect());
     }
+
+    // The vertical pressure gradient of this level uses these heights (already so on a mesh other
+    //    than ConstantDz)
+    if (static_cast<int>(solverChoice.zcc_vertical_metric_lev.size()) <= lev) {
+        solverChoice.zcc_vertical_metric_lev.resize(lev+1, 0);
+    }
+    solverChoice.zcc_vertical_metric_lev[lev] = 1;
+}
+
+/**
+ * The nodal heights of a flat mesh (ConstantDz or StretchedDz) at level lev's resolution, on
+ * the boxes of z_nd and its ghost nodes: the uniform spacing from geometry.prob_lo[2], or the
+ * stretched levels (extended past either end by the end spacing).
+ *
+ * @param[in]  lev  level whose resolution z_nd has
+ * @param[out] z_nd nodal heights
+ */
+void
+ERF::flat_heights (int lev, MultiFab& z_nd)
+{
+    const Real z_lo = geom[lev].ProbLo(2);
+    const Real dz   = geom[lev].CellSize(2);
+    const bool stretched = (SolverChoice::mesh_type == MeshType::StretchedDz);
+    const int  nzs = stretched ? static_cast<int>(zlevels_stag[lev].size()) : 0;
+    Gpu::DeviceVector<Real> d_zs(nzs);
+    if (stretched) {
+        AMREX_ALWAYS_ASSERT(nzs >= 2);
+        Gpu::copy(Gpu::hostToDevice, zlevels_stag[lev].begin(), zlevels_stag[lev].end(), d_zs.begin());
+    }
+    const Real* zs = d_zs.data();
+    for (MFIter mfi(z_nd); mfi.isValid(); ++mfi) {
+        const auto& z = z_nd.array(mfi);
+        ParallelFor(mfi.fabbox(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            if (stretched) {
+                if (k < 0) {
+                    z(i,j,k) = zs[0] + static_cast<Real>(k) * (zs[1] - zs[0]);
+                } else if (k > nzs-1) {
+                    z(i,j,k) = zs[nzs-1] + static_cast<Real>(k-nzs+1) * (zs[nzs-1] - zs[nzs-2]);
+                } else {
+                    z(i,j,k) = zs[k];
+                }
+            } else {
+                z(i,j,k) = z_lo + static_cast<Real>(k) * dz;
+            }
+        });
+    }
+    Gpu::streamSynchronize();
 }

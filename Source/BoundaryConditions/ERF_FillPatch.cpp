@@ -21,8 +21,9 @@ using namespace amrex;
  * @param[in]     allow_perturbational false to fill the conserved state from coarse in full
  *                               whatever erf.perturbational_interpolation, as for a destination
  *                               that is not on the layout of base_state[lev]
- * @param[in]     volume_weighted refill the valid cells of the conserved state weighted by detJ
- *                               (with volume_weighted_interp), as for a regrid
+ * @param[in]     volume_weighted refill the valid cells of the conserved state so that they hold
+ *                               the coarse amounts, as for a regrid: weighted by detJ (with
+ *                               volume_weighted_interp), and the scalars restored (conserve_specific)
  */
 void
 ERF::FillPatchFineLevel (int lev, double time_d,
@@ -165,9 +166,10 @@ ERF::FillPatchFineLevel (int lev, double time_d,
     // uninitialized memory -- they will be filled in the physbcs call
     mf_c.setDomainBndry(bogus_large_value,geom[lev]);
 
-    // The valid cells filled from the coarse level take the coarse mass when weighted by
-    //    detJ, which is not available in all the ghost cells, so refill just the valid cells
-    if (volume_weighted && volume_weighted_interp()) {
+    // The valid cells filled from the coarse level take the coarse amounts, which the
+    //    detJ weighting and conserve_specific need for each coarse cell's whole set of fine
+    //    cells and detJ is not available in all the ghost cells, so refill just the valid cells
+    if (volume_weighted) {
         MultiFab mf_v(mf_c.boxArray(), mf_c.DistributionMap(), mf_c.nComp(), 0);
         FillPatchTwoLevelsCons(lev, mf_v, IntVect(0), time_rel, cmf, ctime, fmf, ftime,
                                0, 0, mf_v.nComp(), BCVars::cons_bc, allow_perturbational, true);
@@ -388,12 +390,13 @@ add_base_cons (MultiFab& mf, const IntVect& ng, const Box& region, const MultiFa
     }
 }
 
-// Multiply (or with divide, divide) every component of mf, in its valid and ng ghost cells,
-//    by detJ copied onto mf's layout.  Cells below or above the domain take the detJ of the
-//    nearest cell inside it in the same column: make_J does not fill detJ below the domain
+// Multiply (or with divide, divide) every component of mf (but those skip marks), in its valid
+//    and ng ghost cells, by detJ copied onto mf's layout.  Cells below or above the domain take
+//    the detJ of the nearest cell inside it in the same column: make_J does not fill detJ below
+//    the domain
 void
 scale_by_detJ (MultiFab& mf, const IntVect& ng, const MultiFab& detJ, const Geometry& geom,
-               bool divide)
+               bool divide, const int* skip = nullptr)
 {
     MultiFab d(mf.boxArray(), mf.DistributionMap(), 1, ng);
     d.setVal(bogus_large_value);
@@ -408,12 +411,159 @@ scale_by_detJ (MultiFab& mf, const IntVect& ng, const MultiFab& detJ, const Geom
         const auto& d_arr = d.const_array(mfi);
         ParallelFor(bx, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
         {
+            if (skip && skip[n]) { return; }
             const int kk = amrex::min(amrex::max(k, klo), khi);
             if (divide) {
                 m_arr(i,j,k,n) /= d_arr(i,j,kk);
             } else {
                 m_arr(i,j,k,n) *= d_arr(i,j,kk);
             }
+        });
+    }
+}
+/**
+ * The components of a patch (holding the conserved components scomp to scomp+ncomp-1, starting
+ * at 0) that are filled as the specific quantity S = (rho S)/rho rather than as rho S: every one
+ * after Rho_comp and RhoTheta_comp but RhoQ1_comp with moisture (which, like rho and rho theta,
+ * is filled as a perturbation from the base state).  None unless Rho_comp is among them.
+ */
+struct SpecificComps
+{
+    Gpu::DeviceVector<int> mask;   // 1 for a specific component
+    int ir = -1;                   // Rho_comp in the patch
+    bool any = false;
+
+    SpecificComps (int scomp, int ncomp, bool moist)
+    {
+        Vector<int> h(ncomp, 0);
+        ir = Rho_comp - scomp;
+        if (ir >= 0 && ir < ncomp) {
+            for (int n = 0; n < ncomp; ++n) {
+                const int c = scomp + n;
+                if (c == Rho_comp || c == RhoTheta_comp || (moist && c == RhoQ1_comp)) { continue; }
+                h[n] = 1;
+                any  = true;
+            }
+        }
+        mask.resize(ncomp);
+        Gpu::copy(Gpu::hostToDevice, h.begin(), h.end(), mask.begin());
+    }
+};
+
+// In the cells of mf's boxes grown by ng that lie in region, divide (to_specific) or multiply the
+//    specific components by the density (which must be the full density)
+void
+convert_specific (MultiFab& mf, const IntVect& ng, const Box& region, const SpecificComps& sc,
+                  bool to_specific)
+{
+    if (!sc.any) { return; }
+    const int* mask = sc.mask.data();
+    const int  ir   = sc.ir;
+    const int  ncomp = mf.nComp();
+    for (MFIter mfi(mf); mfi.isValid(); ++mfi) {
+        const Box bx = amrex::grow(mfi.validbox(), ng) & region;
+        if (bx.isEmpty()) { continue; }
+        const auto& m = mf.array(mfi);
+        ParallelFor(bx, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+        {
+            if (!mask[n]) { return; }
+            if (to_specific) {
+                m(i,j,k,n) /= m(i,j,k,ir);
+            } else {
+                m(i,j,k,n) *= m(i,j,k,ir);
+            }
+        });
+    }
+}
+
+/**
+ * Make the specific components of the fine cells filled from each coarse cell hold its amount,
+ * detJ_c (rho S)_c times the refinement ratio: S_f is shifted by the constant that does so, and
+ * where that would take some S_f outside the range of S over the coarse cell and its neighbors,
+ * all of them take S_c instead.  The density must already hold the coarse mass,
+ * sum_f detJ_f rho_f = detJ_c rho_c times the ratio (with the nested base state and the
+ * volume-weighted fill), so a uniform S is left as it is and the fallback conserves too.
+ * Coarse cells not all of whose fine cells are in a box of fine are left alone.
+ *
+ * @param[in,out] fine  fine data, full state (rho S), on the boxes to fill
+ * @param[in]     crse  the coarse data it was interpolated from, full state, with the specific
+ *                      components already divided by rho, on boxes whose index matches fine's
+ * @param[in]     rr    refinement ratio
+ */
+void
+conserve_specific (MultiFab& fine, const MultiFab& crse, const SpecificComps& sc, const IntVect& rr,
+                   const MultiFab* detJ_f, const MultiFab* detJ_c,
+                   const Geometry& fgeom, const Geometry& cgeom)
+{
+    if (!sc.any) { return; }
+
+    // detJ = 1 where the fill is not weighted by it (null)
+    MultiFab Jf(fine.boxArray(), fine.DistributionMap(), 1, 0);
+    Jf.setVal(one);
+    if (detJ_f) {
+        Jf.ParallelCopy(*detJ_f, 0, 0, 1, detJ_f->nGrowVect(), IntVect(0), fgeom.periodicity());
+    }
+    MultiFab Jc(crse.boxArray(), crse.DistributionMap(), 1, crse.nGrowVect());
+    Jc.setVal(one);
+    if (detJ_c) {
+        Jc.ParallelCopy(*detJ_c, 0, 0, 1, detJ_c->nGrowVect(), crse.nGrowVect(), cgeom.periodicity());
+    }
+
+    const int* mask = sc.mask.data();
+    const int  ir   = sc.ir;
+    const int  ncomp = fine.nComp();
+    const Real nfine = static_cast<Real>(rr[0]*rr[1]*rr[2]);
+    const int rx = rr[0], ry = rr[1], rz = rr[2];
+
+    for (MFIter mfi(fine); mfi.isValid(); ++mfi) {
+        const Box fbx = mfi.validbox();
+        const Box cbx = amrex::coarsen(fbx, rr);
+        const Box cgb = crse[mfi].box();   // the coarse cells available, ghost cells included
+        const auto& f  = fine.array(mfi);
+        const auto& c  = crse.const_array(mfi);
+        const auto& jf = Jf.const_array(mfi);
+        const auto& jc = Jc.const_array(mfi);
+        const auto clo = lbound(cgb);
+        const auto chi = ubound(cgb);
+        ParallelFor(cbx, ncomp, [=] AMREX_GPU_DEVICE (int ic, int jc_, int kc, int n) noexcept
+        {
+            if (!mask[n]) { return; }
+            const Box kids(IntVect(ic*rx, jc_*ry, kc*rz), IntVect(ic*rx+rx-1, jc_*ry+ry-1, kc*rz+rz-1));
+            if (!fbx.contains(kids) || !cgb.contains(IntVect(ic,jc_,kc))) { return; }
+
+            Real mass = zero, amount = zero;
+            for (int k = kids.smallEnd(2); k <= kids.bigEnd(2); ++k) {
+            for (int j = kids.smallEnd(1); j <= kids.bigEnd(1); ++j) {
+            for (int i = kids.smallEnd(0); i <= kids.bigEnd(0); ++i) {
+                mass   += jf(i,j,k) * f(i,j,k,ir);
+                amount += jf(i,j,k) * f(i,j,k,n);
+            }}}
+            const Real Sc     = c(ic,jc_,kc,n);
+            const Real target = nfine * jc(ic,jc_,kc) * c(ic,jc_,kc,ir) * Sc;
+            const Real delta  = (target - amount) / mass;
+
+            Real lo = Sc, hi = Sc;
+            for (int kk = amrex::max(kc-1,clo.z); kk <= amrex::min(kc+1,chi.z); ++kk) {
+            for (int jj = amrex::max(jc_-1,clo.y); jj <= amrex::min(jc_+1,chi.y); ++jj) {
+            for (int ii = amrex::max(ic-1,clo.x); ii <= amrex::min(ic+1,chi.x); ++ii) {
+                lo = amrex::min(lo, c(ii,jj,kk,n));
+                hi = amrex::max(hi, c(ii,jj,kk,n));
+            }}}
+
+            bool in_range = true;
+            for (int k = kids.smallEnd(2); k <= kids.bigEnd(2); ++k) {
+            for (int j = kids.smallEnd(1); j <= kids.bigEnd(1); ++j) {
+            for (int i = kids.smallEnd(0); i <= kids.bigEnd(0); ++i) {
+                const Real S = f(i,j,k,n) / f(i,j,k,ir) + delta;
+                if (S < lo || S > hi) { in_range = false; }
+            }}}
+
+            for (int k = kids.smallEnd(2); k <= kids.bigEnd(2); ++k) {
+            for (int j = kids.smallEnd(1); j <= kids.bigEnd(1); ++j) {
+            for (int i = kids.smallEnd(0); i <= kids.bigEnd(0); ++i) {
+                const Real S = (in_range) ? f(i,j,k,n) / f(i,j,k,ir) + delta : Sc;
+                f(i,j,k,n) = f(i,j,k,ir) * S;
+            }}}
         });
     }
 }
@@ -441,10 +591,11 @@ scale_by_detJ (MultiFab& mf, const IntVect& ng, const MultiFab& detJ, const Geom
  * @param[in]     ncomp  number of components
  * @param[in]     bccomp first component of domain_bcs_type to use
  * @param[in]     perturbational false for a full-state fill whatever erf.perturbational_interpolation
- * @param[in]     volume_weighted interpolate detJ times the state (or its perturbation) and
- *                       divide by the fine detJ, so that the fine cells filled from a coarse
- *                       cell hold its mass (detJ_c U_c times the ratio); for valid cells only
- *                       (nghost 0), since detJ has a single ghost cell
+ * @param[in]     volume_weighted fill so that the fine cells filled from a coarse cell hold
+ *                       its amounts (detJ_c U_c times the ratio): with volume_weighted_interp,
+ *                       interpolate detJ times the state (or its perturbation) and divide by
+ *                       the fine detJ, and restore the scalars (conserve_specific); for valid
+ *                       cells only (nghost 0), since detJ has a single ghost cell
  */
 void
 ERF::FillPatchTwoLevelsCons (int lev, MultiFab& mf, const IntVect& nghost, Real time,
@@ -489,20 +640,43 @@ ERF::FillPatchTwoLevelsCons (int lev, MultiFab& mf, const IntVect& nghost, Real 
     //    valid or ghost region
     const Box everywhere(IntVect(std::numeric_limits<int>::lowest()/2),
                          IntVect(std::numeric_limits<int>::max()/2));
+
+    // The scalars (rho S) are filled as S = (rho S)/rho, multiplied by the fine density after,
+    //    so that a uniform S stays uniform whatever the density fill; filling the valid cells
+    //    (volume_weighted), each coarse cell's amount is then restored (conserve_specific)
+    const SpecificComps sc(scomp, ncomp, l_moist);
+    const int* skip = (sc.any) ? sc.mask.data() : nullptr;
+    std::unique_ptr<MultiFab> crse_saved;
+    const bool l_detJ = volume_weighted && volume_weighted_interp();
+    const MultiFab* detJ_f = (l_detJ) ? detJ_cc[lev  ].get() : nullptr;
+    const MultiFab* detJ_c = (l_detJ) ? detJ_cc[lev-1].get() : nullptr;
+
     auto pre_interp  = [&] (MultiFab& crse_patch, int, int) {
+        convert_specific(crse_patch, IntVect(0), everywhere, sc, true);
+        if (volume_weighted && sc.any) {
+            crse_saved = std::make_unique<MultiFab>(crse_patch.boxArray(), crse_patch.DistributionMap(),
+                                                    crse_patch.nComp(), 0);
+            MultiFab::Copy(*crse_saved, crse_patch, 0, 0, crse_patch.nComp(), 0);
+        }
         if (l_pert) {
             add_base_cons(crse_patch, IntVect(0), everywhere, bs_crse, cgeom.periodicity(), -one, ir_p, irt_p, iqv_p);
         }
-        if (volume_weighted) {
-            scale_by_detJ(crse_patch, IntVect(0), *detJ_cc[lev-1], cgeom, false);
+        if (l_detJ) {
+            scale_by_detJ(crse_patch, IntVect(0), *detJ_c, cgeom, false, skip);
         }
     };
     auto post_interp = [&] (MultiFab& fine_patch, int, int) {
-        if (volume_weighted) {
-            scale_by_detJ(fine_patch, IntVect(0), *detJ_cc[lev], fgeom, true);
+        if (l_detJ) {
+            scale_by_detJ(fine_patch, IntVect(0), *detJ_f, fgeom, true, skip);
         }
         if (l_pert) {
             add_base_cons(fine_patch, IntVect(0), everywhere, bs_fine, fgeom.periodicity(),  one, ir_p, irt_p, iqv_p);
+        }
+        convert_specific(fine_patch, IntVect(0), everywhere, sc, false);
+        if (crse_saved) {
+            conserve_specific(fine_patch, *crse_saved, sc, refRatio(lev-1),
+                              detJ_f, detJ_c, fgeom, cgeom);
+            crse_saved.reset();
         }
     };
 
@@ -557,13 +731,29 @@ ERF::InterpFromCoarseLevelCons (int lev, MultiFab& mf, const IntVect& nghost, co
     //    left as the full state, the slopes across the edge of each patch mix it with the
     //    perturbation, and the fine cells near every box edge -- including the edges between
     //    a level's boxes -- then depend on how the level is chopped
+    //
+    // The scalars (rho S) are filled as S = (rho S)/rho and multiplied by the fine density after
+    //    (see FillPatchTwoLevelsCons)
+    const SpecificComps sc(0, ncomp, iqv >= 0);
+    const int* skip = (sc.any) ? sc.mask.data() : nullptr;
+    std::unique_ptr<MultiFab> crse_saved;
+    const bool l_detJ = volume_weighted && volume_weighted_interp();
+    const MultiFab* detJ_f = (l_detJ) ? detJ_cc[lev  ].get() : nullptr;
+    const MultiFab* detJ_c = (l_detJ) ? detJ_cc[lev-1].get() : nullptr;
+
     auto pre_interp = [&] (MultiFab& crse_patch, int, int) {
+        convert_specific(crse_patch, crse_patch.nGrowVect(), everywhere, sc, true);
+        if (volume_weighted && sc.any) {
+            crse_saved = std::make_unique<MultiFab>(crse_patch.boxArray(), crse_patch.DistributionMap(),
+                                                    crse_patch.nComp(), crse_patch.nGrowVect());
+            MultiFab::Copy(*crse_saved, crse_patch, 0, 0, crse_patch.nComp(), crse_patch.nGrowVect());
+        }
         if (perturbational_interp) {
             add_base_cons(crse_patch, crse_patch.nGrowVect(), everywhere, bs_crse, cgeom.periodicity(),
                           -one, Rho_comp, RhoTheta_comp, iqv);
         }
-        if (volume_weighted) {
-            scale_by_detJ(crse_patch, crse_patch.nGrowVect(), *detJ_cc[lev-1], cgeom, false);
+        if (l_detJ) {
+            scale_by_detJ(crse_patch, crse_patch.nGrowVect(), *detJ_c, cgeom, false, skip);
         }
     };
     // InterpFromCoarseLevel's post hook sees one fab at a time, without its index, so the
@@ -575,18 +765,24 @@ ERF::InterpFromCoarseLevelCons (int lev, MultiFab& mf, const IntVect& nghost, co
                           erfbc, 0, erfbc, 0, refRatio(lev-1), mapper,
                           domain_bcs_type, BCVars::cons_bc, pre_interp, post_interp);
 
-    if (volume_weighted) {
-        scale_by_detJ(mf, IntVect(0), *detJ_cc[lev], fgeom, true);
+    if (l_detJ) {
+        scale_by_detJ(mf, IntVect(0), *detJ_f, fgeom, true, skip);
+    }
+
+    // The cells the interpolation filled: inside the domain, which extends across a
+    //    periodic boundary
+    Box fdomain_g(fgeom.Domain());
+    for (int d = 0; d < AMREX_SPACEDIM; ++d) {
+        if (fgeom.isPeriodic(d)) { fdomain_g.grow(d, nghost[d]); }
     }
 
     if (perturbational_interp) {
-        // The cells the interpolation filled: inside the domain, which extends across a
-        //    periodic boundary
-        Box fdomain_g(fgeom.Domain());
-        for (int d = 0; d < AMREX_SPACEDIM; ++d) {
-            if (fgeom.isPeriodic(d)) { fdomain_g.grow(d, nghost[d]); }
-        }
         add_base_cons(mf, nghost, fdomain_g, base_state[lev], fgeom.periodicity(),
                       one, Rho_comp, RhoTheta_comp, iqv);
+    }
+
+    convert_specific(mf, nghost, fdomain_g, sc, false);
+    if (crse_saved) {
+        conserve_specific(mf, *crse_saved, sc, refRatio(lev-1), detJ_f, detJ_c, fgeom, cgeom);
     }
 }
