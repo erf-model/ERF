@@ -14,13 +14,16 @@
 #include "ERF_SBMConstraintGroups.H"
 #include "ERF_SBMLayout.H"
 #include "ERF_SBMParticleMixing.H"
+#include "ERF_SBMTransport.H"
 #include "ERF_ScalarDiffusion.H"
+#include "ERF_Utils.H"
 
 #include <algorithm>
 #include <array>
 #include <cmath>
 #include <limits>
 #include <memory>
+#include <stdexcept>
 #include <string>
 #include <vector>
 
@@ -66,15 +69,18 @@ struct DiffusionGrid
     BoxArray ba2d;
     DistributionMapping dm;
     bool stretched{false};
+    bool terrain{false};
     std::vector<Real> dz_host;
     amrex::Gpu::DeviceVector<Real> dz;
     MultiFab mf_ux, mf_uy, mf_vx, mf_vy, mf_mx, mf_my;
     MultiFab ax, ay, detj, omega;
+    MultiFab z_nd, z_cc;
 
     [[nodiscard]] MappedDiffusionMetrics metrics () const
     {
         MappedDiffusionMetrics m;
-        m.mesh = stretched ? DiffusionMesh::StretchedDz : DiffusionMesh::ConstantDz;
+        m.mesh = terrain ? DiffusionMesh::VariableDz
+               : stretched ? DiffusionMesh::StretchedDz : DiffusionMesh::ConstantDz;
         m.mf_ux = &mf_ux;
         m.mf_uy = &mf_uy;
         m.mf_vx = &mf_vx;
@@ -84,6 +90,7 @@ struct DiffusionGrid
         m.ax = &ax;
         m.ay = &ay;
         m.stretched_dz = stretched ? dz.data() : nullptr;
+        m.z_nd = terrain ? &z_nd : nullptr;
         return m;
     }
 
@@ -189,12 +196,13 @@ void fill_cells (MultiFab& mf, const int comp, const Geometry& geom, F value)
     mf.FillBoundary(comp, 1, geom.periodicity());
 }
 
-std::unique_ptr<DiffusionFields> make_fields (const DiffusionGrid& g, const int ncomp)
+std::unique_ptr<DiffusionFields> make_fields (const DiffusionGrid& g, const int ncomp,
+                                              const int ngrow = 1)
 {
     auto f = std::make_unique<DiffusionFields>();
-    f->rho.define(g.ba, g.dm, 1, 1);
-    f->eddy.define(g.ba, g.dm, EddyDiff::NumDiffs, 1);
-    f->z.define(g.ba, g.dm, ncomp, 1);
+    f->rho.define(g.ba, g.dm, 1, ngrow);
+    f->eddy.define(g.ba, g.dm, EddyDiff::NumDiffs, ngrow);
+    f->z.define(g.ba, g.dm, ncomp, ngrow);
     const Real nx = Real(g.domain.length(0));
     const Real ny = Real(g.domain.length(1));
     fill_cells(f->rho, 0, g.geom, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
@@ -1177,6 +1185,645 @@ void run_terrain_counterexample ()
                 Real(64.0) * eps() * std::abs(pulse_tendency));
 }
 
+// Static affine terrain z = height zeta + slope_x xi + slope_y eta on the unit
+// computational cube: analytic nodal heights, with the cell-centre heights,
+// Jacobian and side areas ERF derives from them. Every face then has
+// h_xi = slope_x, h_eta = slope_y and J = height.
+struct TerrainOptions
+{
+    IntVect cells{8, 6, 8};
+    int max_grid{4};
+    std::array<int, 3> periodic{0, 1, 0};
+    Real height{Real(0.8)};
+    Real slope_x{Real(0.6)};
+    Real slope_y{Real(-0.35)};
+    bool variable_maps{true};
+    // Every x (y) map factor when the maps are not variable.
+    Real map_x{Real(1.0)};
+    Real map_y{Real(1.0)};
+};
+
+std::unique_ptr<DiffusionGrid> make_terrain_grid (const TerrainOptions& options)
+{
+    GridOptions grid;
+    grid.cells = options.cells;
+    grid.max_grid = options.max_grid;
+    grid.periodic = options.periodic;
+    grid.variable_maps = options.variable_maps;
+    auto g = make_grid(grid);
+    if (!options.variable_maps) {
+        for (auto* mf : {&g->mf_ux, &g->mf_vx, &g->mf_mx}) { mf->setVal(options.map_x); }
+        for (auto* mf : {&g->mf_uy, &g->mf_vy, &g->mf_my}) { mf->setVal(options.map_y); }
+    }
+    g->terrain = true;
+    g->z_nd.define(amrex::convert(g->ba, IntVect(1)), g->dm, 1, 2);
+    const Real nx = Real(options.cells[0]);
+    const Real ny = Real(options.cells[1]);
+    const Real nz = Real(options.cells[2]);
+    const Real height = options.height;
+    const Real slope_x = options.slope_x;
+    const Real slope_y = options.slope_y;
+    for (amrex::MFIter mfi(g->z_nd); mfi.isValid(); ++mfi) {
+        const auto a = g->z_nd.array(mfi);
+        amrex::ParallelFor(mfi.fabbox(), [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+            a(i, j, k, 0) = height * Real(k) / nz + slope_x * Real(i) / nx +
+                            slope_y * Real(j) / ny;
+        });
+    }
+    g->z_cc.define(g->ba, g->dm, 1, 2);
+    make_zcc(g->geom, g->z_nd, g->z_cc);
+    make_J(g->geom, g->z_nd, g->detj);
+    MultiFab az(amrex::convert(g->ba, IntVect(0, 0, 1)), g->dm, 1, 0);
+    make_areas(g->geom, g->z_nd, g->ax, g->ay, az);
+    std::string diagnostic;
+    EXPECT_TRUE(BuildMappedCellMeasure(g->omega, g->detj, g->mf_mx, g->mf_my, diagnostic))
+        << diagnostic;
+    return g;
+}
+
+// Constant density and no eddy diffusivity, with the two ghost cells the
+// native terrain flux reads.
+std::unique_ptr<DiffusionFields> make_uniform_terrain_fields (const DiffusionGrid& g,
+                                                              const Real rho)
+{
+    auto f = std::make_unique<DiffusionFields>();
+    f->rho.define(g.ba, g.dm, 1, 2);
+    f->eddy.define(g.ba, g.dm, EddyDiff::NumDiffs, 2);
+    f->z.define(g.ba, g.dm, 1, 2);
+    f->rho.setVal(rho);
+    f->eddy.setVal(Real(0.0));
+    f->z.setVal(Real(0.0));
+    return f;
+}
+
+// Largest |a - value| over the valid region.
+Real max_deviation (const MultiFab& a, const int comp, const Real value)
+{
+    MultiFab d(a.boxArray(), a.DistributionMap(), 1, 0);
+    MultiFab::Copy(d, a, comp, 0, 1, 0);
+    d.plus(-value, 0, 1, 0);
+    return d.norm0(0);
+}
+
+Real max_difference (const MultiFab& a, const MultiFab& b)
+{
+    MultiFab d(a.boxArray(), a.DistributionMap(), 1, 0);
+    MultiFab::Copy(d, a, 0, 0, 1, 0);
+    MultiFab::Subtract(d, b, 0, 0, 1, 0);
+    return d.norm0(0);
+}
+
+// ERF's native terrain diffusion of component 0 of `scalar`: raw face fluxes,
+// then one terrain mapping. A null `vertical` takes the one-coefficient
+// builder, whose z faces read policy.coefficients.
+struct TerrainFluxes
+{
+    MultiFab raw_x, raw_y, raw_z;
+    MappedFaceFluxRate mapped;
+};
+
+std::unique_ptr<TerrainFluxes>
+terrain_fluxes (const DiffusionGrid& g, const DiffusionFields& f,
+                const ScalarDiffusionFluxPolicy& policy,
+                const ScalarDiffusionCoefficients* vertical)
+{
+    amrex::BCRec bc;
+    for (int d = 0; d < AMREX_SPACEDIM; ++d) {
+        const int type = g.geom.isPeriodic(d) ? ERFBCType::int_dir : ERFBCType::foextrap;
+        bc.setLo(d, type);
+        bc.setHi(d, type);
+    }
+    amrex::Gpu::DeviceVector<amrex::BCRec> bcs(1);
+    amrex::Gpu::copy(amrex::Gpu::hostToDevice, &bc, &bc + 1, bcs.begin());
+
+    auto out = std::make_unique<TerrainFluxes>();
+    out->raw_x.define(amrex::convert(g.ba, IntVect(1, 0, 0)), g.dm, 1, IntVect(0, 0, 1));
+    out->raw_y.define(amrex::convert(g.ba, IntVect(0, 1, 0)), g.dm, 1, IntVect(0, 0, 1));
+    out->raw_z.define(amrex::convert(g.ba, IntVect(0, 0, 1)), g.dm, 1, 0);
+    out->mapped.define(g.ba, g.dm, 1, 0);
+    const auto inv = g.dx_inv();
+    for (amrex::MFIter mfi(f.z); mfi.isValid(); ++mfi) {
+        const Box bx = mfi.validbox();
+        ScalarDiffusionFieldViews field;
+        field.scalar = f.z.const_array(mfi);
+        field.density = f.rho.const_array(mfi);
+        field.mu_turb = f.eddy.const_array(mfi);
+        field.xflux = out->raw_x.array(mfi);
+        field.yflux = out->raw_y.array(mfi);
+        field.zflux = out->raw_z.array(mfi);
+        const auto z_nd = g.z_nd.const_array(mfi);
+        const auto z_cc = g.z_cc.const_array(mfi);
+        // No ext_dir_upwind face, so no velocity is read.
+        const Array4<const Real> no_velocity{};
+        if (vertical != nullptr) {
+            BuildScalarDiffusionFluxes_T(bx, g.domain, field, policy, *vertical, false, z_nd,
+                                         z_cc, inv, no_velocity, no_velocity,
+                                         g.mf_ux.const_array(mfi), g.mf_vy.const_array(mfi),
+                                         bcs.data(), 0);
+        } else {
+            BuildScalarDiffusionFluxes_T(bx, g.domain, field, policy, false, z_nd, z_cc, inv,
+                                         no_velocity, no_velocity, g.mf_ux.const_array(mfi),
+                                         g.mf_vy.const_array(mfi), bcs.data(), 0);
+        }
+        BuildScalarDiffusionMappedTransfers_T(
+            bx, g.domain, out->raw_x.const_array(mfi), out->raw_y.const_array(mfi),
+            out->raw_z.const_array(mfi), 0, out->mapped.dir(0).array(mfi), 0,
+            out->mapped.dir(1).array(mfi), 0, out->mapped.dir(2).array(mfi), 0, z_nd,
+            g.ax.const_array(mfi), g.ay.const_array(mfi), inv, g.mf_mx.const_array(mfi),
+            g.mf_uy.const_array(mfi), g.mf_my.const_array(mfi), g.mf_vx.const_array(mfi), false);
+    }
+    amrex::Gpu::streamSynchronize();
+    return out;
+}
+
+// Each terrain face matches an oracle written from the affine slopes, the
+// Jacobian and the host face averages: a (m_num / m_den) mu_h / dxi on the
+// sides, half the edge cell at the open xlo face, zero at the closed xhi and
+// z faces, and (mu_v + mu_h |m s|^2) / (m_x m_y J dzeta) on interior k faces.
+void expect_terrain_conductances (const Real sign)
+{
+    TerrainOptions options;
+    options.slope_x = sign * Real(0.6);
+    options.slope_y = -sign * Real(0.35);
+    const auto g = make_terrain_grid(options);
+    const auto f = make_fields(*g, 1);
+    MappedDiffusionBoundary boundary;
+    boundary.kind[0] = DiffusionFaceKind::Dirichlet;
+    const Real nx = Real(options.cells[0]);
+    const Real ny = Real(options.cells[1]);
+    const Real nz = Real(options.cells[2]);
+    const int x_last = options.cells[0];
+    const int z_last = options.cells[2];
+    const Real height = options.height;
+    const Real slope_x = options.slope_x;
+    const Real slope_y = options.slope_y;
+
+    for (const auto& c : {host_scalar_coefficients(),
+                          kinematic_coefficients(Real(0.37), Real(0.11)),
+                          kinematic_coefficients(Real(0.37), Real(0.0))}) {
+        MappedFaceTransmissibility t;
+        t.define(g->ba, g->dm, 1, 0);
+        std::string diagnostic;
+        ASSERT_TRUE(BuildMappedDiffusionTransmissibility(t, g->geom, g->metrics(), c, f->rho, 0,
+                                                         &f->eddy, boundary, diagnostic))
+            << diagnostic;
+
+        const bool eddy = c.mode.add_turbulence;
+        const Real kh = c.horizontal.molecular_coeff;
+        const Real kv = c.vertical.molecular_coeff;
+        const int hcomp = c.horizontal.eddy_h_comp;
+        const int vcomp = c.vertical.eddy_v_comp;
+        MappedFaceTransmissibility expected;
+        expected.define(g->ba, g->dm, 1, 0);
+        for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
+            const MultiFab& num = dir == 0 ? g->mf_ux : dir == 1 ? g->mf_vy : g->mf_mx;
+            const MultiFab& den = dir == 0 ? g->mf_uy : dir == 1 ? g->mf_vx : g->mf_my;
+            for (amrex::MFIter mfi(expected.dir(dir)); mfi.isValid(); ++mfi) {
+                const auto e = expected.dir(dir).array(mfi);
+                const auto rho = f->rho.const_array(mfi);
+                const auto mu = f->eddy.const_array(mfi);
+                const auto m_num = num.const_array(mfi);
+                const auto m_den = den.const_array(mfi);
+                amrex::ParallelFor(mfi.validbox(), [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                    const int di = dir == 0 ? 1 : 0;
+                    const int dj = dir == 1 ? 1 : 0;
+                    const int dk = dir == 2 ? 1 : 0;
+                    const Real rho_face =
+                        Real(0.5) * (rho(i, j, k, 0) + rho(i - di, j - dj, k - dk, 0));
+                    const Real mu_h = eddy
+                        ? Real(0.5) * (mu(i, j, k, hcomp) + mu(i - di, j - dj, k - dk, hcomp))
+                        : kh * rho_face;
+                    const Real mu_v = eddy
+                        ? Real(0.5) * (mu(i, j, k, vcomp) + mu(i - di, j - dj, k - dk, vcomp))
+                        : kv * rho_face;
+                    Real value = Real(0.0);
+                    if (dir == 0) {
+                        if (i < x_last) {
+                            const Real spacing = i == 0 ? Real(0.5) / nx : Real(1.0) / nx;
+                            value = height * m_num(i, j, 0) / m_den(i, j, 0) * mu_h / spacing;
+                        }
+                    } else if (dir == 1) {
+                        value = height * m_num(i, j, 0) / m_den(i, j, 0) * mu_h * ny;
+                    } else if (k > 0 && k < z_last) {
+                        const Real sx = m_num(i, j, 0) * slope_x;
+                        const Real sy = m_den(i, j, 0) * slope_y;
+                        value = (mu_v + mu_h * (sx * sx + sy * sy)) /
+                                (m_num(i, j, 0) * m_den(i, j, 0) * height / nz);
+                    }
+                    e(i, j, k, 0) = value;
+                });
+            }
+            const Real scale = expected.dir(dir).norm0(0);
+            ASSERT_GT(scale, Real(0.0));
+            EXPECT_LE(max_difference(t.dir(dir), expected.dir(dir)), Real(64.0) * eps() * scale)
+                << "dir " << dir;
+        }
+        // K_v = 0: the slope alone makes every interior k face exchange.
+        if (!eddy && kv == Real(0.0)) {
+            EXPECT_GT(value_at(t.dir(2), 0, IntVect(3, 2, 4)), Real(0.0));
+        }
+    }
+
+    // On flat terrain K_v = 0 leaves no vertical exchange, and zero
+    // coefficients none anywhere, on the slope too.
+    TerrainOptions flat_options = options;
+    flat_options.slope_x = Real(0.0);
+    flat_options.slope_y = Real(0.0);
+    const auto flat = make_terrain_grid(flat_options);
+    const auto flat_t = build_transmissibility(*flat, *make_fields(*flat, 1),
+                                               kinematic_coefficients(Real(0.37), Real(0.0)));
+    EXPECT_EQ(flat_t->dir(2).norm0(0), Real(0.0));
+    EXPECT_GT(flat_t->dir(0).norm0(0), Real(0.0));
+    const auto zero = build_transmissibility(*g, *f, kinematic_coefficients(Real(0.0), Real(0.0)));
+    EXPECT_EQ(max_abs_face(*zero, 0), Real(0.0));
+}
+
+void run_terrain_conductances ()
+{
+    expect_terrain_conductances(Real(1.0));
+    expect_terrain_conductances(Real(-1.0));
+}
+
+// On affine terrain ERF's mapped transfer of a field linear in physical space
+// is the physical flux -rho (K_h q_x, K_h q_y, K_v q_z) through each face;
+// a k face's normal is (-m_x h_xi, -m_y h_eta, 1) / (m_x m_y). With K_v = 0
+// the raw vertical flux vanishes, but horizontal diffusion along the slope
+// still crosses the k faces, reversing with the slope. One pass giving every
+// raw flux K_v loses that transfer.
+void expect_horizontal_diffusion_crosses_k_faces (const Real sign)
+{
+    TerrainOptions options;
+    options.periodic = {0, 0, 0};
+    options.slope_x = sign * Real(0.6);
+    options.slope_y = -sign * Real(0.35);
+    options.variable_maps = false;
+    options.map_x = Real(1.1);
+    options.map_y = Real(0.9);
+    const auto g = make_terrain_grid(options);
+    const Real rho0 = Real(1.3);
+    const auto f = make_uniform_terrain_fields(*g, rho0);
+    const Real kh = Real(0.7);
+    const Real alpha = Real(0.9);
+    const Real beta = Real(-0.4);
+    const Real gamma = Real(0.5);
+    const Real mx = options.map_x;
+    const Real my = options.map_y;
+    const Real nx = Real(options.cells[0]);
+    const Real ny = Real(options.cells[1]);
+    const Real nz = Real(options.cells[2]);
+    const Real height = options.height;
+    const Real slope_x = options.slope_x;
+    const Real slope_y = options.slope_y;
+    // q = alpha x + beta y + gamma z with physical x = xi / m_x, y = eta / m_y.
+    for (amrex::MFIter mfi(f->z); mfi.isValid(); ++mfi) {
+        const auto q = f->z.array(mfi);
+        amrex::ParallelFor(mfi.fabbox(), [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+            const Real xi = (Real(i) + Real(0.5)) / nx;
+            const Real eta = (Real(j) + Real(0.5)) / ny;
+            const Real z = height * (Real(k) + Real(0.5)) / nz + slope_x * xi + slope_y * eta;
+            q(i, j, k, 0) = alpha * xi / mx + beta * eta / my + gamma * z;
+        });
+    }
+    const Real along_slope = alpha * mx * slope_x + beta * my * slope_y;
+    ASSERT_GT(std::abs(along_slope), Real(0.5));
+
+    for (const Real kv : {Real(0.0), Real(0.2)}) {
+        ScalarDiffusionFluxPolicy policy;
+        policy.coefficients = {kh, EddyDiff::Scalar_h, EddyDiff::Scalar_v};
+        policy.coefficient_mode = {true, false};
+        const ScalarDiffusionCoefficients vertical{kv, EddyDiff::Scalar_h, EddyDiff::Scalar_v};
+        const auto high = terrain_fluxes(*g, *f, policy, &vertical);
+
+        const Real raw_z = -rho0 * kv * gamma;
+        const Real mapped_z = (raw_z + rho0 * kh * along_slope) / (mx * my);
+        const Real mapped_x = -rho0 * kh * alpha * height / my;
+        const Real tol = Real(256.0) * eps() * rho0 * kh;
+        if (kv == Real(0.0)) {
+            EXPECT_EQ(high->raw_z.norm0(0), Real(0.0));
+        }
+        EXPECT_LE(max_deviation(high->raw_z, 0, raw_z), tol);
+        EXPECT_LE(max_deviation(high->mapped.dir(2), 0, mapped_z), tol);
+        EXPECT_LE(max_deviation(high->mapped.dir(0), 0, mapped_x), tol);
+
+        ScalarDiffusionFluxPolicy vertical_only = policy;
+        vertical_only.coefficients = vertical;
+        const auto single = terrain_fluxes(*g, *f, vertical_only, nullptr);
+        const Real single_z = (raw_z + rho0 * kv * along_slope) / (mx * my);
+        EXPECT_LE(max_deviation(single->mapped.dir(2), 0, single_z), tol);
+        EXPECT_GT(std::abs(mapped_z - single_z), Real(0.25));
+
+        // The low-order vertical exchange keeps the slope term at K_v = 0.
+        const auto t = build_transmissibility(*g, *f, kinematic_coefficients(kh, kv));
+        const Real slope_sq = mx * mx * slope_x * slope_x + my * my * slope_y * slope_y;
+        const Real tz = rho0 * (kv + kh * slope_sq) * nz / (mx * my * height);
+        EXPECT_NEAR(value_at(t->dir(2), 0, IntVect(3, 2, 4)), tz, tol * nz);
+        EXPECT_EQ(value_at(t->dir(2), 0, IntVect(3, 2, 0)), Real(0.0));
+    }
+}
+
+void run_horizontal_diffusion_crosses_k_faces ()
+{
+    expect_horizontal_diffusion_crosses_k_faces(Real(1.0));
+    expect_horizontal_diffusion_crosses_k_faces(Real(-1.0));
+}
+
+// The directional builder reproduces the one-coefficient builder bit for bit
+// when both coefficient sets agree, and a distinct vertical set changes only
+// the raw z flux.
+void run_terrain_directional_builder ()
+{
+    const auto g = make_terrain_grid(TerrainOptions{});
+    const auto f = make_fields(*g, 1, 2);
+
+    ScalarDiffusionFluxPolicy policy;
+    policy.coefficients = {Real(0.0), EddyDiff::Scalar_h, EddyDiff::Scalar_v};
+    policy.coefficient_mode = {false, true};
+    const auto shared = terrain_fluxes(*g, *f, policy, nullptr);
+    const auto same = terrain_fluxes(*g, *f, policy, &policy.coefficients);
+    EXPECT_EQ(max_difference(shared->raw_x, same->raw_x), Real(0.0));
+    EXPECT_EQ(max_difference(shared->raw_y, same->raw_y), Real(0.0));
+    EXPECT_EQ(max_difference(shared->raw_z, same->raw_z), Real(0.0));
+    for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
+        EXPECT_EQ(max_difference(shared->mapped.dir(dir), same->mapped.dir(dir)), Real(0.0));
+    }
+
+    const ScalarDiffusionCoefficients other{Real(0.0), EddyDiff::Scalar_h, EddyDiff::Theta_v};
+    const auto split = terrain_fluxes(*g, *f, policy, &other);
+    EXPECT_EQ(max_difference(shared->raw_x, split->raw_x), Real(0.0));
+    EXPECT_EQ(max_difference(shared->raw_y, split->raw_y), Real(0.0));
+    EXPECT_GT(max_difference(shared->raw_z, split->raw_z), Real(0.0));
+}
+
+// The design's affine witness: z = zeta / 4 + xi with equal computational
+// spacing in x and zeta, a rise of four cells per cell, K_h = 1 and K_v = 0.
+std::unique_ptr<DiffusionGrid> make_witness_grid (const Real slope)
+{
+    TerrainOptions options;
+    options.cells = IntVect(8, 4, 8);
+    options.periodic = {1, 1, 0};
+    options.height = Real(0.25);
+    options.slope_x = slope;
+    options.slope_y = Real(0.0);
+    options.variable_maps = false;
+    return make_terrain_grid(options);
+}
+
+// A step the slope-blind combined bound admits multiplies the native terrain
+// mode q = cos(pi k / 2) by less than -1; the terrain bound rejects that step
+// and admits one that damps the mode.
+void run_terrain_bound_includes_slope ()
+{
+    const Real slope = Real(1.0);
+    const Real height = Real(0.25);
+    const Real n = Real(8.0);
+    const Real ny = Real(4.0);
+    const auto sloped = make_witness_grid(slope);
+    const auto flat = make_witness_grid(Real(0.0));
+    const auto c = kinematic_coefficients(Real(1.0), Real(0.0));
+    const auto f = make_uniform_terrain_fields(*sloped, Real(1.0));
+    const auto flat_f = make_uniform_terrain_fields(*flat, Real(1.0));
+    MappedFaceFluxRate no_carrier;
+    no_carrier.define(sloped->ba, sloped->dm, 1, 0);
+    no_carrier.setVal(Real(0.0));
+    const Real rate = combined_rate(*sloped, *f, *build_transmissibility(*sloped, *f, c),
+                                    no_carrier);
+    const Real flat_rate = combined_rate(*flat, *flat_f,
+                                         *build_transmissibility(*flat, *flat_f, c), no_carrier);
+    const Real side_rate = Real(2.0) * n * n + Real(2.0) * ny * ny;
+    const Real slope_rate = Real(2.0) * (slope / height) * (slope / height) * n * n;
+    EXPECT_NEAR(flat_rate, side_rate, Real(64.0) * eps() * side_rate);
+    EXPECT_NEAR(rate, side_rate + slope_rate, Real(64.0) * eps() * (side_rate + slope_rate));
+
+    const double flat_step = 0.8 / static_cast<double>(flat_rate);
+    double hard_limit = 0.0;
+    EXPECT_FALSE(FixedDtExceedsMappedDonorLimit(flat_step, flat_rate, hard_limit));
+    EXPECT_TRUE(FixedDtExceedsMappedDonorLimit(flat_step, rate, hard_limit));
+
+    const Real half_pi = Real(0.25) * two_pi;
+    for (amrex::MFIter mfi(f->z); mfi.isValid(); ++mfi) {
+        const auto q = f->z.array(mfi);
+        amrex::ParallelFor(mfi.fabbox(), [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+            q(i, j, k, 0) = std::cos(half_pi * Real(k));
+        });
+    }
+    ScalarDiffusionFluxPolicy policy;
+    policy.coefficients = c.horizontal;
+    policy.coefficient_mode = c.mode;
+    const auto high = terrain_fluxes(*sloped, *f, policy, &c.vertical);
+    MultiFab tendency(sloped->ba, sloped->dm, 1, 0);
+    ApplyMappedFluxTendency(high->mapped, 0, sloped->omega, 0, tendency, 0, sloped->dx_inv());
+    // q = 1 two cells clear of the walls, where the stencil sees no boundary.
+    const Real decay = -value_at(tendency, 0, IntVect(3, 1, 4));
+    const Real expected_decay = (slope / height) * (slope / height) * n * n;
+    EXPECT_NEAR(decay, expected_decay, Real(1.0e-10) * expected_decay);
+    const Real flat_multiplier = Real(1.0) - Real(flat_step) * decay;
+    const Real multiplier = Real(1.0) - decay / rate;
+    amrex::Print() << "SBM_M6B_TERRAIN_BOUND slope_cells=" << slope / height
+                   << " flat_rate=" << flat_rate << " terrain_rate=" << rate
+                   << " flat_step_multiplier=" << flat_multiplier
+                   << " terrain_step_multiplier=" << multiplier << '\n';
+    EXPECT_LT(flat_multiplier, Real(-1.0));
+    EXPECT_GE(multiplier, Real(-1.0));
+    EXPECT_LE(multiplier, Real(1.0));
+}
+
+// The low-order terrain update of an isolated pulse stays nonnegative at the
+// combined bound and goes negative just beyond it, with K_v = 0.
+void run_terrain_low_order_bound ()
+{
+    const auto g = make_witness_grid(Real(1.0));
+    const auto f = make_uniform_terrain_fields(*g, Real(1.0));
+    const auto t = build_transmissibility(*g, *f, kinematic_coefficients(Real(1.0), Real(0.0)));
+    MappedFaceFluxRate no_carrier;
+    no_carrier.define(g->ba, g->dm, 1, 0);
+    no_carrier.setVal(Real(0.0));
+    const Real bound = combined_rate(*g, *f, *t, no_carrier);
+    ASSERT_GT(bound, Real(0.0));
+    const IntVect pulse(3, 1, 4);
+    for (amrex::MFIter mfi(f->z); mfi.isValid(); ++mfi) {
+        const auto q = f->z.array(mfi);
+        amrex::ParallelFor(mfi.fabbox(), [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+            q(i, j, k, 0) = (i == pulse[0] && j == pulse[1] && k == pulse[2]) ? Real(1.0)
+                                                                             : Real(0.0);
+        });
+    }
+    f->z.FillBoundary(g->geom.periodicity());
+    const auto rate = build_rate(*g, *t, f->z, {0});
+
+    auto at_bound = extensive_state(*g, *f);
+    explicit_update(*g, *rate, *at_bound, Real(1.0) / bound);
+    EXPECT_GE(at_bound->min(0), -Real(64.0) * eps());
+    EXPECT_NEAR(value_at(*at_bound, 0, pulse), Real(0.0), Real(64.0) * eps());
+
+    auto beyond = extensive_state(*g, *f);
+    explicit_update(*g, *rate, *beyond, Real(1.01) / bound);
+    EXPECT_LT(value_at(*beyond, 0, pulse), Real(0.0));
+}
+
+// Max interior error of ERF's native terrain diffusion, horizontal and
+// vertical eddy coefficients mapped once, against the physical-space
+// divergence d_x(mu_h q_x) + d_y(mu_h q_y) + d_z(mu_v q_z), on the curved
+// terrain z = zeta + (1 - zeta) h (sin 2 pi xi + cos(2 pi eta) / 2) with map
+// factors 1.1 in x and 0.9 in y. Cells two or more from a wall are measured.
+Real curved_manufactured_error (const int n)
+{
+    TerrainOptions options;
+    options.cells = IntVect(n);
+    options.max_grid = n / 2;
+    options.periodic = {1, 1, 0};
+    options.variable_maps = false;
+    options.map_x = Real(1.1);
+    options.map_y = Real(0.9);
+    auto g = make_terrain_grid(options);
+    const Real hill = Real(0.06);
+    const Real nn = Real(n);
+    for (amrex::MFIter mfi(g->z_nd); mfi.isValid(); ++mfi) {
+        const auto a = g->z_nd.array(mfi);
+        amrex::ParallelFor(mfi.fabbox(), [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+            const Real xi = Real(i) / nn;
+            const Real eta = Real(j) / nn;
+            const Real zeta = Real(k) / nn;
+            a(i, j, k, 0) = zeta + (Real(1.0) - zeta) * hill *
+                                       (std::sin(two_pi * xi) + Real(0.5) * std::cos(two_pi * eta));
+        });
+    }
+    make_zcc(g->geom, g->z_nd, g->z_cc);
+    make_J(g->geom, g->z_nd, g->detj);
+    MultiFab az(amrex::convert(g->ba, IntVect(0, 0, 1)), g->dm, 1, 0);
+    make_areas(g->geom, g->z_nd, g->ax, g->ay, az);
+    std::string diagnostic;
+    EXPECT_TRUE(BuildMappedCellMeasure(g->omega, g->detj, g->mf_mx, g->mf_my, diagnostic))
+        << diagnostic;
+
+    // Physical x = xi / m_x and y = eta / m_y, so one period in each.
+    const Real kx = two_pi * options.map_x;
+    const Real ky = two_pi * options.map_y;
+    const Real kz = Real(0.5) * two_pi;
+    auto f = make_uniform_terrain_fields(*g, Real(1.0));
+    for (amrex::MFIter mfi(f->z); mfi.isValid(); ++mfi) {
+        const auto q = f->z.array(mfi);
+        const auto mu = f->eddy.array(mfi);
+        const auto zc = g->z_cc.const_array(mfi);
+        amrex::ParallelFor(mfi.fabbox(), [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+            const Real x = (Real(i) + Real(0.5)) / nn / Real(1.1);
+            const Real y = (Real(j) + Real(0.5)) / nn / Real(0.9);
+            const Real z = zc(i, j, k);
+            q(i, j, k, 0) = std::sin(kx * x) * std::cos(ky * y) * std::cos(kz * z) +
+                            Real(0.5) * z * z;
+            mu(i, j, k, EddyDiff::Scalar_h) = Real(1.0) + Real(0.3) * std::cos(kx * x) +
+                                              Real(0.2) * z;
+            mu(i, j, k, EddyDiff::Scalar_v) = Real(0.5) + Real(0.2) * std::sin(ky * y) +
+                                              Real(0.1) * z;
+        });
+    }
+    ScalarDiffusionFluxPolicy policy;
+    policy.coefficients = {Real(0.0), EddyDiff::Scalar_h, EddyDiff::Scalar_v};
+    policy.coefficient_mode = {false, true};
+    const auto high = terrain_fluxes(*g, *f, policy, &policy.coefficients);
+    MultiFab tendency(g->ba, g->dm, 1, 0);
+    ApplyMappedFluxTendency(high->mapped, 0, g->omega, 0, tendency, 0, g->dx_inv());
+
+    MultiFab error(g->ba, g->dm, 1, 0);
+    error.setVal(Real(0.0));
+    for (amrex::MFIter mfi(error); mfi.isValid(); ++mfi) {
+        const auto out = error.array(mfi);
+        const auto got = tendency.const_array(mfi);
+        const auto zc = g->z_cc.const_array(mfi);
+        amrex::ParallelFor(mfi.validbox(), [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+            if (k < 2 || k > n - 3) return;
+            const Real x = (Real(i) + Real(0.5)) / nn / Real(1.1);
+            const Real y = (Real(j) + Real(0.5)) / nn / Real(0.9);
+            const Real z = zc(i, j, k);
+            const Real sx = std::sin(kx * x), cx = std::cos(kx * x);
+            const Real sy = std::sin(ky * y), cy = std::cos(ky * y);
+            const Real sz = std::sin(kz * z), cz = std::cos(kz * z);
+            const Real wave = sx * cy * cz;
+            const Real mu_h = Real(1.0) + Real(0.3) * cx + Real(0.2) * z;
+            const Real mu_v = Real(0.5) + Real(0.2) * sy + Real(0.1) * z;
+            const Real q_x = kx * cx * cy * cz;
+            const Real q_z = -kz * sx * cy * sz + z;
+            const Real d_x = -Real(0.3) * kx * sx * q_x - mu_h * kx * kx * wave;
+            const Real d_y = -mu_h * ky * ky * wave;
+            const Real d_z = Real(0.1) * q_z + mu_v * (-kz * kz * wave + Real(1.0));
+            out(i, j, k, 0) = std::abs(got(i, j, k, 0) - (d_x + d_y + d_z));
+        });
+    }
+    return error.norm0(0);
+}
+
+// The native terrain operator, the high-order candidate, converges at second
+// order on the curved interior with distinct horizontal and vertical
+// coefficients and nonunit maps: the design's gate is order 1.8 or better.
+void run_curved_manufactured_order ()
+{
+    const Real e16 = curved_manufactured_error(16);
+    const Real e32 = curved_manufactured_error(32);
+    const Real e64 = curved_manufactured_error(64);
+    const Real coarse = std::log2(e16 / e32);
+    const Real fine = std::log2(e32 / e64);
+    amrex::Print() << "SBM_M6B_CURVED_MANUFACTURED e16=" << e16 << " e32=" << e32 << " e64=" << e64
+                   << " order=" << coarse << "," << fine << '\n';
+    EXPECT_GE(fine, Real(1.8));
+}
+
+// Terrain conductances fail closed on missing or unusable metrics and on
+// vertical faces they do not support.
+void run_terrain_validation ()
+{
+    TerrainOptions options;
+    const auto g = make_terrain_grid(options);
+    const auto f = make_fields(*g, 1);
+    const auto c = host_scalar_coefficients();
+    std::string diagnostic;
+    const auto build = [&] (const DiffusionGrid& grid, const DiffusionFields& fields,
+                            const MappedDiffusionMetrics& metrics,
+                            const MappedDiffusionBoundary& boundary) {
+        MappedFaceTransmissibility out;
+        out.define(grid.ba, grid.dm, 1, 0);
+        return BuildMappedDiffusionTransmissibility(out, grid.geom, metrics, c, fields.rho, 0,
+                                                    &fields.eddy, boundary, diagnostic);
+    };
+    EXPECT_TRUE(build(*g, *f, g->metrics(), {})) << diagnostic;
+
+    auto no_heights = g->metrics();
+    no_heights.z_nd = nullptr;
+    EXPECT_FALSE(build(*g, *f, no_heights, {}));
+    EXPECT_NE(diagnostic.find("nodal heights"), std::string::npos) << diagnostic;
+
+    for (const int face : {2, 2 + AMREX_SPACEDIM}) {
+        MappedDiffusionBoundary open;
+        open.kind[static_cast<std::size_t>(face)] = DiffusionFaceKind::Dirichlet;
+        EXPECT_FALSE(build(*g, *f, g->metrics(), open));
+        EXPECT_NE(diagnostic.find("closed bottom and top"), std::string::npos) << diagnostic;
+    }
+
+    TerrainOptions periodic_options = options;
+    periodic_options.periodic = {0, 1, 1};
+    const auto periodic = make_terrain_grid(periodic_options);
+    EXPECT_FALSE(build(*periodic, *make_fields(*periodic, 1), periodic->metrics(), {}));
+    EXPECT_NE(diagnostic.find("closed bottom and top"), std::string::npos) << diagnostic;
+
+    // One nonfinite side area fails on every rank.
+    const auto set_ax = [&] (const Real value) {
+        for (amrex::MFIter mfi(g->ax); mfi.isValid(); ++mfi) {
+            const auto a = g->ax.array(mfi);
+            amrex::ParallelFor(mfi.validbox(), [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                if (i == 2 && j == 1 && k == 3) { a(i, j, k, 0) = value; }
+            });
+        }
+    };
+    set_ax(std::numeric_limits<Real>::quiet_NaN());
+    EXPECT_FALSE(build(*g, *f, g->metrics(), {}));
+    EXPECT_NE(diagnostic.find("(1 invalid samples)"), std::string::npos) << diagnostic;
+    set_ax(options.height);
+    EXPECT_TRUE(build(*g, *f, g->metrics(), {})) << diagnostic;
+
+    // An inverted column has J < 0 on every interior k face.
+    g->z_nd.mult(Real(-1.0), 0, 1, g->z_nd.nGrow());
+    EXPECT_FALSE(build(*g, *f, g->metrics(), {}));
+    EXPECT_NE(diagnostic.find("invalid samples"), std::string::npos) << diagnostic;
+}
+
 erf_sbm::SBMLayout make_two_moment_layout ()
 {
     erf_sbm::SpectralGridSpec grid;
@@ -1550,6 +2197,17 @@ void run_geometry_rejections ()
     EXPECT_FALSE(erf_sbm::particle_mixing_mesh(MeshType::VariableDz, mesh, reason));
     EXPECT_NE(reason.find("terrain-fitted"), std::string::npos) << reason;
 
+    // The transport refuses a terrain mesh too until its stage operator is qualified.
+    const auto layout = make_two_moment_layout();
+    erf_sbm::SBMTransport transport(layout, 1);
+    EXPECT_THROW(transport.set_particle_mixing(
+                     policy_config(erf_sbm::ParticleMixingPolicy::HostPassiveScalar),
+                     erf_auxiliary::DiffusionMesh::VariableDz),
+                 std::invalid_argument);
+    EXPECT_NO_THROW(transport.set_particle_mixing(
+        policy_config(erf_sbm::ParticleMixingPolicy::None),
+        erf_auxiliary::DiffusionMesh::VariableDz));
+
     GridOptions options;
     options.periodic = {1, 1, 1};
     options.stretched = true;
@@ -1560,6 +2218,56 @@ void run_geometry_rejections ()
     EXPECT_FALSE(build_policy(policy_config(erf_sbm::ParticleMixingPolicy::HostPassiveScalar),
                               *g, f->rho, &f->eddy, t, diagnostic));
     EXPECT_NE(diagnostic.find("periodic z"), std::string::npos) << diagnostic;
+}
+
+// The terrain matching rule: theta keeps theta * low between zero and high,
+// without forming high / low where it could overflow, and fails on NaN.
+void run_matched_fraction ()
+{
+    using erf_sbm::matched_diffusion_fraction;
+    EXPECT_EQ(matched_diffusion_fraction(Real(0.0), Real(0.0)), Real(1.0));
+    EXPECT_EQ(matched_diffusion_fraction(Real(3.0), Real(0.0)), Real(1.0));
+    EXPECT_EQ(matched_diffusion_fraction(Real(0.0), Real(2.0)), Real(0.0));
+    EXPECT_EQ(matched_diffusion_fraction(Real(-1.0), Real(2.0)), Real(0.0));
+    EXPECT_EQ(matched_diffusion_fraction(Real(1.0), Real(-2.0)), Real(0.0));
+    EXPECT_EQ(matched_diffusion_fraction(Real(1.0), Real(2.0)), Real(0.5));
+    EXPECT_EQ(matched_diffusion_fraction(Real(-1.0), Real(-4.0)), Real(0.25));
+    EXPECT_EQ(matched_diffusion_fraction(Real(5.0), Real(2.0)), Real(1.0));
+    EXPECT_EQ(matched_diffusion_fraction(Real(2.0), Real(2.0)), Real(1.0));
+    const Real huge = std::numeric_limits<Real>::max();
+    const Real tiny = std::numeric_limits<Real>::denorm_min();
+    EXPECT_EQ(matched_diffusion_fraction(huge, tiny), Real(1.0));
+    const Real small = matched_diffusion_fraction(tiny, huge);
+    EXPECT_GE(small, Real(0.0));
+    EXPECT_LT(small, eps());
+    for (const Real bad : {std::numeric_limits<Real>::quiet_NaN(),
+                           std::numeric_limits<Real>::infinity()}) {
+        EXPECT_TRUE(std::isnan(matched_diffusion_fraction(bad, Real(1.0))));
+        EXPECT_TRUE(std::isnan(matched_diffusion_fraction(Real(1.0), bad)));
+    }
+}
+
+// The restart schema pins the terrain operator and boundary policy for a
+// terrain mesh only, leaving every other mesh's schema unchanged.
+void run_terrain_schema ()
+{
+    erf_sbm::SBMPhysicalBoundaryConfig boundaries;
+    boundaries.kind[2] = erf_sbm::AdvectionFaceKind::ImpermeableWall;
+    boundaries.kind[5] = erf_sbm::AdvectionFaceKind::ImpermeableWall;
+    const auto mixing = policy_config(erf_sbm::ParticleMixingPolicy::HostPassiveScalar);
+    const std::string base = erf_sbm::particle_mixing_schema(mixing, boundaries);
+    for (const auto mesh : {erf_auxiliary::DiffusionMesh::ConstantDz,
+                            erf_auxiliary::DiffusionMesh::StretchedDz}) {
+        EXPECT_EQ(erf_sbm::particle_mixing_schema(mixing, boundaries, mesh), base);
+    }
+    const std::string terrain = erf_sbm::particle_mixing_schema(
+        mixing, boundaries, erf_auxiliary::DiffusionMesh::VariableDz);
+    EXPECT_EQ(terrain.rfind(base, 0), 0U);
+    EXPECT_NE(terrain.find("\nterrain-diffusion="), std::string::npos) << terrain;
+    EXPECT_TRUE(erf_sbm::particle_mixing_schema(policy_config(erf_sbm::ParticleMixingPolicy::None),
+                                                boundaries,
+                                                erf_auxiliary::DiffusionMesh::VariableDz)
+                    .empty());
 }
 
 void run_none_policy ()
@@ -1672,6 +2380,52 @@ void run_host_validation ()
     // Two levels: SBM's own AMR envelope bounds the levels, not the mixing policy.
     EXPECT_TRUE(accepts(host, {les(LESType::Smagorinsky), les(LESType::Smagorinsky)})) << reason;
     EXPECT_TRUE(accepts(reference, {les(LESType::None), les(LESType::None)})) << reason;
+
+    // Terrain qualification admits a terrain mesh on one level only.
+    const auto qualifies = [&] (const erf_sbm::ParticleMixingConfig& config,
+                                const std::vector<TurbChoice>& turbulence) {
+        return erf_sbm::validate_particle_mixing_host(config, turbulence, MolecDiffType::None,
+                                                      MeshType::VariableDz, true, reason);
+    };
+    EXPECT_TRUE(qualifies(host, smagorinsky)) << reason;
+    EXPECT_TRUE(qualifies(reference, quiet)) << reason;
+    rejects(qualifies(host, {les(LESType::Smagorinsky), les(LESType::Smagorinsky)}),
+            "qualified on one level only");
+    erf_auxiliary::DiffusionMesh mesh = erf_auxiliary::DiffusionMesh::ConstantDz;
+    EXPECT_TRUE(erf_sbm::particle_mixing_mesh(MeshType::VariableDz, mesh, reason, true));
+    EXPECT_EQ(mesh, erf_auxiliary::DiffusionMesh::VariableDz);
+}
+
+// The terrain envelope: every cell drops at most one thickness across, by
+// ERF's unclamped cell drops; the worst cell is named otherwise.
+void run_terrain_admission ()
+{
+    const Box domain(IntVect(0), IntVect(7, 3, 5));
+    BoxArray ba(domain);
+    ba.maxSize(4);
+    const DistributionMapping dm(ba);
+    MultiFab z_nd(amrex::convert(ba, IntVect(1)), dm, 1, 0);
+    // Each cell is 1/6 thick; a plane rising `slope` per cell in x, plus a
+    // bump of `bump` on the nodes i = 5, 6 of j = 3.
+    const auto fill = [&] (const Real slope, const Real bump) {
+        for (amrex::MFIter mfi(z_nd); mfi.isValid(); ++mfi) {
+            const auto a = z_nd.array(mfi);
+            amrex::ParallelFor(mfi.validbox(), [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                a(i, j, k, 0) = Real(k) / Real(6) + slope * Real(i) +
+                                ((i == 5 || i == 6) && j == 3 ? bump : Real(0.0));
+            });
+        }
+    };
+    std::string reason;
+    fill(Real(1.0) / Real(6.0), Real(0.0));
+    EXPECT_TRUE(erf_sbm::admit_terrain_mixing_geometry(z_nd, ba, Real(1.0) + Real(8.0) * eps(),
+                                                       reason)) << reason;
+    fill(Real(0.1), Real(0.4));
+    EXPECT_FALSE(erf_sbm::admit_terrain_mixing_geometry(z_nd, ba, Real(1.0), reason));
+    // Cells (5,2,k) are worst: all four y edges rise 0.4 and the x edges 0.1,
+    // so sqrt(0.1^2 + 0.4^2) * 6 = 2.474. Roundoff in the thickness picks the k.
+    EXPECT_NE(reason.find("cell (5,2,"), std::string::npos) << reason;
+    EXPECT_NE(reason.find("drops 2.47386"), std::string::npos) << reason;
 }
 
 void run_boundary_validation ()
@@ -1750,6 +2504,28 @@ TEST(AuxiliaryDiffusion, DissipationIdentityAndEnergyDecay) { run_dissipation();
 TEST(AuxiliaryDiffusion, NGridManufacturedRefinement) { run_refinement(false); }
 TEST(AuxiliaryDiffusion, StretchedGridManufacturedRefinement) { run_refinement(true); }
 TEST(AuxiliaryDiffusion, TerrainCentredStencilIsNotPositive) { run_terrain_counterexample(); }
+TEST(AuxiliaryDiffusion, TerrainConductancesMatchAffineSlopeOracle) { run_terrain_conductances(); }
+TEST(AuxiliaryDiffusion, TerrainHorizontalDiffusionCrossesKFaces)
+{
+    run_horizontal_diffusion_crosses_k_faces();
+}
+TEST(AuxiliaryDiffusion, TerrainDirectionalBuilderForwardsSharedCoefficients)
+{
+    run_terrain_directional_builder();
+}
+TEST(AuxiliaryDiffusion, TerrainBoundRejectsStepSlopeBlindBoundAdmits)
+{
+    run_terrain_bound_includes_slope();
+}
+TEST(AuxiliaryDiffusion, TerrainLowOrderPulseStaysNonnegativeUpToTheBound)
+{
+    run_terrain_low_order_bound();
+}
+TEST(AuxiliaryDiffusion, TerrainMetricsFailClosed) { run_terrain_validation(); }
+TEST(AuxiliaryDiffusion, TerrainNativeOperatorConvergesOnCurvedTerrain)
+{
+    run_curved_manufactured_order();
+}
 
 TEST(SBMParticleMixing, PolicyNamesAndIdentity) { run_policy_names(); }
 TEST(SBMParticleMixing, HostPassiveScalarUsesScalarChannelsAsGiven) { run_host_channels(); }
@@ -1758,6 +2534,12 @@ TEST(SBMParticleMixing, ConstantReferenceAndNoInheritedMolecularDiffusion) { run
 TEST(SBMParticleMixing, InvalidCoefficientsFailClosed) { run_invalid_coefficients(); }
 TEST(SBMParticleMixing, TerrainAndPeriodicStretchedGeometryAreRejected) { run_geometry_rejections(); }
 TEST(SBMParticleMixing, NonePolicyHasNoTransmissibility) { run_none_policy(); }
+TEST(SBMParticleMixing, TerrainMatchingFractionStaysBetweenZeroAndTheNativeRate)
+{
+    run_matched_fraction();
+}
+TEST(SBMParticleMixing, RestartSchemaPinsTheTerrainOperator) { run_terrain_schema(); }
+TEST(SBMParticleMixing, TerrainGeometryAdmissionNamesTheWorstCell) { run_terrain_admission(); }
 TEST(SBMParticleMixing, SharedCoefficientPreservesEveryBinGroup) { run_group_cone(); }
 TEST(SBMParticleMixing, ConfigurationParsingFailsClosed) { run_config_parsing(); }
 TEST(SBMParticleMixing, HostClosureAndMeshValidation) { run_host_validation(); }
