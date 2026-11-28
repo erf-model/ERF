@@ -37,9 +37,13 @@
  * explicit acoustic update over a whole coarse step, at an acoustic Courant number far above one,
  * and where the coarse/fine faces of two directions meet (the vertical edges of a patch) it grows
  * from one step to the next.  As a source, the acoustic substeps take it in.  So the momentum at
- * the end of a step is short by the impulse of that step, which the next step gives; and that last
- * impulse is not in a checkpoint, so a restarted run does not have it.  It is dropped when the
- * coarse level's grids change, and it is not made in a step in which those of either level change.
+ * the end of a step is short by the impulse of that step, which the next step gives.  That last
+ * impulse is written to checkpoints (Level_<lev>/MomRefluxX and MomRefluxY) and read back, so a
+ * restarted run gives it as the run that wrote the checkpoint does.  It is dropped when the
+ * coarse level's grids change, and it is not made in a step in which the grids of either level
+ * change.  A level that loses its fine level gives its last impulse once, in the next step, and
+ * none after that; the faces are then ordinary coarse faces, of width dx_c and not h, so the
+ * budget does not close across that regrid.
  *
  * Only the pressure is refluxed: not the advective or diffusive momentum fluxes, nor the momentum
  * sources on these faces, nor the momentum on coarse/fine faces parallel to it, nor (rho w) on the
@@ -53,7 +57,20 @@
 #include "ERF_Constants.H"
 #include "ERF_EOS.H"
 
+#include <AMReX_PlotFileUtil.H>
+#include <AMReX_VisMF.H>
+
+#include <algorithm>
+#include <array>
+#include <limits>
+#include <string>
+
 using namespace amrex;
+
+namespace {
+    // The checkpoint files of the impulse still to be given, under Level_<lev>/
+    const std::array<std::string,2> mom_reflux_chk_name = {"MomRefluxX", "MomRefluxY"};
+}
 
 /**
  * Whether the pressure impulse on the coarse/fine faces normal to the momentum is refluxed
@@ -166,6 +183,13 @@ ERF::momentum_reflux (int crse_lev)
 
     const int c = crse_lev;
     const int f = crse_lev + 1;
+
+    // The impulse of the step before has been given over this one.  Whatever happens below, it
+    // is not given again
+    if (static_cast<int>(m_mom_reflux_src.size()) > c) {
+        for (auto& D : m_mom_reflux_src[c]) { D.clear(); }
+    }
+
     if (!momentum_reflux_enabled() || solverChoice.coupling_type != CouplingType::TwoWay ||
         f > finest_level || static_cast<int>(m_mom_reflux_p.size()) <= f) {
         return;
@@ -176,9 +200,6 @@ ERF::momentum_reflux (int crse_lev)
             m_mom_reflux_stale[l]) {
             if (verbose > 0) {
                 Print() << "Momentum reflux skipped at level " << c << " (grids changed in the step)\n";
-            }
-            if (static_cast<int>(m_mom_reflux_src.size()) > c) {
-                for (auto& D : m_mom_reflux_src[c]) { D.clear(); }
             }
             return;
         }
@@ -201,7 +222,8 @@ ERF::momentum_reflux (int crse_lev)
     const BoxArray cfba = coarsen(grids[f], rr);
     const Box& domain = geom[c].Domain();
 
-    Real max_du = zero, sum_dmom = zero;
+    Real max_du = zero;
+    Array<Real,2> sum_dmom = {zero, zero};
 
     for (int dir = 0; dir < 2; ++dir)
     {
@@ -288,15 +310,18 @@ ERF::momentum_reflux (int crse_lev)
             });
         }
         ReduceTuple hv = reduce_data.value(reduce_op);
-        max_du    = std::max(max_du, get<0>(hv));
-        sum_dmom += get<1>(hv);
+        max_du        = std::max(max_du, get<0>(hv));
+        sum_dmom[dir] = get<1>(hv);
     }
 
     if (verbose > 0) {
         ParallelDescriptor::ReduceRealMax(max_du);
-        ParallelDescriptor::ReduceRealSum(sum_dmom);
-        Print() << "Momentum reflux at level " << c << ": max |du| = " << max_du
-                << ", momentum to be added on the coarse/fine faces = " << sum_dmom << "\n";
+        ParallelDescriptor::ReduceRealSum(sum_dmom.data(), 2);
+        // All the digits, so that a momentum budget made from the log closes as far as the run does
+        Print().SetPrecision(std::numeric_limits<Real>::max_digits10)
+                << "Momentum reflux at level " << c << ": max |du| = " << max_du
+                << ", momentum to be added on the coarse/fine faces: x = " << sum_dmom[0]
+                << ", y = " << sum_dmom[1] << "\n";
     }
 }
 
@@ -324,14 +349,82 @@ ERF::momentum_reflux_add_sources (int lev, MultiFab& xmom_src, MultiFab& ymom_sr
 }
 
 /**
- * Start the sums of the next coarse step (after all levels have been refluxed)
+ * Start the sums of the next coarse step (after all levels have been refluxed).  A level that no
+ * longer has a fine level was not refluxed in this step, and keeps no impulse from an earlier one
  */
 void
 ERF::momentum_reflux_reset ()
 {
+    for (int lev = std::max(finest_level, 0); lev < static_cast<int>(m_mom_reflux_src.size()); ++lev) {
+        for (auto& D : m_mom_reflux_src[lev]) { D.clear(); }
+    }
     for (int lev = 0; lev < static_cast<int>(m_mom_reflux_p.size()); ++lev) {
         if (m_mom_reflux_p[lev].isDefined()) { m_mom_reflux_p[lev].setVal(0); }
         m_mom_reflux_used[lev]  = 0;
         m_mom_reflux_stale[lev] = 0;
     }
+}
+
+/**
+ * Write the impulse of the last momentum reflux that the next coarse step is to give
+ * (momentum_reflux) to the checkpoint, as Level_<lev>/MomRefluxX and MomRefluxY.  A level
+ * without one (no fine level, the option off, or the grids changed in the step) writes none.
+ *
+ * @param checkpointname the checkpoint directory
+ */
+void
+ERF::write_momentum_reflux_checkpoint (const std::string& checkpointname) const
+{
+    if (!momentum_reflux_enabled()) { return; }
+    const int nlev = std::min(finest_level, static_cast<int>(m_mom_reflux_src.size()));
+    for (int lev = 0; lev < nlev; ++lev) {
+        const MultiFab& Dx = m_mom_reflux_src[lev][0];
+        const MultiFab& Dy = m_mom_reflux_src[lev][1];
+        // Both or neither: momentum_reflux makes them together
+        if (!Dx.isDefined() || !Dy.isDefined() || Dx.DistributionMap() != dmap[lev] ||
+            Dx.boxArray() != convert(grids[lev], IntVect::TheDimensionVector(0))) {
+            continue;
+        }
+        VisMF::Write(Dx, MultiFabFileFullPrefix(lev, checkpointname, "Level_", mom_reflux_chk_name[0]));
+        VisMF::Write(Dy, MultiFabFileFullPrefix(lev, checkpointname, "Level_", mom_reflux_chk_name[1]));
+    }
+}
+
+/**
+ * Read what write_momentum_reflux_checkpoint wrote for level lev onto the level's grids of this
+ * run.  A checkpoint without it (written with the option off, before a first reflux, or by a
+ * version of ERF that did not write it) leaves the level without an impulse: its first step
+ * after the restart gives none, as before.
+ *
+ * @param lev the level
+ */
+void
+ERF::read_momentum_reflux_checkpoint (int lev)
+{
+    if (!momentum_reflux_enabled() || solverChoice.coupling_type != CouplingType::TwoWay ||
+        lev >= finest_level) {
+        return;
+    }
+    const std::string fx = MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", mom_reflux_chk_name[0]);
+    const std::string fy = MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", mom_reflux_chk_name[1]);
+    const bool have_x = FileExists(fx + "_H");
+    const bool have_y = FileExists(fy + "_H");
+    if (!have_x || !have_y) {
+        if (have_x != have_y) {
+            Print() << "Momentum reflux: " << restart_chkfile << " holds only one of "
+                    << mom_reflux_chk_name[0] << " and " << mom_reflux_chk_name[1] << " on level "
+                    << lev << "; neither is read\n";
+        }
+        return;
+    }
+
+    if (static_cast<int>(m_mom_reflux_src.size()) <= lev) { m_mom_reflux_src.resize(lev+1); }
+    for (int dir = 0; dir < 2; ++dir) {
+        MultiFab& D = m_mom_reflux_src[lev][dir];
+        D.define(convert(grids[lev], IntVect::TheDimensionVector(dir)), dmap[lev], 1, 0);
+        D.setVal(0);
+        read_checkpoint_mf(D, (dir == 0) ? fx : fy, lev, 0, 0, 1, IntVect(0));
+    }
+    Print() << "Momentum reflux: read the impulse still to be given on level " << lev
+            << " from " << restart_chkfile << "\n";
 }
