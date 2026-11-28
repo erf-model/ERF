@@ -215,6 +215,23 @@ CASES: List[Tuple[str, str, List[Tuple[str, str]], List[Tuple[str, str]]]] = [
     ("box outside domain", "amr.max_level = 1\nerf.refinement_indicators = box1\nerf.box1.in_box_lo = 0 0 0\nerf.box1.in_box_hi = 9000 100 100", [("WARNING", "erf.box1.in_box_lo")], []),
     ("ref ratio 1", "amr.max_level = 1\namr.ref_ratio = 1\nerf.refinement_indicators = box1\nerf.box1.in_box_lo = 0 0 0\nerf.box1.in_box_hi = 100 100 100", [("ERROR", "amr.ref_ratio")], []),
     ("two-way with cf_width", "amr.max_level = 1\nerf.cf_width = 4\nerf.refinement_indicators = box1\nerf.box1.in_box_lo = 0 0 0\nerf.box1.in_box_hi = 100 100 100", [("ERROR", "erf.cf_width")], []),
+    ("init file above max_level", "erf.init_type = Metgrid\nerf.terrain_type = StaticFittedMesh\namr.max_level = 2\n"
+     "erf.nc_init_file_0 = met_em.d01.nc\nerf.nc_init_file_3 = met_em.d04.nc\nerf.use_gravity = true\n"
+     "geometry.is_periodic = 0 0 0",
+     [("ERROR", "erf.nc_init_file_0"), ("ERROR", "erf.nc_init_file_3"), ("WARNING", "erf.nc_init_file_3")], []),
+    ("init file on level 3 read", "amr.max_level = 3\nerf.nc_init_file_3 = met_em.d04.nc",
+     [("ERROR", "erf.nc_init_file_3")], [("WARNING", "erf.nc_init_file_3"), ("ADVICE", "erf.nc_init_file_3")]),
+    ("init file with capital prefix", "amr.max_level = 3\nERF.nc_init_file_3 = met_em.d04.nc", [("WARNING", "ERF.nc_init_file_3")], []),
+    ("init file with leading zero", "amr.max_level = 1\nerf.nc_init_file_01 = met_em.d02.nc", [("WARNING", "erf.nc_init_file_01")], []),
+    ("Metgrid smoothing on refined levels", "erf.init_type = Metgrid\nerf.terrain_type = StaticFittedMesh\n"
+     "amr.max_level = 1\nerf.terrain_smoothing = 1\nerf.use_gravity = true\ngeometry.is_periodic = 0 0 0",
+     [("ERROR", "erf.terrain_smoothing")], []),
+    ("Metgrid no smoothing on refined levels", "erf.init_type = Metgrid\nerf.terrain_type = StaticFittedMesh\n"
+     "amr.max_level = 1\nerf.terrain_smoothing = 0\nerf.use_gravity = true\ngeometry.is_periodic = 0 0 0",
+     [], [("ERROR", "erf.terrain_smoothing")]),
+    ("Metgrid smoothing on one level", "erf.init_type = Metgrid\nerf.terrain_type = StaticFittedMesh\n"
+     "erf.terrain_smoothing = 1\nerf.use_gravity = true\ngeometry.is_periodic = 0 0 0",
+     [], [("ERROR", "erf.terrain_smoothing")]),
     ("plot int and per", "erf.plot_per_1 = 1.0", [("ERROR", "erf.plot_int_1")], []),
     ("plot vars without int", "erf.plot_vars_2 = density", [("WARNING", "erf.plot_vars_2")], []),
     ("legacy plot key", "erf.plot_int = 5", [("WARNING", "erf.plot_int")], []),
