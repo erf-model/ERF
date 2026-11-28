@@ -13,6 +13,7 @@
 
 #include <AMReX_Gpu.H>
 #include <AMReX_GpuContainers.H>
+#include <AMReX_Math.H>
 #include <AMReX_MFIter.H>
 #include <AMReX_MultiFabUtil.H>
 #include <AMReX_ParallelContext.H>
@@ -432,7 +433,9 @@ extend_wall_ghosts (MultiFab& scalar, const int ncomp, const MultiFab& z_cc,
     for (amrex::MFIter mfi(scalar, false); mfi.isValid(); ++mfi) {
         amrex::Box columns = mfi.fabbox();
         for (int dir = 0; dir < 2; ++dir) {
-            if (geometry.isPeriodic(dir)) continue;
+            if (geometry.isPeriodic(dir)) {
+                continue;
+            }
             columns.setSmall(dir, std::max(columns.smallEnd(dir), domain.smallEnd(dir)));
             columns.setBig(dir, std::min(columns.bigEnd(dir), domain.bigEnd(dir)));
         }
@@ -440,7 +443,9 @@ extend_wall_ghosts (MultiFab& scalar, const int ncomp, const MultiFab& z_cc,
         const auto z = z_cc.const_array(mfi);
         for (const bool low : {true, false}) {
             const int ghost = low ? domain.smallEnd(2) - 1 : domain.bigEnd(2) + 1;
-            if (ghost < columns.smallEnd(2) || ghost > columns.bigEnd(2)) continue;
+            if (ghost < columns.smallEnd(2) || ghost > columns.bigEnd(2)) {
+                continue;
+            }
             const int step = low ? 1 : -1;
             const int k0 = ghost + step;
             const int k1 = k0 + step;
@@ -501,7 +506,9 @@ fill_side_open_mask (MultiFab& mask, const int dir,
                                                       : Array4<const Real>{};
         amrex::ParallelFor(mfi.tilebox(), [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
             const int index = dir == 0 ? i : j;
-            if (index != lo && index != hi + 1) return;
+            if (index != lo && index != hi + 1) {
+                return;
+            }
             out(i, j, k, 0) = erf_auxiliary::DiffusionDomainFaceIsOpen(
                                   index == lo, kind_lo, kind_hi, carrier, i, j, k)
                                   ? Real(1.0) : Real(0.0);
@@ -585,14 +592,18 @@ build_terrain_high_order_mixing (erf_auxiliary::MappedFaceFluxRate& diffusive,
                                          Array4<const Real>{}, mf_ux, mf_vy, bc, 0);
         }
         for (int dir = 0; dir < 2; ++dir) {
-            if (geometry.isPeriodic(dir)) continue;
+            if (geometry.isPeriodic(dir)) {
+                continue;
+            }
             const auto out = raw[static_cast<std::size_t>(dir)].array(mfi);
             const auto open = side_open[static_cast<std::size_t>(dir)].const_array(mfi);
             const int lo = domain.smallEnd(dir);
             const int hi = domain.bigEnd(dir);
             for (const int face : {lo, hi + 1}) {
                 amrex::Box faces = raw[static_cast<std::size_t>(dir)][mfi].box();
-                if (face < faces.smallEnd(dir) || face > faces.bigEnd(dir)) continue;
+                if (face < faces.smallEnd(dir) || face > faces.bigEnd(dir)) {
+                    continue;
+                }
                 faces.setRange(dir, face, 1);
                 faces.setSmall(2, std::max(faces.smallEnd(2), domain.smallEnd(2)));
                 faces.setBig(2, std::min(faces.bigEnd(2), domain.bigEnd(2)));
@@ -748,7 +759,7 @@ add_matched_terrain_mixing (erf_auxiliary::MappedFaceFluxRate& low,
                             }
                             const Real fraction =
                                 matched_diffusion_fraction(native_rate, nominal_rate);
-                            if (!(fraction == fraction)) { finite = false; }
+                            if (amrex::Math::isnan(fraction)) { finite = false; }
                             theta = amrex::min(theta, fraction);
                         }
                         if (!finite) { theta = std::numeric_limits<Real>::quiet_NaN(); }
