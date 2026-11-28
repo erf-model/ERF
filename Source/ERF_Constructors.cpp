@@ -226,7 +226,9 @@ void validate_sbm_m3_advection (const SolverChoice& choice,
         std::string reason;
         if (!erf_sbm::validate_particle_mixing_host(mixing, choice.turbChoice,
                                                     choice.diffChoice.molec_diff_type,
-                                                    choice.mesh_type, reason)) {
+                                                    choice.mesh_type,
+                                                    choice.sbm_particle_mixing_terrain_qualification,
+                                                    reason)) {
             amrex::Abort(reason);
         }
     }
@@ -458,11 +460,21 @@ ERF::ERF_shared ()
             const auto mixing = sbm_particle_mixing(solverChoice);
             erf_auxiliary::DiffusionMesh mixing_mesh = erf_auxiliary::DiffusionMesh::ConstantDz;
             std::string reason;
+            const bool terrain_qualification =
+                solverChoice.sbm_particle_mixing_terrain_qualification;
             if (mixing.policy != erf_sbm::ParticleMixingPolicy::None &&
-                !erf_sbm::particle_mixing_mesh(solverChoice.mesh_type, mixing_mesh, reason)) {
+                !erf_sbm::particle_mixing_mesh(solverChoice.mesh_type, mixing_mesh, reason,
+                                               terrain_qualification)) {
                 amrex::Abort(reason);
             }
-            sbm_transport->set_particle_mixing(mixing, mixing_mesh);
+            sbm_transport->set_particle_mixing(mixing, mixing_mesh,
+                                               {terrain_qualification, true});
+            if (mixing.policy != erf_sbm::ParticleMixingPolicy::None &&
+                mixing_mesh == erf_auxiliary::DiffusionMesh::VariableDz) {
+                amrex::Print() << "WARNING: SBM particle mixing on a terrain-fitted mesh is "
+                                  "enabled for qualification only "
+                                  "(erf.sbm_particle_mixing_terrain_qualification)\n";
+            }
             if (mixing.policy != erf_sbm::ParticleMixingPolicy::None) {
                 amrex::Print() << "SBM particle mixing: " << mixing.identity() << "\n";
             }

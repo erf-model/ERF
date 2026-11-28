@@ -1,8 +1,15 @@
 #include "ERF_SBMParticleMixing.H"
 #include "ERF_SBMCanonicalIdentity.H"
 #include "ERF_IndexDefines.H"
+#include "ERF_TerrainDiffusionLimits.H"
+
+#include <AMReX_ParallelContext.H>
+#include <AMReX_ParallelReduce.H>
+#include <AMReX_Reduce.H>
 
 #include <cmath>
+#include <limits>
+#include <sstream>
 
 namespace erf_sbm {
 
@@ -97,6 +104,17 @@ validate_particle_mixing_host (const ParticleMixingConfig& config,
                                const MeshType mesh,
                                std::string& reason)
 {
+    return validate_particle_mixing_host(config, turbulence, molecular, mesh, false, reason);
+}
+
+bool
+validate_particle_mixing_host (const ParticleMixingConfig& config,
+                               const std::vector<TurbChoice>& turbulence,
+                               const MolecDiffType molecular,
+                               const MeshType mesh,
+                               const bool terrain_qualification,
+                               std::string& reason)
+{
     if (!validate_particle_mixing_config(config, reason)) { return false; }
     const std::string policy = particle_mixing_name(config.policy);
     if (molecular != MolecDiffType::None) {
@@ -147,7 +165,15 @@ validate_particle_mixing_host (const ParticleMixingConfig& config,
     }
     if (config.policy == ParticleMixingPolicy::None) { return true; }
     erf_auxiliary::DiffusionMesh diffusion_mesh = erf_auxiliary::DiffusionMesh::ConstantDz;
-    return particle_mixing_mesh(mesh, diffusion_mesh, reason);
+    if (!particle_mixing_mesh(mesh, diffusion_mesh, reason, terrain_qualification)) {
+        return false;
+    }
+    if (diffusion_mesh == erf_auxiliary::DiffusionMesh::VariableDz && turbulence.size() != 1) {
+        reason = "SBM particle mixing on a terrain-fitted (VariableDz) mesh is qualified on "
+                 "one level only";
+        return false;
+    }
+    return true;
 }
 
 bool
@@ -205,6 +231,18 @@ particle_mixing_schema (const ParticleMixingConfig& config,
     return schema;
 }
 
+std::string
+particle_mixing_schema (const ParticleMixingConfig& config,
+                        const SBMPhysicalBoundaryConfig& boundaries,
+                        const erf_auxiliary::DiffusionMesh mesh)
+{
+    std::string schema = particle_mixing_schema(config, boundaries);
+    if (schema.empty() || mesh != erf_auxiliary::DiffusionMesh::VariableDz) { return schema; }
+    return schema + "\nterrain-diffusion=diagonal-low-matched-native-high-v1;"
+                    "walls=complete-mapped-closure,quadratic-height-ghosts;"
+                    "sides=face-trace";
+}
+
 bool
 particle_mixing_coefficients (const ParticleMixingConfig& config,
                               erf_auxiliary::MappedDiffusionCoefficients& coefficients,
@@ -239,9 +277,14 @@ particle_mixing_coefficients (const ParticleMixingConfig& config,
 bool
 particle_mixing_mesh (const MeshType mesh_type,
                       erf_auxiliary::DiffusionMesh& mesh,
-                      std::string& reason)
+                      std::string& reason,
+                      const bool terrain_qualification)
 {
     reason.clear();
+    if (mesh_type == MeshType::VariableDz && terrain_qualification) {
+        mesh = erf_auxiliary::DiffusionMesh::VariableDz;
+        return true;
+    }
     if (mesh_type == MeshType::ConstantDz) {
         mesh = erf_auxiliary::DiffusionMesh::ConstantDz;
         return true;
@@ -250,9 +293,9 @@ particle_mixing_mesh (const MeshType mesh_type,
         mesh = erf_auxiliary::DiffusionMesh::StretchedDz;
         return true;
     }
-    reason = "SBM particle mixing has no qualified monotone low-order operator on a "
-             "terrain-fitted (VariableDz) mesh: its centred cross-diffusion stencil "
-             "is not positive, and the terrain design gate is open";
+    reason = "SBM particle mixing on a terrain-fitted (VariableDz) mesh has not passed its "
+             "release gates; erf.sbm_particle_mixing_terrain_qualification enables it for "
+             "qualification only";
     return false;
 }
 
@@ -303,6 +346,82 @@ build_particle_mixing_transmissibility (
         return false;
     }
     return true;
+}
+
+namespace {
+
+// The unclamped drop of cell (i,j,k) in cell thicknesses, or infinity where
+// the thickness is not positive or the drop not finite.
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE amrex::Real
+terrain_cell_drop (const amrex::Array4<const amrex::Real>& z,
+                   const int i, const int j, const int k) noexcept
+{
+    const TerrainCellDrops d = ComputeTerrainCellDrops(i, j, k, z);
+    const amrex::Real drop = std::sqrt(d.dx_drop * d.dx_drop + d.dy_drop * d.dy_drop) / d.dz;
+    return (amrex::Math::isfinite(drop) && d.dz > amrex::Real(0.0))
+               ? drop : std::numeric_limits<amrex::Real>::infinity();
+}
+
+} // namespace
+
+bool
+admit_terrain_mixing_geometry (const amrex::MultiFab& z_nd,
+                               const amrex::BoxArray& cells,
+                               const amrex::Real max_drop,
+                               std::string& reason)
+{
+    reason.clear();
+    if (z_nd.boxArray() != amrex::convert(cells, amrex::IntVect(1))) {
+        reason = "the terrain admission requires nodal heights on the cell layout";
+        return false;
+    }
+    // The worst drop, with -1 for a nonfinite or nonpositive thickness, then
+    // the first cell (in a fixed linear order) attaining it.
+    const amrex::Box domain = cells.minimalBox();
+    const auto lo = amrex::lbound(domain);
+    const auto len = amrex::length(domain);
+    amrex::ReduceOps<amrex::ReduceOpMax> max_op;
+    amrex::ReduceData<amrex::Real> max_data(max_op);
+    for (amrex::MFIter mfi(z_nd, false); mfi.isValid(); ++mfi) {
+        const auto z = z_nd.const_array(mfi);
+        max_op.eval(amrex::enclosedCells(mfi.validbox()), max_data,
+            [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept -> amrex::GpuTuple<amrex::Real> {
+                return {terrain_cell_drop(z, i, j, k)};
+            });
+    }
+    amrex::Real worst = amrex::get<0>(max_data.value(max_op));
+    amrex::ParallelAllReduce::Max(worst, amrex::ParallelContext::CommunicatorSub());
+    if (worst <= max_drop) { return true; }
+
+    amrex::ReduceOps<amrex::ReduceOpMin> min_op;
+    amrex::ReduceData<amrex::Long> min_data(min_op);
+    for (amrex::MFIter mfi(z_nd, false); mfi.isValid(); ++mfi) {
+        const auto z = z_nd.const_array(mfi);
+        min_op.eval(amrex::enclosedCells(mfi.validbox()), min_data,
+            [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept -> amrex::GpuTuple<amrex::Long> {
+                const amrex::Real drop = terrain_cell_drop(z, i, j, k);
+                const amrex::Long index = (i - lo.x) + amrex::Long(len.x) *
+                                          ((j - lo.y) + amrex::Long(len.y) * (k - lo.z));
+                return {drop >= worst ? index : std::numeric_limits<amrex::Long>::max()};
+            });
+    }
+    amrex::Long first = amrex::get<0>(min_data.value(min_op));
+    amrex::ParallelAllReduce::Min(first, amrex::ParallelContext::CommunicatorSub());
+    const amrex::Long i = first % len.x;
+    const amrex::Long j = (first / len.x) % len.y;
+    const amrex::Long k = first / (amrex::Long(len.x) * len.y);
+    std::ostringstream message;
+    message.precision(6);
+    message << "SBM terrain particle mixing is qualified for terrain dropping at most "
+            << max_drop << " cell thickness across a cell; cell (" << i + lo.x << ","
+            << j + lo.y << "," << k + lo.z << ") drops ";
+    if (std::isfinite(worst)) {
+        message << worst;
+    } else {
+        message << "with a nonfinite or nonpositive thickness";
+    }
+    reason = message.str();
+    return false;
 }
 
 erf_auxiliary::MappedDiffusionBoundary

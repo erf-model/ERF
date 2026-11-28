@@ -13,6 +13,7 @@
 
 #include <AMReX_Gpu.H>
 #include <AMReX_GpuContainers.H>
+#include <AMReX_Math.H>
 #include <AMReX_MFIter.H>
 #include <AMReX_MultiFabUtil.H>
 #include <AMReX_ParallelContext.H>
@@ -61,6 +62,17 @@ struct DeviceGroupInfo
     Real canonical_number_coefficient{Real(0.0)};
 };
 
+// Terrain particle mixing: one atomic group of a chunk, with its members'
+// local slots and the linear forms of its matched coordinates, both as
+// offsets into DeviceMetadata arrays.
+struct MatchingGroup
+{
+    int members_begin{0};
+    int members_count{0};
+    int coordinates_begin{0};
+    int coordinates_count{0};
+};
+
 struct LocalPropertySupport
 {
     int property_global{-1};
@@ -72,6 +84,27 @@ struct LocalPropertySupport
     int has_hard_min{0};
     int has_hard_max{0};
 };
+
+// The coordinates terrain mixing matches, one linear form of the group each:
+// a 1M bin's mass, a 2M bin's two endpoint numbers, and each attached
+// property's own amount.
+bool
+is_matched_coordinate (const ConstraintGroup& group, const SBMLayout& layout,
+                       const int constraint_index)
+{
+    const auto& id =
+        group.constraints.at(static_cast<std::size_t>(constraint_index)).semantic_id;
+    if (id == "mass_nonnegative" || id == "endpoint_low" || id == "endpoint_high") {
+        return true;
+    }
+    for (const int property : group.attached_property_indices) {
+        if (id == layout.attached_properties().at(static_cast<std::size_t>(property))
+                      .semantic_id + ".nonnegative") {
+            return true;
+        }
+    }
+    return false;
+}
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE Real
 clamp_unit (const Real value) noexcept
@@ -377,6 +410,375 @@ add_high_order_mixing (erf_auxiliary::MappedFaceFluxRate& high,
                 amrex::Abort("SBM high-order particle mixing produced a nonfinite "
                              "rate; check the stage-input density and eddy diffusivity");
             }
+        }
+    }
+}
+
+// Terrain mixing only. In every column of each fab within the domain (or
+// across a periodic side), the cell below the bottom wall and the cell above
+// the top one are extended quadratically in physical height through the three
+// nearest interior centres. These ghosts feed only the native high-order
+// stencil next to a wall, whose mapped wall transfer is suppressed: they are
+// neither donor states nor persisted, and need not be positive. Returns the
+// number of columns whose heights are nonfinite, not monotone away from the
+// wall, or so uneven (a gap ratio above 4) that the extension is ill-posed.
+int
+extend_wall_ghosts (MultiFab& scalar, const int ncomp, const MultiFab& z_cc,
+                    const amrex::Geometry& geometry)
+{
+    const amrex::Box& domain = geometry.Domain();
+    amrex::ReduceOps<amrex::ReduceOpSum> reduce_op;
+    amrex::ReduceData<int> reduce_data(reduce_op);
+    using ReduceTuple = typename decltype(reduce_data)::Type;
+    for (amrex::MFIter mfi(scalar, false); mfi.isValid(); ++mfi) {
+        amrex::Box columns = mfi.fabbox();
+        for (int dir = 0; dir < 2; ++dir) {
+            if (geometry.isPeriodic(dir)) {
+                continue;
+            }
+            columns.setSmall(dir, std::max(columns.smallEnd(dir), domain.smallEnd(dir)));
+            columns.setBig(dir, std::min(columns.bigEnd(dir), domain.bigEnd(dir)));
+        }
+        const auto q = scalar.array(mfi);
+        const auto z = z_cc.const_array(mfi);
+        for (const bool low : {true, false}) {
+            const int ghost = low ? domain.smallEnd(2) - 1 : domain.bigEnd(2) + 1;
+            if (ghost < columns.smallEnd(2) || ghost > columns.bigEnd(2)) {
+                continue;
+            }
+            const int step = low ? 1 : -1;
+            const int k0 = ghost + step;
+            const int k1 = k0 + step;
+            const int k2 = k1 + step;
+            amrex::Box layer = columns;
+            layer.setRange(2, ghost, 1);
+            reduce_op.eval(layer, reduce_data,
+                [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept -> ReduceTuple {
+                    const Real zg = z(i, j, ghost);
+                    const Real z0 = z(i, j, k0);
+                    const Real z1 = z(i, j, k1);
+                    const Real z2 = z(i, j, k2);
+                    const Real sign = Real(step);
+                    const Real g0 = sign * (z0 - zg);
+                    const Real g1 = sign * (z1 - z0);
+                    const Real g2 = sign * (z2 - z1);
+                    const Real gap_min = amrex::min(g0, amrex::min(g1, g2));
+                    const Real gap_max = amrex::max(g0, amrex::max(g1, g2));
+                    if (!(amrex::Math::isfinite(zg) && amrex::Math::isfinite(z2) &&
+                          gap_min > Real(0.0) && amrex::Math::isfinite(gap_max) &&
+                          gap_max <= Real(4.0) * gap_min)) {
+                        return {1};
+                    }
+                    const Real w0 = (zg - z1) * (zg - z2) / ((z0 - z1) * (z0 - z2));
+                    const Real w1 = (zg - z0) * (zg - z2) / ((z1 - z0) * (z1 - z2));
+                    const Real w2 = (zg - z0) * (zg - z1) / ((z2 - z0) * (z2 - z1));
+                    for (int n = 0; n < ncomp; ++n) {
+                        q(i, j, ghost, n) =
+                            w0 * q(i, j, k0, n) + w1 * q(i, j, k1, n) + w2 * q(i, j, k2, n);
+                    }
+                    return {0};
+                });
+        }
+    }
+    int count = amrex::get<0>(reduce_data.value(reduce_op));
+    amrex::ParallelAllReduce::Sum(count, amrex::ParallelContext::CommunicatorSub());
+    return count;
+}
+
+// Terrain mixing only: 1 where a cell of a lateral domain face exchanges and 0
+// where it does not, with one z ghost layer, so the raw side flux a box
+// builds one layer beyond its own z range knows its face's state.
+void
+fill_side_open_mask (MultiFab& mask, const int dir,
+                     const erf_auxiliary::MappedDiffusionBoundary& boundary,
+                     const amrex::Geometry& geometry)
+{
+    const amrex::Box& domain = geometry.Domain();
+    const int lo = domain.smallEnd(dir);
+    const int hi = domain.bigEnd(dir);
+    const auto kind_lo = boundary.kind[static_cast<std::size_t>(dir)];
+    const auto kind_hi = boundary.kind[static_cast<std::size_t>(dir + AMREX_SPACEDIM)];
+    const MultiFab* carrier_field = boundary.carrier[static_cast<std::size_t>(dir)];
+    mask.setVal(Real(0.0), 0, 1, mask.nGrowVect());
+    for (amrex::MFIter mfi(mask, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+        const auto out = mask.array(mfi);
+        const auto carrier = carrier_field != nullptr ? carrier_field->const_array(mfi)
+                                                      : Array4<const Real>{};
+        amrex::ParallelFor(mfi.tilebox(), [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+            const int index = dir == 0 ? i : j;
+            if (index != lo && index != hi + 1) {
+                return;
+            }
+            out(i, j, k, 0) = erf_auxiliary::DiffusionDomainFaceIsOpen(
+                                  index == lo, kind_lo, kind_hi, carrier, i, j, k)
+                                  ? Real(1.0) : Real(0.0);
+        });
+    }
+    mask.FillBoundary(geometry.periodicity());
+}
+
+// Terrain mixing only: ERF's native terrain diffusion of one chunk's physical
+// stage input, mapped once into `diffusive`. The horizontal raw fluxes carry
+// the horizontal coefficient and the vertical raw flux the vertical one. At
+// an open lateral face (ext_dir in the mixing BC) the native builder takes the
+// face-trace flux, the one-sided gradient against the inflow spectrum the
+// ghost cell holds, whose cross term vanishes for that constant trace. Before
+// the mapping interpolates side fluxes to the k faces, a raw side flux on a
+// lateral domain face that does not exchange (closed, or inflow_outflow where
+// the carrier leaves) is zeroed. The mapping suppresses the complete transfer
+// through both walls, including its metric terms; the walls' quadratic ghosts
+// feed only the side fluxes beside them.
+void
+build_terrain_high_order_mixing (erf_auxiliary::MappedFaceFluxRate& diffusive,
+                                 MultiFab& scalar,
+                                 std::array<MultiFab, AMREX_SPACEDIM>& raw,
+                                 const std::array<MultiFab, 2>& side_open,
+                                 const ParticleMixingConfig& config,
+                                 const SBMStageMixingInputs& inputs,
+                                 const amrex::BCRec* bc,
+                                 const amrex::Geometry& geometry,
+                                 const MultiFab& input_intensive,
+                                 const MultiFab& input_conserved,
+                                 const std::vector<int>& components)
+{
+    erf_auxiliary::MappedDiffusionCoefficients coefficients;
+    std::string diagnostic;
+    if (!particle_mixing_coefficients(config, coefficients, diagnostic)) {
+        amrex::Abort("SBM terrain particle mixing: " + diagnostic);
+    }
+    const auto& metrics = inputs.metrics;
+    const amrex::Box& domain = geometry.Domain();
+    const auto dx_inv = geometry.InvCellSizeArray();
+    const int ncomp = static_cast<int>(components.size());
+    for (int local = 0; local < ncomp; ++local) {
+        MultiFab::Copy(scalar, input_intensive, components[static_cast<std::size_t>(local)],
+                       local, 1, 2);
+    }
+    const int bad_columns = extend_wall_ghosts(scalar, ncomp, *inputs.z_cc, geometry);
+    if (bad_columns != 0) {
+        amrex::Abort("SBM terrain particle mixing cannot extend the stage input past a wall in " +
+                     std::to_string(bad_columns) + " columns: the three cell-centre heights "
+                     "nearest each wall must be finite, increase away from it, and have gaps "
+                     "within a factor of 4 of the ghost cell's");
+    }
+    ScalarDiffusionFluxPolicy policy;
+    policy.coefficients = coefficients.horizontal;
+    policy.coefficient_mode = coefficients.mode;
+    for (amrex::MFIter mfi(scalar, false); mfi.isValid(); ++mfi) {
+        const amrex::Box bx = mfi.validbox();
+        const auto q = scalar.const_array(mfi);
+        const auto rho = input_conserved.const_array(mfi);
+        const auto mu = inputs.eddy_diffusivity != nullptr
+                            ? inputs.eddy_diffusivity->const_array(mfi)
+                            : Array4<const Real>{};
+        const auto z_nd = metrics.z_nd->const_array(mfi);
+        const auto z_cc = inputs.z_cc->const_array(mfi);
+        const auto mf_ux = metrics.mf_ux->const_array(mfi);
+        const auto mf_vy = metrics.mf_vy->const_array(mfi);
+        for (int local = 0; local < ncomp; ++local) {
+            ScalarDiffusionFieldViews field;
+            field.scalar = q;
+            field.scalar_comp = local;
+            field.density = rho;
+            field.rho_comp = Rho_comp;
+            field.mu_turb = mu;
+            field.xflux = raw[0].array(mfi);
+            field.yflux = raw[1].array(mfi);
+            field.zflux = raw[2].array(mfi);
+            field.flux_comp = local;
+            // The mixing BCs use ext_dir and foextrap only, so no velocity is read.
+            BuildScalarDiffusionFluxes_T(bx, domain, field, policy, coefficients.vertical,
+                                         false, z_nd, z_cc, dx_inv, Array4<const Real>{},
+                                         Array4<const Real>{}, mf_ux, mf_vy, bc, 0);
+        }
+        for (int dir = 0; dir < 2; ++dir) {
+            if (geometry.isPeriodic(dir)) {
+                continue;
+            }
+            const auto out = raw[static_cast<std::size_t>(dir)].array(mfi);
+            const auto open = side_open[static_cast<std::size_t>(dir)].const_array(mfi);
+            const int lo = domain.smallEnd(dir);
+            const int hi = domain.bigEnd(dir);
+            for (const int face : {lo, hi + 1}) {
+                amrex::Box faces = raw[static_cast<std::size_t>(dir)][mfi].box();
+                if (face < faces.smallEnd(dir) || face > faces.bigEnd(dir)) {
+                    continue;
+                }
+                faces.setRange(dir, face, 1);
+                faces.setSmall(2, std::max(faces.smallEnd(2), domain.smallEnd(2)));
+                faces.setBig(2, std::min(faces.bigEnd(2), domain.bigEnd(2)));
+                amrex::ParallelFor(faces, ncomp,
+                    [=] AMREX_GPU_DEVICE(int i, int j, int k, int n) noexcept {
+                        if (open(i, j, k, 0) == Real(0.0)) { out(i, j, k, n) = Real(0.0); }
+                    });
+            }
+        }
+        for (int local = 0; local < ncomp; ++local) {
+            BuildScalarDiffusionMappedTransfers_T(
+                bx, domain, raw[0].const_array(mfi), raw[1].const_array(mfi),
+                raw[2].const_array(mfi), local, diffusive.dir(0).array(mfi), local,
+                diffusive.dir(1).array(mfi), local, diffusive.dir(2).array(mfi), local,
+                z_nd, metrics.ax->const_array(mfi), metrics.ay->const_array(mfi), dx_inv,
+                metrics.mf_mx->const_array(mfi), metrics.mf_uy->const_array(mfi),
+                metrics.mf_my->const_array(mfi), metrics.mf_vx->const_array(mfi),
+                true, true);
+        }
+    }
+    for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
+        if (!diffusive.dir(dir).is_finite(0, ncomp, 0)) {
+            amrex::Abort("SBM terrain particle mixing produced a nonfinite high-order rate; "
+                         "check the stage-input density, eddy diffusivity and terrain metrics");
+        }
+    }
+}
+
+// Largest difference between the copies of the faces or nodes a field shares
+// across box boundaries and periodic images: zero when every copy holds one
+// value. ERF syncs its nodal heights (OverrideSync), so the metrics derived
+// from them agree; its map factors are not synced and must agree by
+// construction.
+Real
+shared_copy_mismatch (const MultiFab& field, const amrex::Periodicity& period)
+{
+    MultiFab synced(field.boxArray(), field.DistributionMap(), field.nComp(), 0);
+    MultiFab::Copy(synced, field, 0, 0, field.nComp(), 0);
+    synced.OverrideSync(period);
+    MultiFab::Subtract(synced, field, 0, 0, field.nComp(), 0);
+    return synced.norm0(0, field.nComp(), amrex::IntVect(0));
+}
+
+// The shared-copy mismatch of every metric a terrain side face reads: its
+// area, its map factors and the terrain slopes of ERF's side flux, which take
+// differences of the nodal heights. Returns the first that differs, or empty.
+// (The k faces have no periodic images, and the boxes sharing one read the
+// same nodes.)
+std::string
+shared_metric_mismatch (const erf_auxiliary::MappedDiffusionMetrics& metrics,
+                        const amrex::Geometry& geometry)
+{
+    const amrex::Box& domain = geometry.Domain();
+    const amrex::Periodicity lateral(amrex::IntVect(
+        AMREX_D_DECL(geometry.isPeriodic(0) ? domain.length(0) : 0,
+                     geometry.isPeriodic(1) ? domain.length(1) : 0, 0)));
+    const auto dx_inv = geometry.InvCellSizeArray();
+    std::array<MultiFab, 2> slope;
+    for (int dir = 0; dir < 2; ++dir) {
+        const MultiFab& area = dir == 0 ? *metrics.ax : *metrics.ay;
+        slope[static_cast<std::size_t>(dir)].define(area.boxArray(), area.DistributionMap(), 2, 0);
+        for (amrex::MFIter mfi(area); mfi.isValid(); ++mfi) {
+            const auto out = slope[static_cast<std::size_t>(dir)].array(mfi);
+            const auto z_nd = metrics.z_nd->const_array(mfi);
+            amrex::ParallelFor(mfi.validbox(), [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                out(i, j, k, 0) = dir == 0 ? Compute_h_xi_AtIface(i, j, k, dx_inv, z_nd)
+                                           : Compute_h_xi_AtJface(i, j, k, dx_inv, z_nd);
+                out(i, j, k, 1) = dir == 0 ? Compute_h_eta_AtIface(i, j, k, dx_inv, z_nd)
+                                           : Compute_h_eta_AtJface(i, j, k, dx_inv, z_nd);
+            });
+        }
+    }
+    const std::array<std::pair<const char*, const MultiFab*>, 8> fields{{
+        {"ax", metrics.ax}, {"ay", metrics.ay},
+        {"the x-face terrain slopes", &slope[0]}, {"the y-face terrain slopes", &slope[1]},
+        {"the u_x map factor", metrics.mf_ux}, {"the u_y map factor", metrics.mf_uy},
+        {"the v_x map factor", metrics.mf_vx}, {"the v_y map factor", metrics.mf_vy}}};
+    for (const auto& [name, field] : fields) {
+        const Real mismatch = shared_copy_mismatch(*field, lateral);
+        if (mismatch != Real(0.0)) {
+            std::ostringstream message;
+            message.precision(6);
+            message << name << " differ by " << mismatch;
+            return message.str();
+        }
+    }
+    return {};
+}
+
+// Terrain mixing only: one chunk's diffusive rates. The high-order rates take
+// the native terrain diffusion D^H unchanged. The low-order rates take
+// theta L^0, where L^0 = -T_f (z_R - z_L) is the nominal diagonal exchange of
+// the trial base and theta, one per face and atomic group, is the least
+// matched_diffusion_fraction of the group's matched coordinates, which keeps
+// each of them between zero and its native rate. Without `match`, theta = 1.
+//
+// Conservation requires both copies of a face shared by two boxes, or by a
+// box and its periodic image, to get the same rate. theta is not continuous
+// in its inputs: a coordinate whose low rate is cancellation noise, the low
+// endpoint of a bin whose mean sits at its upper edge, can turn theta from 0
+// to 1 on a roundoff change. So the metrics the two copies read must agree
+// bitwise, which shared_metric_mismatch checks once per level.
+void
+add_matched_terrain_mixing (erf_auxiliary::MappedFaceFluxRate& low,
+                            erf_auxiliary::MappedFaceFluxRate& high,
+                            const erf_auxiliary::MappedFaceFluxRate& diffusive,
+                            const erf_auxiliary::MappedFaceTransmissibility& transmissibility,
+                            const amrex::Geometry& geometry,
+                            const MultiFab& base_intensive,
+                            const int* chunk_components,
+                            const MatchingGroup* groups,
+                            const int group_count,
+                            const int* members,
+                            const ConstraintDescriptor* coordinates,
+                            const ConstraintTerm* terms,
+                            const bool match)
+{
+    const amrex::Box& domain = geometry.Domain();
+    for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
+        const int lo = domain.smallEnd(dir);
+        const int hi = domain.bigEnd(dir);
+        const bool periodic = geometry.isPeriodic(dir);
+        const amrex::IntVect shift = amrex::IntVect::TheDimensionVector(dir);
+        for (amrex::MFIter mfi(low.dir(dir), amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+            const auto low_out = low.dir(dir).array(mfi);
+            const auto high_out = high.dir(dir).array(mfi);
+            const auto d = diffusive.dir(dir).const_array(mfi);
+            const auto t = transmissibility.dir(dir).const_array(mfi);
+            const auto z = base_intensive.const_array(mfi);
+            amrex::ParallelFor(mfi.tilebox(), [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                const amrex::IntVect cell(AMREX_D_DECL(i, j, k));
+                const amrex::IntVect left = cell - shift;
+                const Real tf = t(i, j, k, 0);
+                // A closed domain face reads no ghost; an open one has T > 0.
+                const bool exchange = periodic || (cell[dir] != lo && cell[dir] != hi + 1) ||
+                                      tf != Real(0.0);
+                for (int g = 0; g < group_count; ++g) {
+                    const MatchingGroup group = groups[g];
+                    Real theta = Real(1.0);
+                    if (match && exchange) {
+                        bool finite = true;
+                        for (int c = 0; c < group.coordinates_count; ++c) {
+                            const auto& form = coordinates[group.coordinates_begin + c];
+                            Real nominal_rate = Real(0.0);
+                            Real native_rate = Real(0.0);
+                            for (int s = 0; s < form.term_count; ++s) {
+                                const auto& term = terms[form.term_offset + s];
+                                const int global = chunk_components[term.component];
+                                const Real nominal = -tf * (z(cell, global) - z(left, global));
+                                nominal_rate = std::fma(term.coefficient, nominal, nominal_rate);
+                                native_rate = std::fma(term.coefficient,
+                                                       d(i, j, k, term.component), native_rate);
+                            }
+                            const Real fraction =
+                                matched_diffusion_fraction(native_rate, nominal_rate);
+                            if (amrex::Math::isnan(fraction)) { finite = false; }
+                            theta = amrex::min(theta, fraction);
+                        }
+                        if (!finite) { theta = std::numeric_limits<Real>::quiet_NaN(); }
+                    }
+                    for (int m = 0; m < group.members_count; ++m) {
+                        const int local = members[group.members_begin + m];
+                        const int global = chunk_components[local];
+                        const Real nominal = exchange
+                            ? -tf * (z(cell, global) - z(left, global)) : Real(0.0);
+                        low_out(i, j, k, local) += theta * nominal;
+                        high_out(i, j, k, local) += d(i, j, k, local);
+                    }
+                }
+            });
+        }
+        if (!low.dir(dir).is_finite(0, low.nComp(), 0)) {
+            amrex::Abort("SBM terrain particle mixing produced a nonfinite low-order rate; "
+                         "check the limiter-trial base, including the ghost cells read "
+                         "across periodic and open faces");
         }
     }
 }
@@ -1544,6 +1946,14 @@ struct SBMTransport::LevelStorage
     // scratch for one chunk's diffusive face rates.
     erf_auxiliary::MappedFaceTransmissibility transmissibility;
     erf_auxiliary::MappedFaceFluxRate mixing_rate;
+    // Terrain particle mixing only: one chunk's high-order stencil state, with
+    // the wall ghosts extended, its raw face fluxes, the z-face ones with one
+    // z ghost layer, and which cells of the lateral domain faces exchange.
+    MultiFab terrain_scalar;
+    std::array<MultiFab, AMREX_SPACEDIM> terrain_raw;
+    std::array<MultiFab, 2> terrain_side_open;
+    // Whether the static terrain metrics' shared copies have been checked.
+    bool terrain_metrics_checked{false};
     erf_auxiliary::CompletedStepFluxLedger projected_ledger;
     erf_auxiliary::CompletedStepFluxLedger spectral_ledger;
     SBMAMRFluxRegister* interface_as_coarse{nullptr};
@@ -1574,6 +1984,13 @@ struct SBMTransport::DeviceMetadata
     // Global components of every chunk, at chunk_offsets[chunk].
     amrex::Gpu::DeviceVector<int> chunk_components;
     std::vector<int> chunk_offsets;
+    // Terrain particle mixing: the groups of every chunk, in its order, at
+    // matching_offsets[chunk]; their local member slots; and the linear forms
+    // of their matched coordinates, whose terms are in local_terms.
+    amrex::Gpu::DeviceVector<MatchingGroup> matching_groups;
+    amrex::Gpu::DeviceVector<int> matching_members;
+    amrex::Gpu::DeviceVector<ConstraintDescriptor> matching_coordinates;
+    std::vector<int> matching_offsets;
 };
 
 SBMTransport::~SBMTransport () = default;
@@ -1609,6 +2026,9 @@ SBMTransport::SBMTransport (const SBMLayout& layout,
     std::vector<ConstraintDescriptor> local_descriptors;
     std::vector<ConstraintTerm> local_terms;
     std::vector<LocalPropertySupport> local_supports;
+    std::vector<MatchingGroup> matching_groups;
+    std::vector<int> matching_members;
+    std::vector<ConstraintDescriptor> matching_coordinates;
     m_device_metadata->host_groups.resize(m_groups.size());
     std::vector<int> group_chunk(m_groups.size(), -1);
     std::vector<int> group_local(m_groups.size(), -1);
@@ -1626,11 +2046,22 @@ SBMTransport::SBMTransport (const SBMLayout& layout,
             global_to_local[static_cast<std::size_t>(chunk.components[local])] =
                 static_cast<int>(local);
         }
+        m_device_metadata->matching_offsets.push_back(
+            static_cast<int>(matching_groups.size()));
         for (std::size_t local_group = 0;
              local_group < chunk.group_indices.size(); ++local_group) {
             const int group_index = chunk.group_indices[local_group];
             const auto& group =
                 m_groups[static_cast<std::size_t>(group_index)];
+            MatchingGroup matching;
+            matching.members_begin = static_cast<int>(matching_members.size());
+            matching.coordinates_begin = static_cast<int>(matching_coordinates.size());
+            for (const int member : group.members) {
+                matching_members.push_back(
+                    global_to_local[static_cast<std::size_t>(member)]);
+            }
+            matching.members_count =
+                static_cast<int>(matching_members.size()) - matching.members_begin;
             group_chunk[static_cast<std::size_t>(group_index)] =
                 static_cast<int>(chunk_index);
             group_local[static_cast<std::size_t>(group_index)] =
@@ -1670,7 +2101,20 @@ SBMTransport::SBMTransport (const SBMLayout& layout,
                 local_descriptor.group_index = static_cast<int>(local_group);
                 local_descriptors.push_back(local_descriptor);
                 ++device_group.linear_constraint_count;
+                if (is_matched_coordinate(group, m_layout, descriptor.constraint_index)) {
+                    matching_coordinates.push_back(local_descriptor);
+                }
             }
+            matching.coordinates_count =
+                static_cast<int>(matching_coordinates.size()) - matching.coordinates_begin;
+            const int expected_coordinates =
+                (group.moment_mode == MomentMode::TwoMoment ? 2 : 1) +
+                static_cast<int>(group.attached_property_indices.size());
+            if (matching.coordinates_count != expected_coordinates) {
+                throw std::logic_error("SBM transport group " + group.semantic_id +
+                                       " lacks the coordinates terrain mixing matches");
+            }
+            matching_groups.push_back(matching);
 
             for (const auto& support : m_property_support) {
                 if (support.group_index != group_index) {
@@ -1822,6 +2266,21 @@ SBMTransport::SBMTransport (const SBMLayout& layout,
         amrex::Gpu::copy(amrex::Gpu::hostToDevice, device_views.begin(),
                          device_views.end(), device.populations.begin());
     }
+    device.matching_groups.resize(matching_groups.size());
+    device.matching_members.resize(matching_members.size());
+    device.matching_coordinates.resize(matching_coordinates.size());
+    if (!matching_groups.empty()) {
+        amrex::Gpu::copy(amrex::Gpu::hostToDevice, matching_groups.begin(),
+                         matching_groups.end(), device.matching_groups.begin());
+    }
+    if (!matching_members.empty()) {
+        amrex::Gpu::copy(amrex::Gpu::hostToDevice, matching_members.begin(),
+                         matching_members.end(), device.matching_members.begin());
+    }
+    if (!matching_coordinates.empty()) {
+        amrex::Gpu::copy(amrex::Gpu::hostToDevice, matching_coordinates.begin(),
+                         matching_coordinates.end(), device.matching_coordinates.begin());
+    }
     std::vector<int> host_chunk_components;
     for (const auto& chunk : m_chunks) {
         device.chunk_offsets.push_back(static_cast<int>(host_chunk_components.size()));
@@ -1941,18 +2400,40 @@ SBMTransport::restore_boundary_ledger (const SBMBoundaryLedger& ledger)
 
 void
 SBMTransport::set_particle_mixing (const ParticleMixingConfig& config,
-                                   const erf_auxiliary::DiffusionMesh mesh)
+                                   const erf_auxiliary::DiffusionMesh mesh,
+                                   const TerrainMixingQualification terrain)
 {
     std::string reason;
     if (!validate_particle_mixing_config(config, reason)) {
         throw std::invalid_argument("SBM particle mixing: " + reason);
+    }
+    // The terrain stage operator has not passed its release gates.
+    if (config.policy != ParticleMixingPolicy::None &&
+        mesh == erf_auxiliary::DiffusionMesh::VariableDz && !terrain.accept) {
+        throw std::invalid_argument(
+            "SBM particle mixing: the terrain-fitted (VariableDz) stage operator "
+            "is not qualified");
     }
     if (!validate_particle_mixing_boundaries(config, m_boundaries, reason)) {
         throw std::invalid_argument(reason);
     }
     m_mixing = config;
     m_mixing_mesh = mesh;
+    m_terrain_match = terrain.match;
     install_mixing_bc();
+}
+
+bool
+SBMTransport::admit_terrain_geometry (const int level, const MultiFab& z_nd,
+                                      std::string& reason) const
+{
+    reason.clear();
+    if (!mixes_particles() || m_mixing_mesh != erf_auxiliary::DiffusionMesh::VariableDz) {
+        return true;
+    }
+    AMREX_ALWAYS_ASSERT(is_defined(level));
+    return admit_terrain_mixing_geometry(
+        z_nd, m_levels[static_cast<std::size_t>(level)]->target.boxArray(), Real(1.0), reason);
 }
 
 void
@@ -1982,7 +2463,9 @@ make_stage_mixing_inputs (const SBMTransport& transport,
                           const amrex::Vector<std::unique_ptr<MultiFab>>& mapfac,
                           const MultiFab* ax,
                           const MultiFab* ay,
-                          const Real* stretched_dz)
+                          const Real* stretched_dz,
+                          const MultiFab* z_nd,
+                          const MultiFab* z_cc)
 {
     SBMStageMixingInputs inputs;
     if (transport.particle_mixing().policy == ParticleMixingPolicy::HostPassiveScalar) {
@@ -2000,6 +2483,11 @@ make_stage_mixing_inputs (const SBMTransport& transport,
         metrics.ax = ax;
         metrics.ay = ay;
         metrics.stretched_dz = stretched_dz;
+    } else if (metrics.mesh == erf_auxiliary::DiffusionMesh::VariableDz) {
+        metrics.ax = ax;
+        metrics.ay = ay;
+        metrics.z_nd = z_nd;
+        inputs.z_cc = z_cc;
     }
     return inputs;
 }
@@ -2093,6 +2581,8 @@ SBMTransport::rebuild_static_measure (const int level,
                                                diagnostic))
         return false;
     data.measure_ready = true;
+    // New static geometry: check its shared metric copies again.
+    data.terrain_metrics_checked = false;
     return true;
 }
 
@@ -2182,6 +2672,38 @@ SBMTransport::advance_stage (const int level,
         if (mixing->metrics.mesh != m_mixing_mesh) {
             amrex::Abort("SBM particle mixing received metrics for another mesh than "
                          "the one installed with its policy");
+        }
+    }
+    const bool terrain_mixing =
+        mixing_active && m_mixing_mesh == erf_auxiliary::DiffusionMesh::VariableDz;
+    if (terrain_mixing) {
+        const MultiFab* z_cc = mixing->z_cc;
+        const MultiFab* z_nd = mixing->metrics.z_nd;
+        std::string reason;
+        if (level != 0 || parent != nullptr) {
+            reason = "is qualified on one level only";
+        } else if (m_boundaries.kind[2] != AdvectionFaceKind::ImpermeableWall ||
+                   m_boundaries.kind[2 + AMREX_SPACEDIM] != AdvectionFaceKind::ImpermeableWall) {
+            reason = "requires walls at the bottom and top";
+        } else if (geometry.Domain().length(2) < 3) {
+            reason = "requires three cells in each column to extend the stage input past a wall";
+        } else if (z_cc == nullptr || !erf_auxiliary::SameCellLayout(*z_cc, data.target) ||
+                   !z_cc->nGrowVect().allGE(amrex::IntVect(2)) || z_nd == nullptr ||
+                   !z_nd->nGrowVect().allGE(amrex::IntVect(1))) {
+            reason = "requires ERF's cell-centre heights with two ghost cells and nodal "
+                     "heights with one";
+        }
+        if (reason.empty() && !data.terrain_metrics_checked) {
+            const std::string mismatch = shared_metric_mismatch(mixing->metrics, geometry);
+            if (!mismatch.empty()) {
+                reason = "requires both copies of every face shared by two boxes, or by a "
+                         "box and its periodic image, to read one metric, but " + mismatch +
+                         "; sync them with OverrideSync, as ERF does its nodal heights";
+            }
+            data.terrain_metrics_checked = true;
+        }
+        if (!reason.empty()) {
+            amrex::Abort("SBM terrain-fitted particle mixing " + reason);
         }
     }
 
@@ -2434,6 +2956,30 @@ SBMTransport::advance_stage (const int level,
                          " stage " + std::to_string(stage) + ": " + diagnostic);
         }
     }
+    if (terrain_mixing) {
+        const auto& cell_ba = data.measure.boxArray();
+        const auto& dm = data.measure.DistributionMap();
+        if (!data.terrain_scalar.ok()) {
+            const amrex::IntVect z_layer(0, 0, 1);
+            data.terrain_scalar.define(cell_ba, dm, m_max_chunk_components, 2);
+            data.terrain_raw[0].define(amrex::convert(cell_ba, amrex::IntVect(1, 0, 0)), dm,
+                                       m_max_chunk_components, z_layer);
+            data.terrain_raw[1].define(amrex::convert(cell_ba, amrex::IntVect(0, 1, 0)), dm,
+                                       m_max_chunk_components, z_layer);
+            data.terrain_raw[2].define(amrex::convert(cell_ba, amrex::IntVect(0, 0, 1)), dm,
+                                       m_max_chunk_components, 0);
+            data.terrain_side_open[0].define(amrex::convert(cell_ba, amrex::IntVect(1, 0, 0)),
+                                             dm, 1, z_layer);
+            data.terrain_side_open[1].define(amrex::convert(cell_ba, amrex::IntVect(0, 1, 0)),
+                                             dm, 1, z_layer);
+        }
+        for (int dir = 0; dir < 2; ++dir) {
+            if (!geometry.isPeriodic(dir)) {
+                fill_side_open_mask(data.terrain_side_open[static_cast<std::size_t>(dir)], dir,
+                                    mixing_boundary, geometry);
+            }
+        }
+    }
     data.outgoing_demand.setVal(Real(0.0));
     for (amrex::MFIter mfi(data.outgoing_demand, amrex::TilingIfNotGPU());
          mfi.isValid(); ++mfi) {
@@ -2632,7 +3178,20 @@ SBMTransport::advance_stage (const int level,
         // The donor band above covers advection only. The diffusive exchange
         // is a two-point stencil, which reads a physical ghost only beyond an
         // open face, where it holds the inflow spectrum.
-        if (mixing_active) {
+        if (terrain_mixing) {
+            build_terrain_high_order_mixing(
+                data.mixing_rate, data.terrain_scalar, data.terrain_raw,
+                data.terrain_side_open, m_mixing, *mixing, m_mixing_bc.data(), geometry,
+                data.physical_input_intensive, conserved_input, chunk.components);
+            add_matched_terrain_mixing(
+                data.low_rate, data.high_rate, data.mixing_rate, data.transmissibility,
+                geometry, data.base_intensive,
+                device.chunk_components.data() + device.chunk_offsets[chunk_index],
+                device.matching_groups.data() + device.matching_offsets[chunk_index],
+                static_cast<int>(chunk.group_indices.size()),
+                device.matching_members.data(), device.matching_coordinates.data(),
+                device.local_terms.data(), m_terrain_match);
+        } else if (mixing_active) {
             add_low_order_mixing(data.low_rate, data.mixing_rate, data.transmissibility,
                                  geometry, data.base_intensive, chunk.components);
             add_high_order_mixing(data.high_rate, data.mixing_rate, m_mixing, *mixing,

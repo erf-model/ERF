@@ -23,13 +23,20 @@ struct MappedFaceTransmissibilityTag {};
  */
 using MappedFaceTransmissibility = MappedFaceField<MappedFaceTransmissibilityTag>;
 
-/** Orthogonal meshes with a two-point host diffusion stencil. */
-enum class DiffusionMesh { ConstantDz, StretchedDz };
+/**
+ * Host meshes. ConstantDz and StretchedDz are orthogonal, with a two-point
+ * host diffusion stencil. VariableDz is static terrain-fitted: its low-order
+ * exchange is the diagonal of the mapped diffusion tensor, which the host's
+ * centred cross-diffusion stencil is not.
+ */
+enum class DiffusionMesh { ConstantDz, StretchedDz, VariableDz };
 
 /**
  * Host metric views. Map factors are ERF's k=0 fields: u_x/u_y on x faces,
- * v_x/v_y on y faces, m_x/m_y at cell centers. ax/ay and the device pointer
- * to the stretched vertical spacing are read only for StretchedDz.
+ * v_x/v_y on y faces, m_x/m_y at cell centers. ax/ay are read for StretchedDz
+ * and VariableDz, the device pointer to the stretched vertical spacing only
+ * for StretchedDz, and z_nd, ERF's nodal physical heights on the cell layout
+ * with at least one ghost node in z, only for VariableDz.
  */
 struct MappedDiffusionMetrics
 {
@@ -43,6 +50,7 @@ struct MappedDiffusionMetrics
     const amrex::MultiFab* ax{nullptr};
     const amrex::MultiFab* ay{nullptr};
     const amrex::Real* stretched_dz{nullptr};
+    const amrex::MultiFab* z_nd{nullptr};
 };
 
 /**
@@ -63,6 +71,16 @@ struct MappedDiffusionCoefficients
  * and periodic face, and zero at every nonperiodic domain face. Fails, with a
  * diagnostic, on any nonfinite or negative coefficient, nonpositive density
  * read by a kinematic coefficient, or nonfinite or negative result.
+ *
+ * On VariableDz, T_f is the diagonal of the mapped diffusion tensor with the
+ * host's face averages: side faces take a (m_num / m_den) mu_h / dxi, and a
+ * k face (mu_v + mu_h [(m_x h_xi)^2 + (m_y h_eta)^2]) / (m_x m_y J dzeta),
+ * where J, h_xi and h_eta are ERF's k-face metrics and mu_h on a k face
+ * averages the horizontal channel of its two cells. The slope term keeps a
+ * slope's horizontal diffusion in the vertical exchange, which is nonzero
+ * with mu_v = 0. Fails, with a diagnostic, on a periodic or open z face, or
+ * on a nonfinite or nonpositive side area, k-face Jacobian or map factor, or
+ * a nonfinite slope.
  */
 bool BuildMappedDiffusionTransmissibility (
     MappedFaceTransmissibility& transmissibility,
@@ -149,7 +167,12 @@ MappedCombinedOutgoingDemandRate (const amrex::Real fx_hi,
            exchange / (measure * density);
 }
 
-/** Reduce the largest combined outgoing rate over a cell-centered domain. */
+/**
+ * Reduce the largest combined outgoing rate over a cell-centered domain. On
+ * VariableDz, T's slope term carries the stiffness of the host stencil's
+ * cross diffusion, which a slope-blind rate misses; pass the full T, never one
+ * reduced by a limiter.
+ */
 bool ComputeMaxMappedCombinedOutgoingRate (
     const MappedFaceFluxRate& carrier,
     const MappedFaceTransmissibility& transmissibility,

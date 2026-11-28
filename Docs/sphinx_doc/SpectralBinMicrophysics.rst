@@ -38,7 +38,8 @@ See :ref:`AuxiliaryState` for the reusable mapped-transport interface.
    cloud- and rain-water fields.
 
    The runtime does not yet provide particle mixing on terrain-following
-   meshes or through ``ho_outflow`` faces,
+   meshes, except for qualification (:ref:`sec:SBMTerrainMixing`), or
+   through ``ho_outflow`` faces,
    condensation/evaporation, aerosol activation or evolution,
    collision-coalescence, sedimentation, precipitation, spectral transport on
    more than two levels or on refined stretched or terrain-following meshes,
@@ -859,8 +860,9 @@ the spectrum by unrelated coefficients. Every policy rejects PBL and RANS
 closures, since the PBL schemes other than SHOC set ``Q_v`` but not
 ``Scalar_v`` and several add nonlocal transport, and rejects molecular
 diffusion. Mixing also requires a constant- or stretched-z mesh; terrain-fitted
-meshes are rejected until a positive low-order operator is qualified there.
-It runs on one level or on the two levels of SBM's AMR envelope.
+meshes are rejected until their operator (:ref:`sec:SBMTerrainMixing`) passes
+its release gates. It runs on one level or on the two levels of SBM's AMR
+envelope.
 
 Particle molecular (Brownian) diffusion is zero under every policy; a vapor
 or scalar molecular diffusivity is never inherited. A nonfinite or negative
@@ -949,9 +951,44 @@ below it. The margin applies with or without mixing. A nearly empty cell whose
 margin to a bound is within that roundoff of the material passing through it
 takes the low-order update on its faces.
 
-On terrain-fitted grids ERF's centered cross-diffusion stencil is
-not positive: a single diagonal neighbor gives an empty cell a negative
-tendency. No low-order operator is yet qualified there.
+.. _sec:SBMTerrainMixing:
+
+Particle mixing on terrain-fitted grids (qualification only)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+On terrain-fitted grids ERF's centered cross-diffusion stencil is not
+positive: a single diagonal neighbor gives an empty cell a negative tendency.
+The terrain operator below is implemented but has not passed its release
+gates, so ERF rejects it unless
+``erf.sbm_particle_mixing_terrain_qualification = true``, which is for
+qualification runs only and prints a warning.
+
+The high-order rate is ERF's native terrain diffusion of the stage input. The
+horizontal raw fluxes carry the horizontal coefficient and the vertical raw
+flux the vertical one, and ERF's terrain mapping combines them once, so
+horizontal diffusion along a slope crosses the :math:`k` faces even with
+:math:`K_v = 0`. The bottom and top walls suppress their complete mapped
+transfer, metric terms included; for the horizontal stencil beside a wall
+only, the stage input is extended quadratically in physical height past the
+wall. A lateral inflow face takes the face-trace flux, the one-sided gradient
+against the inflow spectrum; a face that does not exchange contributes no side
+flux to the adjoining :math:`k` faces.
+
+The low-order rate is the diagonal of the mapped diffusion tensor,
+:math:`T_z = (\mu_v + \mu_h[(m_x h_\xi)^2 + (m_y h_\eta)^2])/(m_x m_y J\,\Delta\zeta)`
+on a :math:`k` face, scaled on every face by one fraction
+:math:`\theta\in[0,1]` per bin group: the largest that keeps each of the
+group's matched coordinates (a 1M mass, a 2M bin's two endpoint numbers, an
+attached property) between zero and its native rate. The group limiter then
+bounds the combined advection-diffusion correction as on other meshes. The
+timestep estimate and the stage check use the unscaled :math:`T`, whose slope
+term accounts for the stiffness of the native stencil's cross diffusion.
+
+Qualification admits fully compressible, single-level, static terrain with
+walls at the bottom and top, three or more cells per column, and a cell drop
+:math:`\sqrt{\delta_x^2+\delta_y^2}` of at most one cell thickness (ERF's
+unclamped terrain cell drops); a run outside it fails at setup, naming the
+worst cell. The restart schema adds a line naming the terrain operator.
 
 Numerical reconstruction for resolved spectral advection
 --------------------------------------------------------
@@ -1189,6 +1226,16 @@ The particle mixing policy of :ref:`sec:SBMParticleMixing`.
 The horizontal and vertical kinematic diffusivities of
 ``ConstantReference``. They must be finite and nonnegative, and any other
 policy rejects a nonzero value.
+
+``erf.sbm_particle_mixing_terrain_qualification``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**Type:** Boolean
+
+**Default:** ``false``
+
+For qualification only: enable particle mixing on a static terrain-fitted
+mesh (:ref:`sec:SBMTerrainMixing`), which has not passed its release gates.
 
 ``erf.sbm_budget_check``
 ~~~~~~~~~~~~~~~~~~~~~~~~

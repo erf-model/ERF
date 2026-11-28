@@ -23,13 +23,15 @@ on_physical_face (const int index, const int lo, const int hi, const bool period
 
 // Counts nonfinite or negative coefficients, and nonpositive densities scaled
 // by a kinematic coefficient, in every cell a face reads: across interior and
-// periodic faces, and into the ghost cells beyond open domain faces.
+// periodic faces, and into the ghost cells beyond open domain faces. A
+// VariableDz k face also reads the horizontal channel.
 int count_invalid_coefficient_reads (const amrex::Geometry& geom,
                                      const MappedDiffusionCoefficients& coefficients,
                                      const MultiFab& density,
                                      const int density_component,
                                      const MultiFab* eddy_diffusivity,
-                                     const MappedDiffusionBoundary& boundary)
+                                     const MappedDiffusionBoundary& boundary,
+                                     const bool k_faces_read_horizontal)
 {
     const Box& domain = geom.Domain();
     const bool use_eddy = coefficients.mode.add_turbulence;
@@ -55,13 +57,19 @@ int count_invalid_coefficient_reads (const amrex::Geometry& geom,
             }
             const int eddy_comp = dir < 2 ? coefficients.horizontal.eddy_h_comp
                                           : coefficients.vertical.eddy_v_comp;
+            const int second_comp = dir == 2 && k_faces_read_horizontal
+                                        ? coefficients.horizontal.eddy_h_comp : eddy_comp;
             const int rho_comp = density_component;
             reduce_op.eval(read, reduce_data,
                 [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept -> ReduceTuple {
                     int bad = 0;
                     if (use_eddy) {
                         const Real value = mu(i, j, k, eddy_comp);
-                        if (!(amrex::Math::isfinite(value) && value >= Real(0.0))) { bad = 1; }
+                        const Real second = mu(i, j, k, second_comp);
+                        if (!(amrex::Math::isfinite(value) && value >= Real(0.0)) ||
+                            !(amrex::Math::isfinite(second) && second >= Real(0.0))) {
+                            bad = 1;
+                        }
                     }
                     if (use_density) {
                         const Real value = rho(i, j, k, rho_comp);
@@ -70,6 +78,58 @@ int count_invalid_coefficient_reads (const amrex::Geometry& geom,
                     return {bad};
                 });
         }
+    }
+    int count = amrex::get<0>(reduce_data.value(reduce_op));
+    amrex::ParallelAllReduce::Sum(count, amrex::ParallelContext::CommunicatorSub());
+    return count;
+}
+
+// Counts the VariableDz metric samples a face reads that are unusable: a
+// nonfinite or nonpositive side area on an x or y face and, on an interior k
+// face, a nonfinite or nonpositive Jacobian or map factor or a nonfinite slope.
+int count_invalid_terrain_metric_reads (const amrex::Geometry& geom,
+                                        const MappedDiffusionMetrics& metrics,
+                                        const MappedFaceTransmissibility& transmissibility)
+{
+    const Box& domain = geom.Domain();
+    const int k_first = domain.smallEnd(2) + 1;
+    const int k_last = domain.bigEnd(2);
+    const auto dx_inv = geom.InvCellSizeArray();
+    amrex::ReduceOps<amrex::ReduceOpSum> reduce_op;
+    amrex::ReduceData<int> reduce_data(reduce_op);
+    using ReduceTuple = typename decltype(reduce_data)::Type;
+    for (int dir = 0; dir < 2; ++dir) {
+        const MultiFab& area = dir == 0 ? *metrics.ax : *metrics.ay;
+        for (amrex::MFIter mfi(transmissibility.dir(dir), false); mfi.isValid(); ++mfi) {
+            const auto a = area.const_array(mfi);
+            reduce_op.eval(mfi.validbox(), reduce_data,
+                [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept -> ReduceTuple {
+                    const Real value = a(i, j, k);
+                    return {amrex::Math::isfinite(value) && value > Real(0.0) ? 0 : 1};
+                });
+        }
+    }
+    for (amrex::MFIter mfi(transmissibility.dir(2), false); mfi.isValid(); ++mfi) {
+        Box faces = mfi.validbox();
+        faces.setSmall(2, amrex::max(faces.smallEnd(2), k_first));
+        faces.setBig(2, amrex::min(faces.bigEnd(2), k_last));
+        if (!faces.ok()) { continue; }
+        const auto z_nd = metrics.z_nd->const_array(mfi);
+        const auto mx = metrics.mf_mx->const_array(mfi);
+        const auto my = metrics.mf_my->const_array(mfi);
+        reduce_op.eval(faces, reduce_data,
+            [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept -> ReduceTuple {
+                const Real jacobian = Compute_h_zeta_AtKface(i, j, k, dx_inv, z_nd);
+                const Real h_xi = Compute_h_xi_AtKface(i, j, k, dx_inv, z_nd);
+                const Real h_eta = Compute_h_eta_AtKface(i, j, k, dx_inv, z_nd);
+                const Real map_x = mx(i, j, 0);
+                const Real map_y = my(i, j, 0);
+                const bool ok = amrex::Math::isfinite(jacobian) && jacobian > Real(0.0) &&
+                                amrex::Math::isfinite(h_xi) && amrex::Math::isfinite(h_eta) &&
+                                amrex::Math::isfinite(map_x) && map_x > Real(0.0) &&
+                                amrex::Math::isfinite(map_y) && map_y > Real(0.0);
+                return {ok ? 0 : 1};
+            });
     }
     int count = amrex::get<0>(reduce_data.value(reduce_op));
     amrex::ParallelAllReduce::Sum(count, amrex::ParallelContext::CommunicatorSub());
@@ -94,6 +154,8 @@ void fill_transmissibility (MappedFaceTransmissibility& transmissibility,
     const bool periodic_y = geom.isPeriodic(1);
     const bool periodic_z = geom.isPeriodic(2);
     const bool stretched = metrics.mesh == DiffusionMesh::StretchedDz;
+    const bool terrain = metrics.mesh == DiffusionMesh::VariableDz;
+    const bool side_areas = stretched || terrain;
     const Real* dz = metrics.stretched_dz;
     const auto horizontal = coefficients.horizontal;
     const auto vertical = coefficients.vertical;
@@ -112,7 +174,7 @@ void fill_transmissibility (MappedFaceTransmissibility& transmissibility,
                                       : Array4<const Real>{};
         const auto map_num = metrics.mf_ux->const_array(mfi);
         const auto map_den = metrics.mf_uy->const_array(mfi);
-        const auto area = stretched ? metrics.ax->const_array(mfi) : Array4<const Real>{};
+        const auto area = side_areas ? metrics.ax->const_array(mfi) : Array4<const Real>{};
         const auto carrier = carrier_array(0, mfi);
         const auto kind_lo = kind[0];
         const auto kind_hi = kind[AMREX_SPACEDIM];
@@ -131,7 +193,7 @@ void fill_transmissibility (MappedFaceTransmissibility& transmissibility,
                 rho, rho_comp, mu, horizontal, i, j, k, 1, 0, 0, horizontal.eddy_h_comp);
             tx(i, j, k, 0) = ScalarDiffusionMappedHorizontalTransfer(
                 coeff * inv_spacing * map_num(i, j, 0) / map_den(i, j, 0),
-                stretched ? area(i, j, k) : Real(1.0));
+                side_areas ? area(i, j, k) : Real(1.0));
         });
     }
 
@@ -143,7 +205,7 @@ void fill_transmissibility (MappedFaceTransmissibility& transmissibility,
                                       : Array4<const Real>{};
         const auto map_num = metrics.mf_vy->const_array(mfi);
         const auto map_den = metrics.mf_vx->const_array(mfi);
-        const auto area = stretched ? metrics.ay->const_array(mfi) : Array4<const Real>{};
+        const auto area = side_areas ? metrics.ay->const_array(mfi) : Array4<const Real>{};
         const auto carrier = carrier_array(1, mfi);
         const auto kind_lo = kind[1];
         const auto kind_hi = kind[1 + AMREX_SPACEDIM];
@@ -162,7 +224,7 @@ void fill_transmissibility (MappedFaceTransmissibility& transmissibility,
                 rho, rho_comp, mu, horizontal, i, j, k, 0, 1, 0, horizontal.eddy_h_comp);
             ty(i, j, k, 0) = ScalarDiffusionMappedHorizontalTransfer(
                 coeff * inv_spacing * map_num(i, j, 0) / map_den(i, j, 0),
-                stretched ? area(i, j, k) : Real(1.0));
+                side_areas ? area(i, j, k) : Real(1.0));
         });
     }
 
@@ -174,6 +236,7 @@ void fill_transmissibility (MappedFaceTransmissibility& transmissibility,
                                       : Array4<const Real>{};
         const auto mx = metrics.mf_mx->const_array(mfi);
         const auto my = metrics.mf_my->const_array(mfi);
+        const auto z_nd = terrain ? metrics.z_nd->const_array(mfi) : Array4<const Real>{};
         const auto carrier = carrier_array(2, mfi);
         const auto kind_lo = kind[2];
         const auto kind_hi = kind[2 + AMREX_SPACEDIM];
@@ -189,13 +252,28 @@ void fill_transmissibility (MappedFaceTransmissibility& transmissibility,
                 // Half the edge cell, which lies above a low face and below a high one.
                 inv_spacing = stretched ? Real(2.0) / dz[low ? k : k - 1]
                                         : Real(2.0) * dx_inv[2];
+            } else if (terrain) {
+                // The host T stencil's vertical gradient spans J dzeta at the face.
+                inv_spacing = dx_inv[2] / Compute_h_zeta_AtKface(i, j, k, dx_inv, z_nd);
             } else {
                 // The host S stencil spans the two cell centers of an interior face.
                 inv_spacing = stretched ? Real(2.0) / (dz[k] + dz[k - 1]) : dx_inv[2];
             }
-            const Real coeff = ScalarDiffusionFaceCoefficient<
+            Real coeff = ScalarDiffusionFaceCoefficient<
                 MultiplyMolecularByDensity, AddTurbulence>(
                 rho, rho_comp, mu, vertical, i, j, k, 0, 0, 1, vertical.eddy_v_comp);
+            if (terrain) {
+                // Horizontal diffusion along a slope crosses the k face: the
+                // tensor's zeta-zeta entry adds mu_h times the squared
+                // physical slope.
+                const Real slope_x = mx(i, j, 0) * Compute_h_xi_AtKface(i, j, k, dx_inv, z_nd);
+                const Real slope_y = my(i, j, 0) * Compute_h_eta_AtKface(i, j, k, dx_inv, z_nd);
+                coeff += ScalarDiffusionFaceCoefficient<
+                             MultiplyMolecularByDensity, AddTurbulence>(
+                             rho, rho_comp, mu, horizontal, i, j, k, 0, 0, 1,
+                             horizontal.eddy_h_comp) *
+                         (slope_x * slope_x + slope_y * slope_y);
+            }
             tz(i, j, k, 0) = ScalarDiffusionMappedVerticalTransfer(
                 coeff * inv_spacing, mx(i, j, 0), my(i, j, 0));
         });
@@ -298,6 +376,32 @@ bool BuildMappedDiffusionTransmissibility (
             return false;
         }
     }
+    const bool terrain = metrics.mesh == DiffusionMesh::VariableDz;
+    if (terrain) {
+        if (!same_face_layout(tx, metrics.ax) || !same_face_layout(ty, metrics.ay) ||
+            metrics.z_nd == nullptr ||
+            metrics.z_nd->boxArray() != amrex::convert(density.boxArray(), amrex::IntVect(1)) ||
+            metrics.z_nd->DistributionMap() != density.DistributionMap() ||
+            metrics.z_nd->nGrowVect()[2] < 1) {
+            diagnostic = "terrain-fitted diffusion transmissibility requires ax, ay and "
+                         "ERF's nodal heights with at least one ghost node in z";
+            return false;
+        }
+        if (geom.isPeriodic(2) ||
+            boundary.kind[2] != DiffusionFaceKind::Closed ||
+            boundary.kind[2 + AMREX_SPACEDIM] != DiffusionFaceKind::Closed) {
+            diagnostic = "terrain-fitted diffusion transmissibility requires closed bottom "
+                         "and top faces";
+            return false;
+        }
+        const int invalid = count_invalid_terrain_metric_reads(geom, metrics, transmissibility);
+        if (invalid != 0) {
+            diagnostic = "terrain-fitted diffusion requires finite, positive side areas, "
+                         "k-face Jacobians and map factors, and finite slopes, on every face "
+                         "(" + std::to_string(invalid) + " invalid samples)";
+            return false;
+        }
+    }
 
     for (int face = 0; face < 2 * AMREX_SPACEDIM; ++face) {
         const int dir = face % AMREX_SPACEDIM;
@@ -315,7 +419,7 @@ bool BuildMappedDiffusionTransmissibility (
     }
 
     const int invalid = count_invalid_coefficient_reads(
-        geom, coefficients, density, density_component, eddy_diffusivity, boundary);
+        geom, coefficients, density, density_component, eddy_diffusivity, boundary, terrain);
     if (invalid != 0) {
         diagnostic = "diffusion coefficients must be finite and nonnegative, and densities "
                      "finite and positive, in every cell a face reads (" +
